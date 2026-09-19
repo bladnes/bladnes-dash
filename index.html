@@ -158,7 +158,7 @@ table.det-table tfoot td{font-weight:600;border-top:1px solid var(--hair);border
     </div>
     <div><div class="cn">销售报告</div><div class="cap">Sales report // bladnes.com</div></div>
   </div>
-  <div class="sub" id="meta"><span class="ver">сборка 14 · источник: архив заказов</span>
+  <div class="sub" id="meta"><span class="ver">сборка 15 · источник: архив заказов</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -248,16 +248,12 @@ table.det-table tfoot td{font-weight:600;border-top:1px solid var(--hair);border
     </div>
 
     <div class="grid">
-      <div class="card"><h3>Размеры по товарам (штук)</h3><div class="scroll" style="max-height:420px"><table id="tSize" class="fit"></table></div></div>
-    </div>
-
-    <div class="grid">
       <div class="card"><h3>Сводка по месяцам</h3><div class="scroll"><table id="tMonth"></table></div></div>
       <div class="card"><h3>Сводка по дням</h3>
         <div class="cardnote">Нажмите на день — раскроется список артикулов, проданных в этот день.</div>
         <div class="scroll"><table id="tDay"></table></div></div>
       <div class="card"><h3>Товары</h3>
-        <div class="cardnote">Нажмите на товар — откроется динамика по дням недели: последние 7 дней против предыдущих 7. Сравнение считается по всей истории и не зависит от выбранного периода (период задаёт только правую границу).<br>
+        <div class="cardnote">Нажмите на товар — откроется динамика продаж: последние 30 дней против предыдущих 30 (можно переключить на 7). Сравнение считается по всей истории и не зависит от выбранного периода (период задаёт только правую границу).<br>
           Товары группируются по артикулу из справочника себестоимости, поэтому старые и новые написания артикула и разные варианты названия считаются одним товаром. Показывается самое свежее название.</div>
         <div class="scroll"><table id="tProd" class="fit"></table></div></div>
     </div>
@@ -671,7 +667,7 @@ function render(){
   drawProd(prods); drawUtm(rows);
   drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); repeatBlock(rows);
   noCostBlock(rows);
-  tableMonth(byM); tableDay(byD.slice().reverse(), rows); tableProd(prods); tableSize(rows);
+  tableMonth(byM); tableDay(byD.slice().reverse(), rows); tableProd(prods);
 }
 
 /* ---------- прибыль ---------- */
@@ -796,6 +792,7 @@ function drawDeliv(rows){
     datasets:[{ data:[free, withPay.length], backgroundColor:['#0b0b0b','#ff2a1a'] }] },
     options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#3a3a38',boxWidth:12,font:{size:11}}}} } });
 }
+const repOpen = new Set();
 function repeatBlock(rows){
   const m = new Map();
   rows.forEach(r => {
@@ -817,30 +814,96 @@ function repeatBlock(rows){
       Заказов от повторных: <b style="color:var(--tx)">${fmt(repOrders)}</b>
       (${rows.length ? (repOrders/rows.length*100).toFixed(0) : 0}% всех заказов) ·
       LTV повторного: <b style="color:var(--tx)">${money(rep.length ? rep.reduce((s,x)=>s+x.sum,0)/rep.length : 0)}</b>
+      <br><span style="color:var(--tx2)">Нажмите на покупателя — раскроется, что именно он покупал.</span>
     </div>`;
-  tbl('tRep', [
+
+  // заказы каждого покупателя — для проваливания
+  const byMail = new Map();
+  rows.forEach(r => { if (!r.email) return;
+    if (!byMail.has(r.email)) byMail.set(r.email, []); byMail.get(r.email).push(r); });
+
+  const el = document.getElementById('tRep');
+  const st = sortState['tRep'] || {i:1, dir:-1};
+  const cols = [
     {t:'Покупатель', v:r=>r.k, f:r=>r.k},
     {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
     {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
     {t:'Сумма', v:r=>r.sum, f:r=>money(r.sum)},
+    {t:'Средний чек', v:r=>r.orders?r.sum/r.orders:0, f:r=>money(r.orders?r.sum/r.orders:0)},
     {t:'Первый', v:r=>r.first, f:r=>r.first.slice(5).split('-').reverse().join('.')},
     {t:'Последний', v:r=>r.last, f:r=>r.last.slice(5).split('-').reverse().join('.')},
-  ], rep);
+  ];
+  const data = rep.slice().sort((a,b) => {
+    const x = cols[st.i].v(a), y = cols[st.i].v(b);
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  let html = '<thead><tr>' + cols.map((c,i) =>
+    `<th data-i="${i}">${c.t}${st.i===i ? (st.dir>0?' ▲':' ▼') : ''}</th>`).join('') + '</tr></thead><tbody>';
+  data.forEach(r => {
+    const open = repOpen.has(r.k);
+    html += `<tr class="reprow clickable${open?' open':''}" data-k="${r.k.replace(/"/g,'&quot;')}">`
+      + cols.map((c,i) => i === 0
+          ? `<td><span class="caret">${open?'▾':'▸'}</span>${c.f(r)}</td>`
+          : `<td>${c.f(r)}</td>`).join('') + '</tr>';
+    if (open) html += `<tr class="detrow"><td colspan="${cols.length}">${custDetail(byMail.get(r.k) || [])}</td></tr>`;
+  });
+  html += '</tbody>';
+  el.innerHTML = html;
+
+  el.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i;
+    sortState['tRep'] = {i, dir: st.i === i ? -st.dir : (i === 0 ? 1 : -1)};
+    render();
+  });
+  el.querySelectorAll('tr.reprow').forEach(tr => tr.onclick = () => {
+    const k = tr.dataset.k;
+    repOpen.has(k) ? repOpen.delete(k) : repOpen.add(k);
+    render();
+  });
 }
-function tableSize(rows){
-  const sizes = sizeAgg(rows).map(x => x[0]);
-  const m = new Map();
+
+/* что покупал конкретный человек: сначала любимые товары, потом лента заказов */
+function custDetail(rows){
+  if (!rows.length) return '<div class="det-empty">Заказов нет</div>';
+  const ord = rows.slice().sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
+
+  // сводка по товарам: что берёт чаще всего
+  const fav = new Map();
   rows.forEach(r => r.items.forEach(it => {
-    if (!m.has(it.ckey)) m.set(it.ckey, {name:it.name, lastSeen:r.date, total:0, s:{}});
-    const g = m.get(it.ckey); g.total += it.qty; g.s[it.size] = (g.s[it.size]||0) + it.qty;
-    if (r.date >= g.lastSeen){ g.lastSeen = r.date; g.name = it.name; }
+    if (!fav.has(it.ckey)) fav.set(it.ckey, {name:it.name, qty:0, sum:0, sizes:{}});
+    const g = fav.get(it.ckey);
+    g.qty += it.qty; g.sum += it.sum;
+    g.sizes[it.size] = (g.sizes[it.size]||0) + it.qty;
   }));
-  const data = [...m.values()].sort((a,b) => b.total - a.total);
-  const cols = [{t:'Товар', v:r=>r.name, f:r=>r.name}, {t:'Всего', v:r=>r.total, f:r=>fmt(r.total)}]
-    .concat(sizes.map(s => ({t:s, v:r=>r.s[s]||0, f:r=> r.s[s] ? fmt(r.s[s]) : '·'})));
-  const totals = ['Итого', fmt(data.reduce((s,x)=>s+x.total,0))]
-    .concat(sizes.map(s => fmt(data.reduce((a,x)=>a+(x.s[s]||0),0))));
-  tbl('tSize', cols, data, totals);
+  const favList = [...fav.values()].sort((a,b) => b.qty - a.qty || b.sum - a.sum);
+
+  const units = rows.reduce((s,r) => s + r.units, 0);
+  const goods = rows.reduce((s,r) => s + r.goods, 0);
+  // сколько дней между первым и последним заказом
+  const d1 = new Date(ord[ord.length-1].date + 'T00:00:00'), d2 = new Date(ord[0].date + 'T00:00:00');
+  const span = Math.round((d2 - d1) / 86400000);
+
+  return `<div class="det-wrap">
+    <div class="det-head">${fmt(rows.length)} ${plural(rows.length,'заказ','заказа','заказов')} ·
+      ${fmt(units)} ${plural(units,'штука','штуки','штук')} ·
+      на ${money(goods)} · средний чек ${money(goods/rows.length)}
+      ${span ? ' · между первым и последним ' + fmt(span) + ' ' + plural(span,'день','дня','дней') : ''}</div>
+    <div class="pd-sizes" style="margin:0 0 10px">Берёт: ${favList.map(x =>
+      `<span class="szchip"><b>${x.name}</b> ${fmt(x.qty)} шт${
+        Object.keys(x.sizes).filter(s=>s&&s!=='—').length
+          ? ' · ' + Object.entries(x.sizes).filter(([s])=>s&&s!=='—').map(([s,v])=>s+'×'+v).join(', ')
+          : ''}</span>`).join('')}</div>
+    <table class="det-table">
+      <thead><tr><th>Дата</th><th>Заказ</th><th>Что купил</th><th>Штук</th><th>Сумма</th><th>Промокод</th></tr></thead>
+      <tbody>${ord.map(r => `<tr>
+        <td>${r.date.split('-').reverse().join('.')}</td>
+        <td class="mono">${r.id || '—'}</td>
+        <td>${r.items.map(i => `${i.name}${i.size && i.size !== '—' ? ' · ' + i.size : ''} ×${i.qty}`).join('<br>') || '—'}</td>
+        <td>${fmt(r.units)}</td><td>${money(r.goods)}</td>
+        <td>${r.promo || '—'}</td></tr>`).join('')}
+      </tbody>
+      <tfoot><tr><td>Итого</td><td></td><td></td><td>${fmt(units)}</td><td>${money(goods)}</td><td></td></tr></tfoot>
+    </table></div>`;
 }
 
 function renderKpis(rows, a, b){
@@ -1122,6 +1185,8 @@ function plural(n, one, few, many){
 /* ---------- товары с проваливанием в динамику по неделям ---------- */
 const prodOpen = new Set();
 const prodMetric = new Map();
+const prodWin = new Map();          // окно сравнения по товару: 7 или 30 дней
+const WINDOWS = {30:'30 дней', 7:'7 дней'};
 const DOW_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 const METRICS = {orders:'Заказы', units:'Штуки', revenue:'Выручка'};
 
@@ -1182,21 +1247,23 @@ function tableProd(p){
   });
   el.querySelectorAll('.pd-toggle button').forEach(b => b.onclick = e => {
     e.stopPropagation();
-    prodMetric.set(b.dataset.name, b.dataset.m);
+    if (b.dataset.m) prodMetric.set(b.dataset.name, b.dataset.m);
+    if (b.dataset.w) prodWin.set(b.dataset.name, +b.dataset.w);
     render();
   });
 }
 
 function prodDetail(ckey, name){
   const metric = prodMetric.get(ckey) || 'orders';
+  const win = prodWin.get(ckey) || 30;        // сколько дней в окне сравнения
   const end = range()[1];
-  const mk7 = (offset) => {
+  const mkWin = (offset) => {
     const out = [], e = new Date(end + 'T00:00:00');
     e.setDate(e.getDate() - offset);
-    for (let i = 6; i >= 0; i--){ const d = new Date(e); d.setDate(d.getDate() - i); out.push(ymd(d)); }
+    for (let i = win - 1; i >= 0; i--){ const d = new Date(e); d.setDate(d.getDate() - i); out.push(ymd(d)); }
     return out;
   };
-  const cur = mk7(0), prev = mk7(7);
+  const cur = mkWin(0), prev = mkWin(win);
 
   // статистика по товару за все даты (фильтры кроме периода учитываются)
   const stat = new Map();
@@ -1230,19 +1297,23 @@ function prodDetail(ckey, name){
   const html = `<div class="det-wrap pd">
     <div class="pd-top">
       <div class="pd-kpis">
-        <div class="pd-kpi"><span>Последние 7 дней</span><b>${unit(tCur)}</b></div>
-        <div class="pd-kpi"><span>Прошлый аналогичный период</span><b class="muted">${unit(tPrev)}</b></div>
+        <div class="pd-kpi"><span>Последние ${win} ${plural(win,'день','дня','дней')}</span><b>${unit(tCur)}</b></div>
+        <div class="pd-kpi"><span>Прошлые ${win} ${plural(win,'день','дня','дней')}</span><b class="muted">${unit(tPrev)}</b></div>
         <div class="pd-kpi"><span>Изменение</span><b class="${cls}">${arrow} ${Math.abs(diff).toFixed(0)}%</b></div>
       </div>
-      <div class="pd-toggle">${Object.entries(METRICS).map(([m,l]) =>
-        `<button data-m="${m}" data-name="${ckey.replace(/"/g,'&quot;')}" class="${m===metric?'on':''}">${l}</button>`).join('')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="pd-toggle">${Object.entries(WINDOWS).map(([w,l]) =>
+          `<button data-w="${w}" data-name="${ckey.replace(/"/g,'&quot;')}" class="${+w===win?'on':''}">${l}</button>`).join('')}</div>
+        <div class="pd-toggle">${Object.entries(METRICS).map(([m,l]) =>
+          `<button data-m="${m}" data-name="${ckey.replace(/"/g,'&quot;')}" class="${m===metric?'on':''}">${l}</button>`).join('')}</div>
+      </div>
     </div>
     <div class="pd-legend">
-      <span><i class="sq prev"></i>Прошлый аналогичный период · ${prev[0].slice(8)}.${prev[0].slice(5,7)}–${prev[6].slice(8)}.${prev[6].slice(5,7)}</span>
-      <span><i class="sq cur"></i>Последние 7 дней · ${cur[0].slice(8)}.${cur[0].slice(5,7)}–${cur[6].slice(8)}.${cur[6].slice(5,7)}</span>
+      <span><i class="sq prev"></i>Прошлый период · ${prev[0].slice(8)}.${prev[0].slice(5,7)}–${prev[6].slice(8)}.${prev[6].slice(5,7)}</span>
+      <span><i class="sq cur"></i>Последние ${win} ${plural(win,'день','дня','дней')} · ${cur[0].slice(8)}.${cur[0].slice(5,7)}–${cur[6].slice(8)}.${cur[6].slice(5,7)}</span>
     </div>
     <div class="pd-chart"><canvas id="${cid}"></canvas></div>
-    ${szList.length ? `<div class="pd-sizes">Размеры за последние 7 дней: ${
+    ${szList.length ? `<div class="pd-sizes">Размеры за последние ${win} ${plural(win,'день','дня','дней')}: ${
       szList.map(([k,v]) => `<span class="szchip"><b>${k}</b> ${v}</span>`).join('')}</div>` : ''}
   </div>`;
 
@@ -1252,17 +1323,25 @@ function prodDetail(ckey, name){
     if (charts[cid]) charts[cid].destroy();
     charts[cid] = new Chart(cv, {
       type:'bar',
-      data:{ labels: cur.map(d => DOW_SHORT[new Date(d + 'T00:00:00').getDay()]),
+      data:{ labels: cur.map(d => win === 7
+          ? DOW_SHORT[new Date(d + 'T00:00:00').getDay()]
+          : d.slice(8) + '.' + d.slice(5,7)),
         datasets:[
           {label:'Прошлый аналогичный период', data:seriesPrev, backgroundColor:'#c9c8c3', borderRadius:4},
           {label:'Последние 7 дней', data:seriesCur, backgroundColor:'#0b0b0b', borderRadius:4} ]},
       options:{ maintainAspectRatio:false, plugins:{ legend:{display:false},
         tooltip:{ callbacks:{
           title: it => { const i = it[0].dataIndex;
-            return DOW_SHORT[new Date(cur[i] + 'T00:00:00').getDay()] + ' · ' +
-              cur[i].split('-').reverse().join('.') + ' / ' + prev[i].split('-').reverse().join('.'); },
-          label: c => c.dataset.label + ': ' + unit(c.raw) }}},
-        scales:{ x:{grid:{display:false}, ticks:{color:'#3a3a38'}},
+            const dow = win === 7 ? DOW_SHORT[new Date(cur[i] + 'T00:00:00').getDay()] + ' · ' : '';
+            return dow + cur[i].split('-').reverse().join('.') + ' / ' + prev[i].split('-').reverse().join('.'); },
+          label: c => {
+            // человеческая подпись вместо названия набора данных
+            const v = metric === 'orders' ? fmt(c.raw) + ' ' + plural(c.raw,'заказ','заказа','заказов')
+                    : metric === 'units'  ? 'заказано ' + fmt(c.raw) + ' шт'
+                    : 'выручка ' + money(c.raw);
+            return (c.datasetIndex === 0 ? 'Прошлый период — ' : '') + v; } }}},
+        scales:{ x:{grid:{display:false}, ticks:{color:'#3a3a38', autoSkip:true,
+            maxRotation: win === 7 ? 0 : 60, maxTicksLimit: win === 7 ? 7 : 10}},
           y:{beginAtZero:true, grid:{color:'#e1dfd8'},
              ticks:{color:'#3a3a38', precision: metric==='revenue'?undefined:0,
                     callback:v => metric==='revenue' ? fmt(v) : v}} } }
