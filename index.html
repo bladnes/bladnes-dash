@@ -270,6 +270,12 @@ table.det-table tfoot td{font-weight:600;border-top:1px solid var(--hair);border
 // (без имён, почт, телефонов и адресов), поэтому ключ ниже можно держать в открытом коде.
 const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
 const API_KEY = 'bl7dsh2026rkqv4x9mzt';
+// запасной источник: старая таблица «Сайт Бладнес». Используется, только если
+// архив не ответил с трёх попыток — тогда в шапке появится предупреждение.
+const SHEET_ID = '1Zk_ZRLIxaFwVHmulNomfoGM-5jEh1e3kVi7PTmYA9wQ';
+const GID = '0';
+const QUERY = 'select E,W,B,H,I,J,N,O,P,AD,AN,AO,G,AP';
+let FALLBACK = '';
 // порядок полей в ответе: 0 номер 1 дата 2 покупатель 3 оплачено 4 товар без доставки
 // 5 (не используется) 6 статус 7 служба доставки 8 стоимость доставки 9 utm_source
 // 10 раздел сайта 11 промокод 12 товары строкой 13 скидка
@@ -425,14 +431,22 @@ function jsonp(sheetId, gid, query, onOk, onErr){
   document.head.appendChild(s);
 }
 // заказы приходят из архива через скрипт-приёмник, тем же способом (script-тег),
-// что и таблицы: так не нужен ни CORS, ни открытый доступ к самому архиву
-function jsonpApi(onOk, onErr){
+// что и таблицы: так не нужен ни CORS, ни открытый доступ к самому архиву.
+// Скрипты Google иногда отвечают 503 (кратковременная перегрузка), поэтому
+// пробуем три раза с паузой, прежде чем сдаться.
+function jsonpApi(onOk, onErr, attempt){
+  attempt = attempt || 1;
   const cb = 'apicb_' + Math.random().toString(36).slice(2);
-  const timer = setTimeout(() => onErr('архив не ответил за 30 секунд'), 30000);
+  let timer = null;
+  const retry = msg => {
+    if (attempt < 3) setTimeout(() => jsonpApi(onOk, onErr, attempt + 1), 2000 * attempt);
+    else onErr(msg);
+  };
+  timer = setTimeout(() => retry('архив не ответил за 30 секунд'), 30000);
   window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
   const s = document.createElement('script');
   s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
-  s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить архив'); };
+  s.onerror = () => { clearTimeout(timer); retry('не удалось загрузить архив'); };
   document.head.appendChild(s);
 }
 function load(){
@@ -440,7 +454,13 @@ function load(){
   el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю себестоимость…';
   const orders = () => {
     el.textContent = 'Загружаю заказы из архива…';
-    jsonpApi(onData, m => fail('Заказы: ' + m));
+    jsonpApi(onData, m => {
+      // архив не отвечает — чтобы дашборд не остался пустым, читаем старую таблицу
+      // и честно пишем об этом в шапке
+      FALLBACK = m;
+      el.textContent = 'Архив не ответил, читаю старую таблицу…';
+      jsonp(SHEET_ID, GID, QUERY, onData, m2 => fail('Заказы: архив — ' + m + '; таблица — ' + m2));
+    });
   };
   // без справочника себестоимости дашборд должен работать — просто без прибыли
   jsonp(COST_SHEET_ID, COST_GID, COST_QUERY,
@@ -505,6 +525,7 @@ function onData(resp){
   document.getElementById('app').style.display = '';
   const lastDate = RAW.length ? RAW[RAW.length-1].date.split('-').reverse().join('.') : '—';
   document.getElementById('upd').innerHTML = 'обновлено ' + mskNow()
+    + (FALLBACK ? ' · <b style="color:#d64545">архив не ответил (' + FALLBACK + '), данные из старой таблицы</b>' : '')
     + ' · заказов: <b>' + RAW.length + '</b> · последний в архиве: <b>' + lastDate + '</b>'
     + ' · артикулов в справочнике себестоимости: <b>' + COST_ROWS + '</b>';
   initFilters();
