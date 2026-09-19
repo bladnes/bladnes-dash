@@ -211,12 +211,13 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
 </div>
 
 <script>
-const SHEET_ID = '1Zk_ZRLIxaFwVHmulNomfoGM-5jEh1e3kVi7PTmYA9wQ';
-const GID = '0';
-// E=orderid W=sent B=Email H=price I=subtotal(товар без доставки) J=получено(Тильда перестала
-// заполнять после 13.05) N=Payment status O=Delivery P=Delivery price AD=utm_source
-// AN=category AO=promocode G=products AP=discount
-const QUERY = 'select E,W,B,H,I,J,N,O,P,AD,AN,AO,G,AP';
+// Источник заказов — независимый архив, который наполняет вебхук Тильды.
+// Сама таблица архива закрыта: скрипт отдаёт только обезличенные данные.
+const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
+const API_KEY = 'bl7dsh2026rkqv4x9mzt';
+// порядок полей: 0 номер 1 дата 2 покупатель 3 оплачено 4 товар без доставки 5 (не исп.)
+// 6 статус 7 служба доставки 8 стоимость доставки 9 utm_source 10 раздел 11 промокод
+// 12 товары строкой 13 скидка
 
 const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 let RAW = [], charts = {}, sortState = {};
@@ -259,13 +260,23 @@ function parseDate(v){
   return null;
 }
 
-// "Название (SKU, Размер: L) - 2x5199 = 10398, Другое (sku2) - 1x999 = 999"
+// html-подстановки: апостроф приходит как «&#039;», а внутри неё точка с запятой —
+// та самая, по которой делятся позиции. Декодируем ДО разделения.
+function decodeEnt(s){
+  return String(s == null ? '' : s)
+    .replace(/&#(\d+);/g, (m,d) => String.fromCharCode(parseInt(d,10)))
+    .replace(/&#x([0-9a-f]+);/gi, (m,h) => String.fromCharCode(parseInt(h,16)))
+    .replace(/&quot;/gi,'"').replace(/&apos;/gi,"'").replace(/&nbsp;/gi,' ')
+    .replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&amp;/gi,'&');
+}
+
+// "Название (SKU, Размер: L) - 2x5199 = 10398; Другое (sku2) - 1x999 = 999"
 function parseProducts(s){
   const out = [];
   if (!s) return out;
   // Тильда разделяет позиции точкой с запятой. Каждая позиция:
   //   «Название (артикул, Размер: X) - 2x3399 = 6798»  либо без скобок: «cursed watch black - 1x12999 = 12999»
-  String(s).split(/\s*;\s*/).forEach(seg => {
+  decodeEnt(s).split(/\s*;\s*/).forEach(seg => {
     seg = seg.trim();
     if (!seg) return;
     const m = seg.match(/^(.*?)\s*[-–—]\s*(\d+)\s*[xх×]\s*([\d\s.,]+?)\s*=\s*([\d\s.,]+)$/);
@@ -357,12 +368,22 @@ function jsonp(sheetId, gid, query, onOk, onErr){
   s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить таблицу'); };
   document.head.appendChild(s);
 }
+// заказы приходят из архива через скрипт-приёмник тем же способом (script-тег)
+function jsonpApi(onOk, onErr){
+  const cb = 'apicb_' + Math.random().toString(36).slice(2);
+  const timer = setTimeout(() => onErr('архив не ответил за 30 секунд'), 30000);
+  window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
+  const s = document.createElement('script');
+  s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
+  s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить архив'); };
+  document.head.appendChild(s);
+}
 function load(){
   const el = document.getElementById('loading');
   el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю себестоимость…';
   const orders = () => {
-    el.textContent = 'Загружаю заказы…';
-    jsonp(SHEET_ID, GID, QUERY, onData, m => fail('Заказы: ' + m));
+    el.textContent = 'Загружаю заказы из архива…';
+    jsonpApi(onData, m => fail('Заказы: ' + m));
   };
   // без справочника себестоимости дашборд должен работать — просто без прибыли
   jsonp(COST_SHEET_ID, COST_GID, COST_QUERY,
@@ -409,7 +430,7 @@ function onData(resp){
       cogs, noCostQty, noCostSum,         // себестоимость и то, что не удалось посчитать
       shipPaid,                           // покупатель доплатил доставку
       // логистика за наш счёт: то, что не покрыл покупатель
-      ourLog: Math.max(0, delivPrice - shipPaid),
+      ourLog: Math.round(Math.max(0, delivPrice - shipPaid) * 100) / 100,
       subtotal: num(parseCell(c[4])),
       received: num(parseCell(c[5])),     // фактически зачислено
       status, paid: /paid|оплач/i.test(status) && !/not|unpaid|не\s*оплач/i.test(status),
