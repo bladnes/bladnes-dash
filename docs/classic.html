@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bladnes — дашборд продаж</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#2a323d;
+  --tx:#e6edf3; --tx2:#9aa7b4; --acc:#4f9cf9; --acc2:#f2a65a; --ok:#3fb950; --bad:#f85149;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:20px 18px 60px}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--tx2);font-size:12px;margin-bottom:18px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+select,input,button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;outline:none}
+select:focus,input:focus{border-color:var(--acc)}
+button{cursor:pointer}
+button:hover{border-color:var(--acc)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);font-size:12px;cursor:pointer;color:var(--tx2)}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#06101f;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .l{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.kpi .v{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.kpi .d{font-size:11px;color:var(--tx2);margin-top:4px}
+.kpi.warn{border-color:#5a2a2a;background:linear-gradient(180deg,#2a1a1c,#161b22)}
+.kpi.warn .v{color:var(--bad)}
+.kpi.hero{border-color:#2f6f45;background:linear-gradient(180deg,#16301f,#161b22)}
+.kpi.hero .v{color:var(--ok)}
+.kpi.good .v{color:#7ee2a8}
+td.pos{color:#7ee2a8}td.neg{color:var(--bad)}
+.nocost{background:#2a1a1c;border:1px solid #5a2a2a;border-radius:8px;padding:10px 12px;
+  font-size:12px;color:#ffb3ae;line-height:1.6;margin-bottom:10px}
+.grid{display:grid;gap:14px;margin-bottom:14px}
+.g2{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.g2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em}
+.cw{position:relative;height:290px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:180px}
+/* широкие таблицы: длинные названия переносятся, числовые колонки не расползаются */
+table.fit{table-layout:auto}
+table.fit th:first-child,table.fit td:first-child{width:38%;max-width:420px}
+table.fit th:not(:first-child),table.fit td:not(:first-child){width:1%;padding-left:10px;padding-right:10px}
+th{color:var(--tx2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+tbody tr:hover{background:#1b2430}
+tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none}
+.scroll{max-height:420px;overflow:auto}
+.ver{display:inline-block;padding:2px 8px;border-radius:999px;background:#12331d;color:var(--ok);
+  font-size:11px;font-weight:600;margin-right:8px;border:1px solid #1d5c31}
+.cardnote{font-size:11px;color:var(--tx2);margin:-4px 0 10px;opacity:.85}
+tr.clickable{cursor:pointer}
+tr.clickable:hover td{background:#1e2836}
+tr.dayrow.open td{background:#1b2430}
+.caret{display:inline-block;width:14px;color:var(--acc);font-size:11px}
+tr.detrow > td{padding:0;background:#11161d;border-bottom:2px solid var(--line)}
+.det-wrap{padding:10px 12px 12px 26px}
+.det-head{font-size:12px;color:var(--tx2);margin-bottom:8px}
+.det-empty{padding:14px 26px;color:var(--tx2);font-size:12px}
+.det-warn{margin:0 0 8px;padding:8px 10px;border-radius:6px;background:#2a1a1c;border:1px solid #5a2a2a;
+  color:#ffb3ae;font-size:11.5px;line-height:1.5}
+table.det-table{background:transparent}
+table.det-table th{position:static;background:transparent;cursor:default;font-size:10px;padding:4px 8px;border-bottom:1px solid var(--line)}
+table.det-table td{padding:5px 8px;border-bottom:1px solid #1c2029;font-size:12.5px}
+table.det-table tbody tr:hover td{background:#182029}
+table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border-bottom:none;color:var(--tx)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--tx2)}
+.pd{padding:14px 16px 16px 26px}
+.pd-top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pd-kpis{display:flex;gap:22px;flex-wrap:wrap}
+.pd-kpi{display:flex;flex-direction:column;gap:2px}
+.pd-kpi span{font-size:10.5px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+.pd-kpi b{font-size:18px}
+.pd-kpi b.muted{color:var(--tx2)}
+.pd-kpi b.up{color:var(--ok)}.pd-kpi b.down{color:var(--bad)}
+.pd-toggle{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.pd-toggle button{border:none;border-radius:0;background:transparent;color:var(--tx2);padding:6px 12px;font-size:12px}
+.pd-toggle button+button{border-left:1px solid var(--line)}
+.pd-toggle button.on{background:#8b5cf6;color:#fff;font-weight:600}
+.pd-toggle button:hover:not(.on){background:#222b36;color:var(--tx)}
+.pd-legend{display:flex;gap:20px;flex-wrap:wrap;font-size:11.5px;color:var(--tx2);margin-bottom:8px}
+.sq{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.sq.prev{background:#5b6675}.sq.cur{background:#8b5cf6}
+.pd-chart{position:relative;height:230px;max-width:760px}
+.pd-sizes{margin-top:10px;font-size:11.5px;color:var(--tx2)}
+.szchip{display:inline-block;padding:2px 9px;border-radius:999px;background:#20303f;margin:0 6px 6px 0;color:var(--tx2)}
+.szchip b{color:var(--tx)}
+.msg{padding:40px;text-align:center;color:var(--tx2)}
+.err{color:var(--bad)}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;background:#20303f;color:var(--tx2)}
+.pill.ok{background:#12331d;color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bladnes — дашборд продаж</h1>
+  <div class="sub" id="meta"><span class="ver">сборка 10.2 · классический вид</span>
+    Источник: Google-таблица «Сайт Бладнес», лист «Заказы» (только чтение) · <span id="upd"></span></div>
+
+  <div id="loading" class="msg">Загружаю данные из таблицы…</div>
+
+  <div id="app" style="display:none">
+    <div class="bar">
+      <div class="f"><label>Период</label>
+        <select id="period"></select>
+      </div>
+      <div class="f"><label>С</label><input type="date" id="from"></div>
+      <div class="f"><label>По</label><input type="date" id="to"></div>
+      <div class="f"><label>Статус оплаты</label>
+        <select id="status">
+          <option value="all">Все заказы</option>
+          <option value="paid">Только оплаченные</option>
+          <option value="unpaid">Только неоплаченные</option>
+        </select>
+      </div>
+      <div class="f"><label>Категория</label><select id="cat"><option value="">Все</option></select></div>
+      <div class="f"><label>Источник (utm)</label><select id="utm"><option value="">Все</option></select></div>
+      <div class="f"><label>Эквайринг, %</label><input type="number" id="acq" value="5" min="0" max="30" step="0.1" style="width:90px"></div>
+      <div class="f"><label>&nbsp;</label><button id="reset">Сбросить</button></div>
+      <div class="f"><label>&nbsp;</label><button id="reload">Обновить из таблицы</button></div>
+      <div class="f"><label>&nbsp;</label><button id="csv">Скачать CSV</button></div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Куда уходит выручка — по месяцам</h3>
+        <div class="cardnote">Столбик = выручка за товар, разложенная на себестоимость, эквайринг, логистику и прибыль.</div>
+        <div class="cw"><canvas id="chPnl"></canvas></div></div>
+      <div class="card"><h3>Маржинальность и прибыль по месяцам</h3>
+        <div class="cardnote">Столбики — прибыль в рублях, линии — валовая маржа и чистая маржинальность.</div>
+        <div class="cw"><canvas id="chMargin"></canvas></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Топ товаров по прибыли, ₽</h3>
+        <div class="cardnote">Главная метрика: сколько рублей прибыли приносит товар, а не его процент маржи.</div>
+        <div class="cw"><canvas id="chProfitTop"></canvas></div></div>
+      <div class="card"><h3>Объём против маржинальности</h3>
+        <div class="cardnote">Размер точки — прибыль. Правый верхний угол — товары, которые надо продвигать; левый нижний — кандидаты на вывод.</div>
+        <div class="cw"><canvas id="chScatter"></canvas></div></div>
+    </div>
+
+    <div class="grid" id="noCostCard" style="display:none">
+      <div class="card"><h3>Себестоимость не найдена</h3>
+        <div id="noCostBox"></div>
+        <div class="scroll" style="max-height:260px"><table id="tNoCost"></table></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Продажи по месяцам</h3><div class="cw"><canvas id="chMonth"></canvas></div></div>
+      <div class="card"><h3>Штук по месяцам</h3><div class="cw"><canvas id="chUnits"></canvas></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Продажи по дням <span class="pill" id="dayGran"></span></h3>
+        <div class="cw" style="height:320px"><canvas id="chDay"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Топ товаров (штук)</h3><div class="cw"><canvas id="chProd"></canvas></div></div>
+      <div class="card"><h3>Источники трафика (заказов)</h3><div class="cw"><canvas id="chUtm"></canvas></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Размерная сетка (штук)</h3><div class="cw"><canvas id="chSize"></canvas></div></div>
+      <div class="card"><h3>Заказы по часам</h3><div class="cw"><canvas id="chHour"></canvas></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Заказы по дням недели</h3><div class="cw"><canvas id="chDow"></canvas></div></div>
+      <div class="card"><h3>Доставка: доплата покупателем</h3>
+        <div id="delivBox"></div>
+        <div class="cw" style="height:190px"><canvas id="chDeliv"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Повторные покупки</h3><div id="repBox"></div>
+        <div class="scroll" style="max-height:300px"><table id="tRep"></table></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Размеры по товарам (штук)</h3><div class="scroll" style="max-height:420px"><table id="tSize" class="fit"></table></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Сводка по месяцам</h3><div class="scroll"><table id="tMonth"></table></div></div>
+      <div class="card"><h3>Сводка по дням</h3>
+        <div class="cardnote">Нажмите на день — раскроется список артикулов, проданных в этот день.</div>
+        <div class="scroll"><table id="tDay"></table></div></div>
+      <div class="card"><h3>Товары</h3>
+        <div class="cardnote">Нажмите на товар — откроется динамика по дням недели: последние 7 дней против предыдущих 7. Сравнение считается по всей истории и не зависит от выбранного периода (период задаёт только правую границу).<br>
+          Товары группируются по артикулу из справочника себестоимости, поэтому старые и новые написания артикула и разные варианты названия считаются одним товаром. Показывается самое свежее название.</div>
+        <div class="scroll"><table id="tProd" class="fit"></table></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Источник заказов — независимый архив, который наполняет вебхук Тильды.
+// Сама таблица архива закрыта: скрипт отдаёт только обезличенные данные.
+const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
+const API_KEY = 'bl7dsh2026rkqv4x9mzt';
+// порядок полей: 0 номер 1 дата 2 покупатель 3 оплачено 4 товар без доставки 5 (не исп.)
+// 6 статус 7 служба доставки 8 стоимость доставки 9 utm_source 10 раздел 11 промокод
+// 12 товары строкой 13 скидка
+
+const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+let RAW = [], charts = {}, sortState = {};
+
+/* ---------- утилиты ---------- */
+const num = v => {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  const s = String(v).replace(/[^\d.,-]/g, '').replace(/\s/g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+};
+const fmt = n => Math.round(n).toLocaleString('ru-RU');
+const money = n => fmt(n) + ' ₽';
+const pad = n => String(n).padStart(2, '0');
+// дата в вид YYYY-MM-DD по местному времени.
+// toISOString() здесь использовать нельзя: он переводит в UTC и в поясах восточнее Гринвича
+// сдвигает день назад — из-за этого терялся последний день выборки.
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+// Таблица ведётся по Москве, а компьютер может быть в другом поясе (Владивосток и т.п.) —
+// поэтому «сегодня», «вчера» и отметка обновления считаются в московском времени.
+const MSK = 'Europe/Moscow';
+const mskToday = () => new Intl.DateTimeFormat('en-CA', {timeZone: MSK}).format(new Date()); // YYYY-MM-DD
+const mskShift = n => { const d = new Date(mskToday() + 'T00:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+const mskNow = () => new Date().toLocaleString('ru-RU', {timeZone: MSK}) + ' МСК';
+
+function parseCell(c){ if(!c) return ''; return c.f !== undefined && c.f !== null ? c.f : (c.v === null || c.v === undefined ? '' : c.v); }
+
+// дата приходит текстом "2026-04-20 19:20:54"; на всякий случай ловим и Date-объект gviz
+function parseDate(v){
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'string'){
+    let m = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (m) return {d:`${m[1]}-${m[2]}-${m[3]}`, h: m[4] ? +m[4] : 0};
+    m = v.match(/^(\d{2})[./](\d{2})[./](\d{4})(?:[ ,]+(\d{2}):(\d{2}))?/);
+    if (m) return {d:`${m[3]}-${m[2]}-${m[1]}`, h: m[4] ? +m[4] : 0};
+    m = v.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+))?/);
+    if (m) return {d:`${m[1]}-${pad(+m[2]+1)}-${pad(+m[3])}`, h: m[4] ? +m[4] : 0};
+  }
+  return null;
+}
+
+// html-подстановки: апостроф приходит как «&#039;», а внутри неё точка с запятой —
+// та самая, по которой делятся позиции. Декодируем ДО разделения.
+function decodeEnt(s){
+  return String(s == null ? '' : s)
+    .replace(/&#(\d+);/g, (m,d) => String.fromCharCode(parseInt(d,10)))
+    .replace(/&#x([0-9a-f]+);/gi, (m,h) => String.fromCharCode(parseInt(h,16)))
+    .replace(/&quot;/gi,'"').replace(/&apos;/gi,"'").replace(/&nbsp;/gi,' ')
+    .replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&amp;/gi,'&');
+}
+
+// "Название (SKU, Размер: L) - 2x5199 = 10398; Другое (sku2) - 1x999 = 999"
+function parseProducts(s){
+  const out = [];
+  if (!s) return out;
+  // Тильда разделяет позиции точкой с запятой. Каждая позиция:
+  //   «Название (артикул, Размер: X) - 2x3399 = 6798»  либо без скобок: «cursed watch black - 1x12999 = 12999»
+  decodeEnt(s).split(/\s*;\s*/).forEach(seg => {
+    seg = seg.trim();
+    if (!seg) return;
+    const m = seg.match(/^(.*?)\s*[-–—]\s*(\d+)\s*[xх×]\s*([\d\s.,]+?)\s*=\s*([\d\s.,]+)$/);
+    const head = m ? m[1] : seg;
+    const qty  = m ? (parseInt(m[2],10) || 1) : 1;
+    const sum  = m ? num(m[4]) : 0;
+    const par  = head.match(/^(.*?)\s*\(([^()]*)\)$/);   // скобки с артикулом — необязательны
+    const inner = par ? par[2].trim() : '';
+    const sz = inner.match(/Размер:\s*([^,)]+)/);
+    out.push({ name: (par ? par[1] : head).trim() || 'Без названия', sku: inner,
+      art: inner.replace(/,?\s*Размер:.*$/i,'').trim() || '—',
+      size: sz ? sz[1].trim().toUpperCase() : '—', qty, sum });
+  });
+  return out;
+}
+
+/* ---------- себестоимость ---------- */
+const COST_SHEET_ID = '1yH_qmiEEPMQlVK6tO84ZdsUFyft2Seip49PQWh1XbTA';
+const COST_GID = '1079391248';
+const COST_QUERY = 'select A,B';          // Артикул | Актуальная СС
+let COST = new Map(), COST_ROWS = 0;
+
+// артикулы, которые автоматически не сопоставляются (опечатки в справочнике и т.п.)
+const COST_ALIAS = {
+  'denim bomber archieve': 'denim bomber archive',   // в справочнике опечатка archive/archieve
+  'mlong': 'mlong-01',                               // Лонгслив КРЕСТЫ — подтверждено
+  'widejeans v.2': 'widejeans v.1',                  // дистресс считаем по себестоимости V.1
+  'велюровый лонгслив тени': 'shadowswithin',        // в заказе нет артикула, сопоставляем по названию
+};
+// себестоимости, которых нет в справочнике — заданы вручную.
+// Как только добавите их в таблицу, эти строки можно убрать.
+const COST_MANUAL = {
+  'cursed watch black': 6900,
+  'cursed watch silver': 4950,
+};
+const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
+const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
+function baseSku(s){          // «WideJeans TotalBlack-L» → «widejeans totalblack»
+  let x = normKey(s);
+  const m = x.match(SIZE_TAIL);
+  if (m) x = x.slice(0, m.index).replace(/[\s\-–]+$/, '');
+  return x;
+}
+// Ищем сначала по артикулу, если его нет — по названию товара.
+// По названию нестрогое совпадение не применяем, чтобы не приклеить чужую себестоимость.
+function lookup(raw, allowFuzzy){
+  if (!raw || raw === '—') return null;
+  const b = baseSku(raw);
+  const noNum = b.replace(/[\s\-–]+\d+$/, '');   // «denim bomber archieve-4» → «denim bomber archieve»
+  for (const key of [b, noNum]){
+    if (COST_ALIAS[key] && COST.has(COST_ALIAS[key]))
+      return {cost:COST.get(COST_ALIAS[key]), how:'задано вручную', key:COST_ALIAS[key]};
+    if (COST.has(key)) return {cost:COST.get(key), how:'точное совпадение', key};
+  }
+  if (!allowFuzzy) return null;
+  let best = null;
+  for (const [k,v] of COST){
+    if (k.endsWith(b) || b.endsWith(k) || k.startsWith(b) || b.startsWith(k))
+      if (!best || k.length > best[0].length) best = [k,v];
+  }
+  return best ? {cost:best[1], how:'похоже на «' + best[0] + '»', key:best[0]} : null;
+}
+function costOf(sku, name){
+  return lookup(sku, true) || lookup(name, false)
+    || {cost:null, how: (!sku || sku === '—') ? 'нет артикула' : 'не найдено', key:null};
+}
+function onCost(resp){
+  COST = new Map(); COST_ROWS = 0;
+  ((resp.table && resp.table.rows) || []).forEach(r => {
+    const c = r.c || [];
+    const k = normKey(parseCell(c[0]) || '');
+    const v = num(parseCell(c[1]));
+    if (!k || k === '0' || !v) return;
+    COST.set(k, v); COST_ROWS++;
+  });
+  Object.entries(COST_MANUAL).forEach(([k,v]) => { COST.set(normKey(k), v); COST_ROWS++; });
+}
+
+/* ---------- загрузка ---------- */
+function jsonp(sheetId, gid, query, onOk, onErr){
+  const cb = 'gvizcb_' + Math.random().toString(36).slice(2);
+  const timer = setTimeout(() => onErr('таблица не ответила за 20 секунд'), 20000);
+  window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
+  // Google кэширует ответ по тексту запроса tq, поэтому добавляем меняющийся limit —
+  // он заведомо больше числа строк, на данные не влияет, но каждый раз даёт свежий ответ.
+  const q = query + ' limit ' + (900000 + Math.floor(Math.random() * 90000));
+  const s = document.createElement('script');
+  s.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&headers=1&tqx=out:json;responseHandler:${cb}&tq=${encodeURIComponent(q)}&_=${Date.now()}`;
+  s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить таблицу'); };
+  document.head.appendChild(s);
+}
+// заказы приходят из архива через скрипт-приёмник тем же способом (script-тег)
+function jsonpApi(onOk, onErr){
+  const cb = 'apicb_' + Math.random().toString(36).slice(2);
+  const timer = setTimeout(() => onErr('архив не ответил за 30 секунд'), 30000);
+  window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
+  const s = document.createElement('script');
+  s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
+  s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить архив'); };
+  document.head.appendChild(s);
+}
+function load(){
+  const el = document.getElementById('loading');
+  el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю себестоимость…';
+  const orders = () => {
+    el.textContent = 'Загружаю заказы из архива…';
+    jsonpApi(onData, m => fail('Заказы: ' + m));
+  };
+  // без справочника себестоимости дашборд должен работать — просто без прибыли
+  jsonp(COST_SHEET_ID, COST_GID, COST_QUERY,
+    resp => { onCost(resp); orders(); },
+    () => { COST = new Map(); COST_ROWS = 0; orders(); });
+}
+function fail(msg){
+  const el = document.getElementById('loading');
+  el.className = 'msg err'; el.textContent = msg; el.style.display = '';
+}
+
+function onData(resp){
+  const rows = (resp.table && resp.table.rows) || [];
+  RAW = [];
+  rows.forEach(r => {
+    const c = r.c || [];
+    const dt = parseDate(parseCell(c[1]));
+    if (!dt) return;
+    const items = parseProducts(String(parseCell(c[12]) || ''));
+    const status = String(parseCell(c[6]) || '').trim();
+    const price = num(parseCell(c[3]));
+    // товар без доставки: берём колонку subtotal (она заполнена всегда и авторитетнее),
+    // на случай пустого значения считаем по позициям
+    const goods = num(parseCell(c[4])) || items.reduce((a,b) => a + b.sum, 0);
+    // себестоимость по каждой позиции
+    let cogs = 0, noCostQty = 0, noCostSum = 0;
+    items.forEach(it => {
+      const r = costOf(it.art, it.name);
+      it.cost = r.cost; it.costHow = r.how;
+      // ключ товара: артикул из справочника себестоимости. Он один и тот же для старого
+      // и нового написания артикула и для разных вариантов названия — по нему и группируем.
+      it.ckey = r.key || normKey(it.name);
+      if (r.cost === null){ noCostQty += it.qty; noCostSum += it.sum; }
+      else cogs += r.cost * it.qty;
+    });
+    const delivPrice = num(parseCell(c[8]));
+    const shipPaid = price - goods > 1 ? price - goods : 0;
+    RAW.push({
+      id: String(parseCell(c[0]) || ''),
+      date: dt.d, hour: dt.h, dow: (new Date(dt.d + 'T00:00:00').getDay() + 6) % 7,
+      email: String(parseCell(c[2]) || '').trim().toLowerCase(),
+      price,                              // сумма заказа как в таблице
+      goods,                              // только товар
+      cogs, noCostQty, noCostSum,         // себестоимость и то, что не удалось посчитать
+      shipPaid,                           // покупатель доплатил доставку
+      // логистика за наш счёт: то, что не покрыл покупатель
+      ourLog: Math.round(Math.max(0, delivPrice - shipPaid) * 100) / 100,
+      subtotal: num(parseCell(c[4])),
+      received: num(parseCell(c[5])),     // фактически зачислено
+      status, paid: /paid|оплач/i.test(status) && !/not|unpaid|не\s*оплач/i.test(status),
+      delivery: String(parseCell(c[7]) || ''),
+      delivPrice,
+      utm: String(parseCell(c[9]) || '').trim() || '(нет)',
+      cat: String(parseCell(c[10]) || '').trim() || '(нет)',
+      promo: String(parseCell(c[11]) || '').trim(),
+      discount: num(parseCell(c[13])),
+      items, units: items.reduce((a,b) => a + b.qty, 0)
+    });
+  });
+  RAW.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = '';
+  const lastDate = RAW.length ? RAW[RAW.length-1].date.split('-').reverse().join('.') : '—';
+  document.getElementById('upd').innerHTML = 'обновлено ' + mskNow()
+    + ' · заказов: <b>' + RAW.length + '</b> · последний в таблице: <b>' + lastDate + '</b>'
+    + ' · артикулов в справочнике себестоимости: <b>' + COST_ROWS + '</b>';
+  initFilters();
+  render();
+}
+
+/* ---------- фильтры ---------- */
+function months(){
+  const s = new Set(RAW.map(r => r.date.slice(0,7)));
+  return [...s].sort();
+}
+function initFilters(){
+  // запоминаем выбранные фильтры, чтобы «Обновить» их не сбрасывало
+  const keep = {};
+  ['period','status','cat','utm','from','to'].forEach(id => {
+    const el = document.getElementById(id); if (el) keep[id] = el.value;
+  });
+  const p = document.getElementById('period');
+  const ms = months();
+  p.innerHTML = '<option value="all">Всё время</option>'
+    + '<option value="today">Сегодня</option>'
+    + '<option value="yesterday">Вчера</option>'
+    + '<option value="d7">Последние 7 дней</option>'
+    + '<option value="d30">Последние 30 дней</option>'
+    + '<option value="d90">Последние 90 дней</option>'
+    + '<option value="ytd">С начала года</option>'
+    + ms.slice().reverse().map(m => {
+        const [y,mm] = m.split('-');
+        return `<option value="m:${m}">${MONTHS[+mm-1]} ${y}</option>`;
+      }).join('')
+    + '<option value="custom">Свой диапазон</option>';
+  fillSel('cat', [...new Set(RAW.map(r => r.cat))].sort());
+  fillSel('utm', [...new Set(RAW.map(r => r.utm))].sort());
+  ['period','status','cat','utm'].forEach(id => document.getElementById(id).onchange = render);
+  document.getElementById('acq').oninput = render;
+  ['from','to'].forEach(id => document.getElementById(id).onchange = () => { document.getElementById('period').value='custom'; render(); });
+  document.getElementById('reset').onclick = () => {
+    document.getElementById('period').value='all'; document.getElementById('status').value='all';
+    document.getElementById('cat').value=''; document.getElementById('utm').value='';
+    document.getElementById('from').value=''; document.getElementById('to').value=''; render();
+  };
+  document.getElementById('reload').onclick = load;
+  document.getElementById('csv').onclick = exportCsv;
+  const all = RAW.map(r => r.date);
+  document.getElementById('from').value = all[0] || '';
+  document.getElementById('to').value = all[all.length-1] || '';
+  // восстанавливаем то, что было выбрано до обновления
+  Object.entries(keep).forEach(([id, v]) => {
+    if (!v) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.tagName === 'SELECT'){
+      if ([...el.options].some(o => o.value === v)) el.value = v;
+    } else el.value = v;
+  });
+}
+function fillSel(id, vals){
+  const el = document.getElementById(id);
+  el.innerHTML = '<option value="">Все</option>' + vals.map(v => `<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+}
+function range(){
+  const p = document.getElementById('period').value;
+  const dates = RAW.map(r => r.date);
+  const last = dates[dates.length-1];
+  const shift = n => { const d = new Date(last + 'T00:00:00'); d.setDate(d.getDate() - n + 1); return ymd(d); };
+  if (p === 'all') return [dates[0], last];
+  if (p === 'today') { const t = mskToday(); return [t, t]; }
+  if (p === 'yesterday') { const t = mskShift(-1); return [t, t]; }
+  if (p === 'd7') return [shift(7), last];
+  if (p === 'd30') return [shift(30), last];
+  if (p === 'd90') return [shift(90), last];
+  if (p === 'ytd') return [last.slice(0,4) + '-01-01', last];
+  if (p.startsWith('m:')) { const m = p.slice(2); const y=+m.slice(0,4), mo=+m.slice(5,7);
+    return [m + '-01', `${y}-${pad(mo)}-${pad(new Date(y,mo,0).getDate())}`]; }
+  return [document.getElementById('from').value || dates[0], document.getElementById('to').value || last];
+}
+// фильтры, не связанные с датой — нужны отдельно для сравнения недель,
+// которое всегда считается по всей истории, а не только по выбранному периоду
+function nonDateOk(r){
+  const st = document.getElementById('status').value;
+  const cat = document.getElementById('cat').value;
+  const utm = document.getElementById('utm').value;
+  return (st === 'all' || (st === 'paid' ? r.paid : !r.paid))
+    && (!cat || r.cat === cat) && (!utm || r.utm === utm);
+}
+function filtered(){
+  const [a,b] = range();
+  if (document.getElementById('period').value !== 'custom'){
+    document.getElementById('from').value = a; document.getElementById('to').value = b;
+  }
+  return RAW.filter(r => r.date >= a && r.date <= b && nonDateOk(r));
+}
+
+/* ---------- экономика заказа ---------- */
+// Прибыль = выручка за товар − себестоимость − эквайринг − логистика за наш счёт.
+// Налог не учитываем. Логистику, которую оплатил покупатель, не считаем расходом.
+// Позиции без себестоимости из расчёта исключаются целиком — и выручкой, и расходами,
+// иначе прибыль по ним оказалась бы завышена на всю их стоимость.
+const acqRate = () => (parseFloat(document.getElementById('acq').value) || 0) / 100;
+const acqOf = r => r.price * acqRate();
+const coveredOf = r => r.goods - r.noCostSum;           // выручка, участвующая в расчёте
+const wOf = r => r.goods ? coveredOf(r) / r.goods : 0;  // её доля в заказе
+const profitOf = r => coveredOf(r) - r.cogs - (acqOf(r) + r.ourLog) * wOf(r);
+
+/* ---------- агрегации ---------- */
+function group(rows, keyFn){
+  const m = new Map();
+  rows.forEach(r => {
+    const k = keyFn(r);
+    if (!m.has(k)) m.set(k, {k, orders:0, paidOrders:0, units:0, sum:0, goods:0, paidSum:0, received:0,
+      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0});
+    const g = m.get(k);
+    g.orders++; g.units += r.units; g.sum += r.price; g.goods += r.goods; g.deliv += r.delivPrice;
+    g.cogs += r.cogs; g.acq += acqOf(r) * wOf(r); g.ourLog += r.ourLog * wOf(r);
+    g.profit += profitOf(r); g.noCostSum += r.noCostSum; g.covered += coveredOf(r);
+    if (r.paid){ g.paidOrders++; g.paidSum += r.price; g.received += r.received; }
+  });
+  return [...m.values()].sort((x,y) => x.k < y.k ? -1 : 1);
+}
+function fillDays(rows, a, b){
+  const g = new Map(group(rows, r => r.date).map(x => [x.k, x]));
+  const out = []; const d = new Date(a + 'T00:00:00'); const end = new Date(b + 'T00:00:00');
+  let guard = 0;
+  while (d <= end && guard++ < 2000){
+    const k = ymd(d);
+    out.push(g.get(k) || {k, orders:0, paidOrders:0, units:0, sum:0, goods:0, paidSum:0, received:0,
+      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0});
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+
+/* ---------- отрисовка ---------- */
+function render(){
+  const rows = filtered();
+  const [a,b] = range();
+  renderKpis(rows, a, b);
+  const byM = group(rows, r => r.date.slice(0,7));
+  const byD = fillDays(rows, a, b);
+  drawMonth(byM); drawUnits(byM); drawDay(byD);
+  const prods = productAgg(rows);
+  drawPnl(byM); drawMargin(byM); drawProfitTop(prods); drawScatter(prods);
+  drawProd(prods); drawUtm(rows);
+  drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); repeatBlock(rows);
+  noCostBlock(rows);
+  tableMonth(byM); tableDay(byD.slice().reverse(), rows); tableProd(prods); tableSize(rows);
+}
+
+/* ---------- прибыль ---------- */
+function drawPnl(g){
+  mk('chPnl', { type:'bar', data:{ labels:g.map(x=>mLabel(x.k)), datasets:[
+    {label:'Себестоимость', data:g.map(x=>x.cogs), backgroundColor:'#5b6675'},
+    {label:'Эквайринг', data:g.map(x=>x.acq), backgroundColor:'#d29922'},
+    {label:'Логистика (наша)', data:g.map(x=>x.ourLog), backgroundColor:'#f85149'},
+    {label:'Прибыль', data:g.map(x=>x.profit), backgroundColor:'#3fb950'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}},
+      tooltip:{callbacks:{label:c => c.dataset.label + ': ' + money(c.raw)
+        + ' · ' + (g[c.dataIndex].goods ? (c.raw/g[c.dataIndex].goods*100).toFixed(1) : 0) + '%'}}},
+      scales:{x:{...AX, stacked:true}, y:{...AX, stacked:true, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}}} } });
+}
+function drawMargin(g){
+  const grossPct = g.map(x => x.covered ? +((x.covered-x.cogs)/x.covered*100).toFixed(1) : 0);
+  const netPct   = g.map(x => x.covered ? +(x.profit/x.covered*100).toFixed(1) : 0);
+  mk('chMargin', { data:{ labels:g.map(x=>mLabel(x.k)), datasets:[
+    {type:'bar', label:'Прибыль, ₽', data:g.map(x=>x.profit), backgroundColor:'#3fb950', yAxisID:'y', order:3},
+    {type:'line', label:'Валовая маржа, %', data:grossPct, borderColor:'#4f9cf9', yAxisID:'y1', tension:.3, order:1},
+    {type:'line', label:'Чистая маржинальность, %', data:netPct, borderColor:'#f2a65a', yAxisID:'y1', tension:.3, order:2} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+      scales:{x:AX, y:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}},
+        y1:{position:'right', grid:{display:false}, ticks:{color:'#f2a65a', callback:v=>v+'%'}}} } });
+}
+function drawProfitTop(p){
+  const t = p.filter(x => x.hasCost).sort((a,b) => b.profit - a.profit).slice(0,12);
+  mk('chProfitTop', { type:'bar', data:{ labels:t.map(x => x.name.length>32 ? x.name.slice(0,32)+'…' : x.name),
+    datasets:[{ label:'Прибыль, ₽', data:t.map(x=>x.profit),
+      backgroundColor:t.map(x => x.profit >= 0 ? '#3fb950' : '#f85149') }] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{afterLabel:c => 'маржа ' + (t[c.dataIndex].margin*100).toFixed(1) + '% · ' + fmt(t[c.dataIndex].qty) + ' шт'}}},
+      scales:{x:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}}, y:{...AX, ticks:{color:'#9aa7b4',font:{size:10}}}} } });
+}
+function drawScatter(p){
+  const t = p.filter(x => x.hasCost && x.qty > 0);
+  const maxProfit = Math.max(1, ...t.map(x => Math.abs(x.profit)));
+  mk('chScatter', { type:'bubble', data:{ datasets:[{
+    label:'Товары',
+    data: t.map(x => ({ x: x.qty, y: +(x.margin*100).toFixed(1),
+      r: 4 + 16*Math.sqrt(Math.abs(x.profit)/maxProfit), name:x.name, profit:x.profit })),
+    backgroundColor: t.map(x => x.profit >= 0 ? 'rgba(63,185,80,.45)' : 'rgba(248,81,73,.45)'),
+    borderColor: t.map(x => x.profit >= 0 ? '#3fb950' : '#f85149') }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c => [c.raw.name, 'штук: ' + fmt(c.raw.x),
+        'маржа: ' + c.raw.y + '%', 'прибыль: ' + money(c.raw.profit)]}}},
+      scales:{ x:{...AX, title:{display:true, text:'штук продано', color:'#9aa7b4'}},
+        y:{...AX, title:{display:true, text:'маржинальность, %', color:'#9aa7b4'},
+           ticks:{color:'#9aa7b4', callback:v=>v+'%'}} } } });
+}
+function noCostBlock(rows){
+  const m = new Map();
+  rows.forEach(r => r.items.forEach(it => {
+    if (it.cost !== null) return;
+    const k = it.art + ' | ' + it.name;
+    if (!m.has(k)) m.set(k, {art:it.art, name:it.name, qty:0, sum:0});
+    const g = m.get(k); g.qty += it.qty; g.sum += it.sum;
+  }));
+  const list = [...m.values()].sort((a,b) => b.sum - a.sum);
+  document.getElementById('noCostCard').style.display = list.length ? '' : 'none';
+  if (!list.length) return;
+  const lost = list.reduce((s,x) => s+x.sum, 0);
+  document.getElementById('noCostBox').innerHTML =
+    `<div class="nocost">Для этих позиций нет себестоимости в справочнике, поэтому прибыль по ним не считается.
+     Выручка вне расчёта: <b>${money(lost)}</b>, штук: <b>${fmt(list.reduce((s,x)=>s+x.qty,0))}</b>.
+     Добавьте артикулы в таблицу себестоимости — и они подхватятся сами.</div>`;
+  tbl('tNoCost', [
+    {t:'Артикул в заказе', v:r=>r.art, f:r=>`<span class="mono">${r.art}</span>`},
+    {t:'Товар', v:r=>r.name, f:r=>r.name},
+    {t:'Штук', v:r=>r.qty, f:r=>fmt(r.qty)},
+    {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
+  ], list, ['Итого','', fmt(list.reduce((s,x)=>s+x.qty,0)), money(lost)]);
+}
+
+const SIZE_ORDER = ['XS','S','M','L','XL','XXL','XXXL','—'];
+function sizeAgg(rows){
+  const m = new Map();
+  rows.forEach(r => r.items.forEach(it => m.set(it.size, (m.get(it.size)||0) + it.qty)));
+  return [...m.entries()].sort((a,b) => {
+    const ia = SIZE_ORDER.indexOf(a[0]), ib = SIZE_ORDER.indexOf(b[0]);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+}
+function drawSize(rows){
+  const g = sizeAgg(rows), tot = g.reduce((s,x) => s+x[1], 0) || 1;
+  mk('chSize', { type:'bar', data:{ labels:g.map(x => x[0]), datasets:[
+    {label:'Штук', data:g.map(x => x[1]), backgroundColor:'#a371f7'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c => fmt(c.raw) + ' шт · ' + (c.raw/tot*100).toFixed(1) + '%'}}},
+      scales:{x:AX, y:AX} } });
+}
+function drawHour(rows){
+  const h = Array(24).fill(0); rows.forEach(r => h[r.hour]++);
+  mk('chHour', { type:'bar', data:{ labels:h.map((_,i) => pad(i)), datasets:[
+    {label:'Заказов', data:h, backgroundColor:h.map((_,i) => (i>=20 || i<2) ? '#f2a65a' : '#4f9cf9')} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:AX, y:AX} } });
+}
+const DOW = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+function drawDow(rows){
+  const d = Array(7).fill(0); rows.forEach(r => d[r.dow]++);
+  mk('chDow', { type:'bar', data:{ labels:DOW, datasets:[
+    {label:'Заказов', data:d, backgroundColor:'#39c5cf'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:AX, y:AX} } });
+}
+function drawDeliv(rows){
+  const withPay = rows.filter(r => r.shipPaid > 0);
+  const free = rows.length - withPay.length;
+  const avgPay = withPay.length ? withPay.reduce((s,r) => s+r.shipPaid, 0)/withPay.length : 0;
+  const avgGoods = withPay.length ? withPay.reduce((s,r) => s+r.goods, 0)/withPay.length : 0;
+  const maxTh = withPay.length ? Math.max(...withPay.map(r => r.goods)) : 0;
+  const minFree = rows.filter(r => !r.shipPaid && r.goods > 0).length
+    ? Math.min(...rows.filter(r => !r.shipPaid && r.goods > 0).map(r => r.goods)) : 0;
+  document.getElementById('delivBox').innerHTML =
+    `<div style="font-size:12px;color:var(--tx2);line-height:1.7;margin-bottom:8px">
+      Доплачивали доставку: <b style="color:var(--tx)">${fmt(withPay.length)}</b> из ${fmt(rows.length)} заказов
+      (${rows.length ? (withPay.length/rows.length*100).toFixed(0) : 0}%)<br>
+      Средняя доплата: <b style="color:var(--tx)">${money(avgPay)}</b> при среднем товаре на ${money(avgGoods)}
+      — это <b style="color:var(--acc2)">${avgGoods ? (avgPay/avgGoods*100).toFixed(0) : 0}%</b> сверху<br>
+      Самый дорогой заказ с доплатой: ${money(maxTh)} · самый дешёвый с бесплатной: ${money(minFree)}
+    </div>`;
+  mk('chDeliv', { type:'doughnut', data:{ labels:['Доставка бесплатно','Покупатель доплатил'],
+    datasets:[{ data:[free, withPay.length], backgroundColor:['#3fb950','#f85149'] }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9aa7b4',boxWidth:12,font:{size:11}}}} } });
+}
+function repeatBlock(rows){
+  const m = new Map();
+  rows.forEach(r => {
+    if (!r.email) return;
+    if (!m.has(r.email)) m.set(r.email, {k:r.email, orders:0, sum:0, units:0, first:r.date, last:r.date});
+    const g = m.get(r.email);
+    g.orders++; g.sum += r.goods; g.units += r.units;
+    if (r.date < g.first) g.first = r.date;
+    if (r.date > g.last) g.last = r.date;
+  });
+  const all = [...m.values()];
+  const rep = all.filter(x => x.orders > 1).sort((a,b) => b.orders - a.orders || b.sum - a.sum);
+  const repOrders = rep.reduce((s,x) => s+x.orders, 0);
+  document.getElementById('repBox').innerHTML =
+    `<div style="font-size:12px;color:var(--tx2);line-height:1.7;margin-bottom:8px">
+      Уникальных покупателей: <b style="color:var(--tx)">${fmt(all.length)}</b> ·
+      с 2+ заказами: <b style="color:var(--tx)">${fmt(rep.length)}</b>
+      (${all.length ? (rep.length/all.length*100).toFixed(1) : 0}%)<br>
+      Заказов от повторных: <b style="color:var(--tx)">${fmt(repOrders)}</b>
+      (${rows.length ? (repOrders/rows.length*100).toFixed(0) : 0}% всех заказов) ·
+      LTV повторного: <b style="color:var(--tx)">${money(rep.length ? rep.reduce((s,x)=>s+x.sum,0)/rep.length : 0)}</b>
+    </div>`;
+  tbl('tRep', [
+    {t:'Покупатель', v:r=>r.k, f:r=>r.k},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+    {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
+    {t:'Сумма', v:r=>r.sum, f:r=>money(r.sum)},
+    {t:'Первый', v:r=>r.first, f:r=>r.first.slice(5).split('-').reverse().join('.')},
+    {t:'Последний', v:r=>r.last, f:r=>r.last.slice(5).split('-').reverse().join('.')},
+  ], rep);
+}
+function tableSize(rows){
+  const sizes = sizeAgg(rows).map(x => x[0]);
+  const m = new Map();
+  rows.forEach(r => r.items.forEach(it => {
+    if (!m.has(it.ckey)) m.set(it.ckey, {name:it.name, lastSeen:r.date, total:0, s:{}});
+    const g = m.get(it.ckey); g.total += it.qty; g.s[it.size] = (g.s[it.size]||0) + it.qty;
+    if (r.date >= g.lastSeen){ g.lastSeen = r.date; g.name = it.name; }
+  }));
+  const data = [...m.values()].sort((a,b) => b.total - a.total);
+  const cols = [{t:'Товар', v:r=>r.name, f:r=>r.name}, {t:'Всего', v:r=>r.total, f:r=>fmt(r.total)}]
+    .concat(sizes.map(s => ({t:s, v:r=>r.s[s]||0, f:r=> r.s[s] ? fmt(r.s[s]) : '·'})));
+  const totals = ['Итого', fmt(data.reduce((s,x)=>s+x.total,0))]
+    .concat(sizes.map(s => fmt(data.reduce((a,x)=>a+(x.s[s]||0),0))));
+  tbl('tSize', cols, data, totals);
+}
+
+function renderKpis(rows, a, b){
+  const n = rows.length;
+  const sum = rows.reduce((s,r) => s+r.price, 0);
+  const goods = rows.reduce((s,r) => s+r.goods, 0);
+  const units = rows.reduce((s,r) => s+r.units, 0);
+  const deliv = rows.reduce((s,r) => s+r.delivPrice, 0);
+  const delivN = rows.filter(r => r.delivPrice > 0).length;
+  const ship = rows.reduce((s,r) => s+r.shipPaid, 0);
+  const shipN = rows.filter(r => r.shipPaid > 0).length;
+  const disc = rows.reduce((s,r) => s+r.discount, 0);
+  const multi = rows.filter(r => r.units > 1 || r.items.length > 1).length;
+  const unpaid = rows.filter(r => !r.paid);
+  const days = Math.max(1, Math.round((new Date(b) - new Date(a))/864e5) + 1);
+  const share = (x,y) => y ? (x/y*100).toFixed(1) + '%' : '—';
+
+  const cogs   = rows.reduce((s,r) => s+r.cogs, 0);
+  const acq    = rows.reduce((s,r) => s+acqOf(r)*wOf(r), 0);
+  const ourLog = rows.reduce((s,r) => s+r.ourLog*wOf(r), 0);
+  const profit = rows.reduce((s,r) => s+profitOf(r), 0);
+  const noCost = rows.reduce((s,r) => s+r.noCostSum, 0);
+  const covered = goods - noCost;
+  const gross  = covered - cogs;
+
+  const k = [
+    ['Заказов', fmt(n), `${a.split('-').reverse().join('.')} → ${b.split('-').reverse().join('.')} · ${days} дн.`, ''],
+    ['Выручка за товар', money(goods), 'без доставки', ''],
+    ['Себестоимость', money(cogs), share(cogs, covered) + ' от выручки в расчёте', ''],
+    ['Валовая прибыль', money(gross), 'маржа ' + share(gross, covered), 'good'],
+    ['Чистая прибыль', money(profit), 'маржинальность ' + share(profit, covered), profit > 0 ? 'hero' : 'warn'],
+    ['Прибыль на заказ', money(n ? profit/n : 0), money(profit/days) + ' в день', ''],
+    ['Эквайринг', money(acq), (acqRate()*100).toFixed(1) + '% с оборота', ''],
+    ['Логистика за наш счёт', money(ourLog), share(ourLog, covered) + ' от выручки · всего доставки ' + money(deliv), ''],
+    ['Наценка', cogs ? (covered/cogs).toFixed(2) + '×' : '—', 'выручка к себестоимости', ''],
+    ['Штук продано', fmt(units), (units/Math.max(1,n)).toFixed(2) + ' шт на заказ', ''],
+    ['Средний чек', money(n ? goods/n : 0), 'за товар, без доставки', ''],
+    ['Многотоварные заказы', fmt(multi), share(multi, n) + ' от всех', ''],
+  ];
+  if (disc > 0) k.push(['Скидки', money(disc), share(disc, goods) + ' от товара', '']);
+  if (noCost > 0) k.push(['Без себестоимости', money(noCost),
+    share(noCost, goods) + ' выручки не участвует в прибыли', 'warn']);
+  if (delivN < n) k.push(['Доставка не заполнена', fmt(n - delivN), 'заказов — прибыль по ним завышена', 'warn']);
+  if (unpaid.length) k.push(['Не оплачено', fmt(unpaid.length),
+    money(unpaid.reduce((s,r) => s+r.goods, 0)) + ' зависло', 'warn']);
+
+  document.getElementById('kpis').innerHTML = k.map(([l,v,d,cls]) =>
+    `<div class="kpi ${cls||''}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d||''}</div></div>`).join('');
+}
+
+const AX = { grid:{color:'#242c36'}, ticks:{color:'#9aa7b4'} };
+function mk(id, cfg){
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
+}
+const mLabel = k => { const [y,m] = k.split('-'); return MONTHS[+m-1] + ' ' + y.slice(2); };
+
+function drawMonth(g){
+  mk('chMonth', { data:{ labels:g.map(x=>mLabel(x.k)), datasets:[
+    {type:'bar', label:'Выручка за товар, ₽', data:g.map(x=>x.goods), backgroundColor:'#4f9cf9', yAxisID:'y', order:2},
+    {type:'line', label:'Заказов', data:g.map(x=>x.orders), borderColor:'#f2a65a', backgroundColor:'#f2a65a', yAxisID:'y1', tension:.3, order:1}
+  ]}, options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+    scales:{ x:AX, y:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}},
+      y1:{position:'right', grid:{display:false}, ticks:{color:'#f2a65a'}} } } });
+}
+function drawUnits(g){
+  mk('chUnits', { type:'bar', data:{ labels:g.map(x=>mLabel(x.k)), datasets:[
+    {label:'Штук', data:g.map(x=>x.units), backgroundColor:'#3fb950'}
+  ]}, options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+    scales:{x:AX, y:AX} } });
+}
+function drawDay(g){
+  document.getElementById('dayGran').textContent = g.length + ' дн.';
+  mk('chDay', { data:{ labels:g.map(x=>x.k), datasets:[
+    {type:'bar', label:'Выручка за товар, ₽', data:g.map(x=>x.goods), backgroundColor:'#4f9cf9', yAxisID:'y'},
+    {type:'line', label:'Заказов', data:g.map(x=>x.orders), borderColor:'#f2a65a', yAxisID:'y1', tension:.25, pointRadius:g.length>90?0:2}
+  ]}, options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+    scales:{ x:{...AX, ticks:{color:'#9aa7b4', maxRotation:60, autoSkip:true, maxTicksLimit:24}},
+      y:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}},
+      y1:{position:'right', grid:{display:false}, ticks:{color:'#f2a65a', precision:0}} } } });
+}
+function productAgg(rows){
+  const m = new Map();
+  rows.forEach(r => r.items.forEach(it => {
+    if (!m.has(it.ckey)) m.set(it.ckey, {ckey:it.ckey, name:it.name, art:it.art, cost:it.cost,
+      lastSeen:r.date, qty:0, sum:0, cogs:0, acq:0, ourLog:0, noCostQty:0, ord:new Set()});
+    const g = m.get(it.ckey);
+    g.qty += it.qty; g.sum += it.sum; g.ord.add(r.id || r.date + r.email);
+    // показываем самое свежее название — то, как товар называется на сайте сейчас
+    if (r.date >= g.lastSeen){ g.lastSeen = r.date; g.name = it.name; if (it.art !== '—') g.art = it.art; }
+    if (g.cost === null && it.cost !== null) g.cost = it.cost;
+    // переменные расходы заказа делим между позициями пропорционально их сумме
+    const w = r.goods ? it.sum / r.goods : 0;
+    g.acq += acqOf(r) * w; g.ourLog += r.ourLog * w;
+    if (it.cost === null) g.noCostQty += it.qty; else g.cogs += it.cost * it.qty;
+  }));
+  return [...m.values()].map(g => {
+    const hasCost = g.noCostQty === 0 && g.cogs > 0;
+    const profit = hasCost ? g.sum - g.cogs - g.acq - g.ourLog : 0;
+    return {...g, orders: g.ord.size, hasCost, profit,
+      gross: hasCost ? g.sum - g.cogs : 0,
+      margin: hasCost && g.sum ? profit / g.sum : 0};
+  }).sort((a,b) => b.qty - a.qty);
+}
+function drawProd(p){
+  const t = p.slice(0,10);
+  mk('chProd', { type:'bar', data:{ labels:t.map(x => x.name.length>34 ? x.name.slice(0,34)+'…' : x.name),
+    datasets:[{label:'Штук', data:t.map(x=>x.qty), backgroundColor:'#f2a65a'}] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:AX, y:{...AX, ticks:{color:'#9aa7b4', font:{size:10}}}} } });
+}
+function drawUtm(rows){
+  const g = group(rows, r => r.utm).sort((a,b) => b.orders - a.orders).slice(0,8);
+  mk('chUtm', { type:'doughnut', data:{ labels:g.map(x=>x.k), datasets:[{ data:g.map(x=>x.orders),
+    backgroundColor:['#4f9cf9','#f2a65a','#3fb950','#a371f7','#f85149','#39c5cf','#d29922','#6e7681'] }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9aa7b4',boxWidth:12,font:{size:11}}}} } });
+}
+
+/* ---------- таблицы ---------- */
+function tbl(elId, cols, data, totals){
+  const el = document.getElementById(elId);
+  const st = sortState[elId] || {i:0, dir:1};
+  const d = data.slice().sort((a,b) => {
+    const va = cols[st.i].v(a), vb = cols[st.i].v(b);
+    return (va > vb ? 1 : va < vb ? -1 : 0) * st.dir;
+  });
+  el.innerHTML =
+    '<thead><tr>' + cols.map((c,i) => `<th data-i="${i}">${c.t}${st.i===i?(st.dir>0?' ▲':' ▼'):''}</th>`).join('') + '</tr></thead>' +
+    '<tbody>' + d.map(r => '<tr>' + cols.map(c => `<td>${c.f(r)}</td>`).join('') + '</tr>').join('') + '</tbody>' +
+    (totals ? '<tfoot><tr>' + totals.map(t => `<td>${t}</td>`).join('') + '</tr></tfoot>' : '');
+  el.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i;
+    sortState[elId] = {i, dir: (st.i === i ? -st.dir : (i === 0 ? 1 : -1))};
+    render();
+  });
+}
+const sum = (a,f) => a.reduce((s,x) => s + f(x), 0);
+
+function tableMonth(g){
+  const cols = [
+    {t:'Месяц', v:r=>r.k, f:r=>mLabel(r.k)},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+    {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
+    {t:'Выручка за товар', v:r=>r.goods, f:r=>money(r.goods)},
+    {t:'Себестоимость', v:r=>r.cogs, f:r=>money(r.cogs)},
+    {t:'Эквайринг', v:r=>r.acq, f:r=>money(r.acq)},
+    {t:'Логистика (наша)', v:r=>r.ourLog, f:r=>money(r.ourLog)},
+    {t:'Прибыль', v:r=>r.profit, f:r=>`<span class="${r.profit>=0?'pos':'neg'}">${money(r.profit)}</span>`},
+    {t:'Маржинальность', v:r=>r.covered?r.profit/r.covered:0,
+     f:r=>r.covered ? `<span class="${r.profit>=0?'pos':'neg'}">${(r.profit/r.covered*100).toFixed(1)}%</span>` : '—'},
+    {t:'Средний чек', v:r=>r.orders?r.goods/r.orders:0, f:r=>money(r.orders?r.goods/r.orders:0)},
+  ];
+  const tg = sum(g,x=>x.goods), to = sum(g,x=>x.orders), tp = sum(g,x=>x.profit), tv = sum(g,x=>x.covered);
+  tbl('tMonth', cols, g, ['Итого', fmt(to), fmt(sum(g,x=>x.units)), money(tg),
+    money(sum(g,x=>x.cogs)), money(sum(g,x=>x.acq)), money(sum(g,x=>x.ourLog)),
+    money(tp), tv ? (tp/tv*100).toFixed(1)+'%' : '—', money(to?tg/to:0)]);
+}
+const dayOpen = new Set();
+const DAYS_RU = ['вс','пн','вт','ср','чт','пт','сб'];
+function tableDay(g, rows){
+  const el = document.getElementById('tDay');
+  const st = sortState['tDay'] || {i:0, dir:-1};
+  const cols = [
+    {t:'Дата', v:r=>r.k, f:r=>{
+      const dt = new Date(r.k + 'T00:00:00');
+      return r.k.split('-').reverse().join('.') + ' <span style="color:var(--tx2);font-size:11px">' + DAYS_RU[dt.getDay()] + '</span>'; }},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+    {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
+    {t:'Выручка за товар', v:r=>r.goods, f:r=>money(r.goods)},
+    {t:'Себестоимость', v:r=>r.cogs, f:r=>money(r.cogs)},
+    {t:'Прибыль', v:r=>r.profit, f:r=>r.orders
+      ? `<span class="${r.profit>=0?'pos':'neg'}">${money(r.profit)}</span>` : '—'},
+    {t:'Маржинальность', v:r=>r.covered?r.profit/r.covered:0,
+     f:r=>r.covered ? `<span class="${r.profit>=0?'pos':'neg'}">${(r.profit/r.covered*100).toFixed(1)}%</span>` : '—'},
+  ];
+  const data = g.slice().sort((a,b) => {
+    const x = cols[st.i].v(a), y = cols[st.i].v(b);
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  const byDate = new Map();
+  rows.forEach(r => { if (!byDate.has(r.date)) byDate.set(r.date, []); byDate.get(r.date).push(r); });
+
+  let html = '<thead><tr>' + cols.map((c,i) =>
+    `<th data-i="${i}">${c.t}${st.i===i ? (st.dir>0?' ▲':' ▼') : ''}</th>`).join('') + '</tr></thead><tbody>';
+  data.forEach(r => {
+    const has = r.orders > 0, open = dayOpen.has(r.k);
+    html += `<tr class="dayrow${has?' clickable':''}${open?' open':''}" data-k="${r.k}">`
+      + cols.map((c,i) => i === 0
+          ? `<td><span class="caret">${has ? (open ? '▾' : '▸') : '·'}</span>${c.f(r)}</td>`
+          : `<td>${c.f(r)}</td>`).join('')
+      + '</tr>';
+    if (open) html += `<tr class="detrow"><td colspan="${cols.length}">${dayDetail(byDate.get(r.k) || [])}</td></tr>`;
+  });
+  const to = sum(g,x=>x.orders), tg = sum(g,x=>x.goods), tp = sum(g,x=>x.profit), tv = sum(g,x=>x.covered);
+  html += '</tbody><tfoot><tr>'
+    + ['Итого', fmt(to), fmt(sum(g,x=>x.units)), money(tg), money(sum(g,x=>x.cogs)),
+       money(tp), tv ? (tp/tv*100).toFixed(1)+'%' : '—']
+      .map(t => `<td>${t}</td>`).join('') + '</tr></tfoot>';
+  el.innerHTML = html;
+
+  el.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i;
+    sortState['tDay'] = {i, dir: st.i === i ? -st.dir : (i === 0 ? -1 : -1)};
+    render();
+  });
+  el.querySelectorAll('tr.clickable').forEach(tr => tr.onclick = () => {
+    const k = tr.dataset.k;
+    dayOpen.has(k) ? dayOpen.delete(k) : dayOpen.add(k);
+    render();
+  });
+}
+
+function dayDetail(rows){
+  if (!rows.length) return '<div class="det-empty">Заказов не было</div>';
+  const m = new Map();
+  rows.forEach(r => r.items.forEach(it => {
+    const k = it.ckey + '|' + it.size;
+    if (!m.has(k)) m.set(k, {name:it.name, art:it.art, size:it.size, cost:it.cost, qty:0, sum:0, ord:new Set()});
+    const g = m.get(k);
+    g.qty += it.qty; g.sum += it.sum; g.ord.add(r.id || r.date + r.email);
+    if (g.cost === null && it.cost !== null) g.cost = it.cost;
+  }));
+  const list = [...m.values()].sort((a,b) => b.sum - a.sum || b.qty - a.qty);
+  const units = list.reduce((s,x) => s + x.qty, 0);
+  const goods = list.reduce((s,x) => s + x.sum, 0);
+  const dProfit = rows.reduce((s,r) => s + profitOf(r), 0);
+  const dCogs = rows.reduce((s,r) => s + r.cogs, 0);
+  const dNoCost = rows.some(r => r.noCostQty > 0);
+  const chans = [...new Set(rows.map(r => r.utm))].filter(x => x && x !== '(нет)');
+  // самопроверка: разбор строки товаров должен сходиться с колонкой subtotal
+  const ref = rows.reduce((s,r) => s + r.goods, 0);
+  const gap = Math.abs(ref - goods) > 1
+    ? `<div class="det-warn">Разбор позиций не сошёлся с таблицей на ${money(Math.abs(ref-goods))}
+       (по позициям ${money(goods)}, по колонке subtotal ${money(ref)}). Скорее всего в строке товаров новый формат.</div>` : '';
+
+  return `<div class="det-wrap">
+    <div class="det-head">${fmt(rows.length)} ${plural(rows.length,'заказ','заказа','заказов')} ·
+      ${fmt(units)} ${plural(units,'штука','штуки','штук')} ·
+      выручка ${money(goods)} · себестоимость ${money(dCogs)} ·
+      прибыль <b class="${dProfit>=0?'pos':'neg'}">${money(dProfit)}</b>
+      ${goods ? '(' + (dProfit/goods*100).toFixed(1) + '%)' : ''}${dNoCost ? ' · есть позиции без СС' : ''}
+      ${chans.length ? ' · метки: ' + chans.join(', ') : ''}</div>${gap}
+    <table class="det-table">
+      <thead><tr><th>Товар</th><th>Артикул</th><th>Размер</th><th>Штук</th><th>Выручка</th><th>Себест.</th><th>Прибыль</th><th>Маржа</th></tr></thead>
+      <tbody>${list.map(x => {
+        const has = x.cost !== null && x.cost !== undefined;
+        const cg = has ? x.cost * x.qty : 0;
+        const pr = has ? x.sum - cg : 0;
+        return `<tr>
+        <td>${x.name}</td><td class="mono">${x.art}</td><td><b>${x.size}</b></td>
+        <td>${fmt(x.qty)}</td><td>${money(x.sum)}</td>
+        <td>${has ? money(cg) : '—'}</td>
+        <td class="${pr>=0?'pos':'neg'}">${has ? money(pr) : '—'}</td>
+        <td>${has && x.sum ? (pr/x.sum*100).toFixed(0)+'%' : '—'}</td></tr>`; }).join('')}
+      </tbody>
+      <tfoot><tr><td>Итого за день</td><td></td><td></td><td>${fmt(units)}</td><td>${money(goods)}</td>
+        <td>${money(dCogs)}</td><td class="${dProfit>=0?'pos':'neg'}">${money(dProfit)}</td><td></td></tr></tfoot>
+    </table></div>`;
+}
+function plural(n, one, few, many){
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+}
+/* ---------- товары с проваливанием в динамику по неделям ---------- */
+const prodOpen = new Set();
+const prodMetric = new Map();
+const DOW_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const METRICS = {orders:'Заказы', units:'Штуки', revenue:'Выручка'};
+
+function tableProd(p){
+  const el = document.getElementById('tProd');
+  const st = sortState['tProd'] || {i:1, dir:-1};
+  const totProfit = p.reduce((s,x) => s + Math.max(0, x.profit), 0);
+  const cols = [
+    {t:'Товар', v:r=>r.name, f:r=>r.name + (r.hasCost ? '' : ' <span class="tag" style="background:#3a2226;color:#ffb3ae">нет СС</span>')},
+    {t:'Штук', v:r=>r.qty, f:r=>fmt(r.qty)},
+    {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
+    {t:'Себестоимость', v:r=>r.cogs, f:r=>r.hasCost ? money(r.cogs) : '—'},
+    {t:'СС за штуку', v:r=>r.cost||0, f:r=>r.cost ? money(r.cost) : '—'},
+    {t:'Прибыль', v:r=>r.profit, f:r=>r.hasCost
+      ? `<span class="${r.profit>=0?'pos':'neg'}">${money(r.profit)}</span>` : '—'},
+    {t:'Маржа', v:r=>r.margin, f:r=>r.hasCost
+      ? `<span class="${r.margin>=0?'pos':'neg'}">${(r.margin*100).toFixed(1)}%</span>` : '—'},
+    {t:'Наценка', v:r=>r.cogs?r.sum/r.cogs:0, f:r=>r.hasCost && r.cogs ? (r.sum/r.cogs).toFixed(2)+'×' : '—'},
+    {t:'Доля прибыли', v:r=>r.profit, f:r=>r.hasCost && totProfit && r.profit>0
+      ? (r.profit/totProfit*100).toFixed(1)+'%' : '—'},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+  ];
+  const data = p.slice().sort((a,b) => {
+    const x = cols[st.i].v(a), y = cols[st.i].v(b);
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir;
+  });
+  const pending = [];
+  let html = '<thead><tr>' + cols.map((c,i) =>
+    `<th data-i="${i}">${c.t}${st.i===i ? (st.dir>0?' ▲':' ▼') : ''}</th>`).join('') + '</tr></thead><tbody>';
+  data.forEach((r,idx) => {
+    const open = prodOpen.has(r.ckey);
+    html += `<tr class="prodrow clickable${open?' open':''}" data-i="${idx}">`
+      + cols.map((c,i) => i === 0
+          ? `<td><span class="caret">${open?'▾':'▸'}</span>${c.f(r)}</td>`
+          : `<td>${c.f(r)}</td>`).join('') + '</tr>';
+    if (open){
+      const d = prodDetail(r.ckey, r.name);
+      pending.push(d);
+      html += `<tr class="detrow"><td colspan="${cols.length}">${d.html}</td></tr>`;
+    }
+  });
+  const tq = sum(p,x=>x.qty), ts = sum(p,x=>x.sum), tc = sum(p,x=>x.cogs), tp = sum(p,x=>x.profit);
+  html += '</tbody><tfoot><tr>' + ['Итого', fmt(tq), money(ts), money(tc), '',
+    money(tp), ts ? (tp/ts*100).toFixed(1)+'%' : '—', tc ? (ts/tc).toFixed(2)+'×' : '—', '100%',
+    fmt(sum(p,x=>x.orders))].map(t=>`<td>${t}</td>`).join('') + '</tr></tfoot>';
+  el.innerHTML = html;
+  pending.forEach(d => d.draw());
+
+  el.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i;
+    sortState['tProd'] = {i, dir: st.i === i ? -st.dir : (i === 0 ? 1 : -1)};
+    render();
+  });
+  el.querySelectorAll('tr.prodrow').forEach(tr => tr.onclick = () => {
+    const k = data[+tr.dataset.i].ckey;
+    prodOpen.has(k) ? prodOpen.delete(k) : prodOpen.add(k);
+    render();
+  });
+  el.querySelectorAll('.pd-toggle button').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    prodMetric.set(b.dataset.name, b.dataset.m);
+    render();
+  });
+}
+
+function prodDetail(ckey, name){
+  const metric = prodMetric.get(ckey) || 'orders';
+  const end = range()[1];
+  const mk7 = (offset) => {
+    const out = [], e = new Date(end + 'T00:00:00');
+    e.setDate(e.getDate() - offset);
+    for (let i = 6; i >= 0; i--){ const d = new Date(e); d.setDate(d.getDate() - i); out.push(ymd(d)); }
+    return out;
+  };
+  const cur = mk7(0), prev = mk7(7);
+
+  // статистика по товару за все даты (фильтры кроме периода учитываются)
+  const stat = new Map();
+  RAW.filter(nonDateOk).forEach(r => {
+    const its = r.items.filter(it => it.ckey === ckey);
+    if (!its.length) return;
+    if (!stat.has(r.date)) stat.set(r.date, {orders:0, units:0, revenue:0, sizes:{}});
+    const g = stat.get(r.date);
+    g.orders++;
+    its.forEach(it => { g.units += it.qty; g.revenue += it.sum; g.sizes[it.size] = (g.sizes[it.size]||0) + it.qty; });
+  });
+  const val = (d,m) => (stat.get(d) || {})[m] || 0;
+  const seriesCur = cur.map(d => val(d, metric));
+  const seriesPrev = prev.map(d => val(d, metric));
+  const tCur = seriesCur.reduce((a,b)=>a+b,0), tPrev = seriesPrev.reduce((a,b)=>a+b,0);
+  const diff = tPrev ? (tCur - tPrev) / tPrev * 100 : (tCur ? 100 : 0);
+  const unit = v => metric === 'revenue' ? money(v) : fmt(v);
+
+  // размеры за последние 7 дней
+  const sz = {};
+  cur.forEach(d => { const s = (stat.get(d) || {}).sizes || {};
+    Object.entries(s).forEach(([k,v]) => sz[k] = (sz[k]||0) + v); });
+  const SZ_ORD = ['XS','S','M','L','XL','XXL','XXXL','—'];
+  const szList = Object.entries(sz).sort((a,b) =>
+    (SZ_ORD.indexOf(a[0])<0?99:SZ_ORD.indexOf(a[0])) - (SZ_ORD.indexOf(b[0])<0?99:SZ_ORD.indexOf(b[0])));
+
+  const cid = 'pchart_' + Math.abs([...ckey].reduce((h,c)=>((h<<5)-h+c.charCodeAt(0))|0, 0));
+  const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '=';
+  const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : '';
+
+  const html = `<div class="det-wrap pd">
+    <div class="pd-top">
+      <div class="pd-kpis">
+        <div class="pd-kpi"><span>Последние 7 дней</span><b>${unit(tCur)}</b></div>
+        <div class="pd-kpi"><span>Прошлый аналогичный период</span><b class="muted">${unit(tPrev)}</b></div>
+        <div class="pd-kpi"><span>Изменение</span><b class="${cls}">${arrow} ${Math.abs(diff).toFixed(0)}%</b></div>
+      </div>
+      <div class="pd-toggle">${Object.entries(METRICS).map(([m,l]) =>
+        `<button data-m="${m}" data-name="${ckey.replace(/"/g,'&quot;')}" class="${m===metric?'on':''}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="pd-legend">
+      <span><i class="sq prev"></i>Прошлый аналогичный период · ${prev[0].slice(8)}.${prev[0].slice(5,7)}–${prev[6].slice(8)}.${prev[6].slice(5,7)}</span>
+      <span><i class="sq cur"></i>Последние 7 дней · ${cur[0].slice(8)}.${cur[0].slice(5,7)}–${cur[6].slice(8)}.${cur[6].slice(5,7)}</span>
+    </div>
+    <div class="pd-chart"><canvas id="${cid}"></canvas></div>
+    ${szList.length ? `<div class="pd-sizes">Размеры за последние 7 дней: ${
+      szList.map(([k,v]) => `<span class="szchip"><b>${k}</b> ${v}</span>`).join('')}</div>` : ''}
+  </div>`;
+
+  const draw = () => {
+    const cv = document.getElementById(cid);
+    if (!cv) return;
+    if (charts[cid]) charts[cid].destroy();
+    charts[cid] = new Chart(cv, {
+      type:'bar',
+      data:{ labels: cur.map(d => DOW_SHORT[new Date(d + 'T00:00:00').getDay()]),
+        datasets:[
+          {label:'Прошлый аналогичный период', data:seriesPrev, backgroundColor:'#5b6675', borderRadius:4},
+          {label:'Последние 7 дней', data:seriesCur, backgroundColor:'#8b5cf6', borderRadius:4} ]},
+      options:{ maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{ callbacks:{
+          title: it => { const i = it[0].dataIndex;
+            return DOW_SHORT[new Date(cur[i] + 'T00:00:00').getDay()] + ' · ' +
+              cur[i].split('-').reverse().join('.') + ' / ' + prev[i].split('-').reverse().join('.'); },
+          label: c => c.dataset.label + ': ' + unit(c.raw) }}},
+        scales:{ x:{grid:{display:false}, ticks:{color:'#9aa7b4'}},
+          y:{beginAtZero:true, grid:{color:'#242c36'},
+             ticks:{color:'#9aa7b4', precision: metric==='revenue'?undefined:0,
+                    callback:v => metric==='revenue' ? fmt(v) : v}} } }
+    });
+  };
+  return { html, draw };
+}
+
+/* ---------- экспорт ---------- */
+function exportCsv(){
+  const rows = filtered();
+  const head = ['Дата','Час','ID заказа','Email','Статус','Выручка за товар','Себестоимость',
+    'Эквайринг','Логистика за наш счёт','Прибыль','Маржинальность %','Скидка','Штук',
+    'Служба доставки','Стоимость доставки','Категория','utm_source','Промокод','Размеры','Товары'];
+  const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
+  const csv = '﻿' + [head.map(esc).join(';')].concat(rows.map(r => [
+    r.date, r.hour, r.id, r.email, r.status, r.goods, r.cogs,
+    Math.round(acqOf(r)), r.ourLog, Math.round(profitOf(r)),
+    r.goods ? (profitOf(r)/r.goods*100).toFixed(1) : '',
+    r.discount, r.units, r.delivery, r.delivPrice, r.cat, r.utm, r.promo,
+    r.items.map(i => i.size).join(' | '), r.items.map(i => `${i.name} x${i.qty}`).join(' | ')
+  ].map(esc).join(';'))).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = 'bladnes_' + range().join('_') + '.csv';
+  a.click();
+}
+
+load();
+</script>
+
+<a id="themeToggle" href="index.html" title="Переключить на новый вид в стиле презентации"
+   style="position:fixed;top:14px;right:16px;z-index:99;font:12px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-weight:600;color:#e6edf3;background:#1c232c;border:1px solid #2a323d;border-radius:999px;padding:8px 14px;text-decoration:none">
+  ◑ Новый вид</a>
+<script>
+document.getElementById('themeToggle').addEventListener('click', () => { try{ localStorage.setItem('bladnes_view','new'); }catch(e){} });
+</script>
+</body>
+</html>
