@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bladnes — промокоды, блогеры и источники трафика</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0e1116;--panel:#161b22;--panel2:#1c232c;--line:#2a323d;--tx:#e6edf3;--tx2:#9aa7b4;
+--acc:#4f9cf9;--acc2:#f2a65a;--ok:#3fb950;--bad:#f85149;--vio:#a371f7;--cy:#39c5cf}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:20px 18px 60px}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--tx2);font-size:12px;margin-bottom:18px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+select,input,button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;font-family:inherit}
+select:focus,input:focus{border-color:var(--acc)}
+button{cursor:pointer}button:hover{border-color:var(--acc)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi.hero{border-color:var(--acc);background:linear-gradient(180deg,#18283d,#161b22)}
+.kpi.warn{border-color:#5a3a2a}
+.kpi .l{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.kpi .v{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.kpi .d{font-size:11px;color:var(--tx2);margin-top:4px}
+.grid{display:grid;gap:14px;margin-bottom:14px}
+.g2{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.g2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h3{margin:0 0 4px;font-size:13px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em}
+.card .note{font-size:11px;color:var(--tx2);margin-bottom:10px;opacity:.85}
+.cw{position:relative;height:300px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal}
+th{color:var(--tx2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel);z-index:2}
+tbody tr:hover{background:#1b2430}
+tbody tr.clk{cursor:pointer}
+tbody tr.clk:hover{background:#20303f}
+tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;position:sticky;bottom:0;background:var(--panel)}
+.scroll{max-height:420px;overflow:auto}
+.msg{padding:40px;text-align:center;color:var(--tx2)}
+.err{color:var(--bad)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+.tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;background:#20303f;color:var(--tx2)}
+.hint{background:#1a2129;border:1px solid var(--line);border-left:3px solid var(--acc2);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--tx2);line-height:1.6;margin-bottom:14px}
+.hint b{color:var(--tx)}
+.ver{display:inline-block;padding:2px 8px;border-radius:999px;background:#12331d;color:var(--ok);
+  font-size:11px;font-weight:600;margin-right:8px;border:1px solid #1d5c31}
+.bad{color:var(--bad)}.ok{color:var(--ok)}
+.lnk{color:var(--acc);border-bottom:1px dashed rgba(79,156,249,.5)}
+.arr{color:var(--tx2);font-size:11px;margin-left:6px;opacity:.7}
+/* модалка */
+.ovl{position:fixed;inset:0;background:rgba(6,9,13,.72);backdrop-filter:blur(2px);z-index:50;
+  display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto}
+.ovl[hidden]{display:none!important}
+.mod{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:1080px;width:100%;
+  box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.mh{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--panel);border-radius:14px 14px 0 0;z-index:5}
+.mh h2{margin:0;font-size:17px}
+.mh .ms{color:var(--tx2);font-size:12px;margin-top:3px}
+.mh .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.mb{padding:16px 18px 20px}
+.mb h4{margin:18px 0 8px;font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em}
+.mb h4:first-child{margin-top:0}
+.mk{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:4px}
+.mk div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.mk .l{font-size:10.5px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk .s{font-size:11px;color:var(--tx2);margin-top:2px;white-space:nowrap}
+.mk .v{font-size:17px;font-weight:700;margin-top:3px;white-space:nowrap}
+.x{background:none;border:1px solid var(--line);border-radius:8px;color:var(--tx2);font-size:16px;line-height:1;
+  padding:6px 10px;cursor:pointer}
+.x:hover{color:var(--tx);border-color:var(--acc)}
+.mini td,.mini th{font-size:12.5px;padding:6px 8px}
+.pill{display:inline-block;padding:1px 6px;border-radius:6px;background:#20303f;color:var(--tx2);font-size:11px;margin:1px 3px 1px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bladnes — промокоды, блогеры и источники трафика</h1>
+  <div class="sub"><span class="ver">сборка 4 · товары внутри промокода + честная выручка</span>
+    Источник: Google-таблица «Сайт Бладнес», лист «Заказы» (только чтение) · <span id="upd"></span></div>
+
+  <div id="loading" class="msg">Загружаю данные из таблицы…</div>
+
+  <div id="app" style="display:none">
+    <div class="bar">
+      <div class="f"><label>Период</label><select id="period"></select></div>
+      <div class="f"><label>С</label><input type="date" id="from"></div>
+      <div class="f"><label>По</label><input type="date" id="to"></div>
+      <div class="f"><label>Группа канала</label><select id="chan"><option value="">Все</option></select></div>
+      <div class="f"><label>Как определён источник</label>
+        <select id="src">
+          <option value="">Любой способ</option>
+          <option value="promo">Промокод</option>
+          <option value="utm">UTM-метка</option>
+          <option value="ref">Только реферер</option>
+          <option value="none">Источник неизвестен</option>
+        </select>
+      </div>
+      <div class="f"><label>База выручки</label>
+        <select id="rev">
+          <option value="goods">Товары − скидка (без доставки)</option>
+          <option value="tilda">Как в Tilda (поле price)</option>
+        </select>
+      </div>
+      <div class="f"><label>Оплата</label>
+        <select id="paid">
+          <option value="paid">Только оплаченные</option>
+          <option value="">Все заказы</option>
+        </select>
+      </div>
+      <div class="f"><label>&nbsp;</label><button id="reset">Сбросить</button></div>
+      <div class="f"><label>&nbsp;</label><button id="reload">Обновить из таблицы</button></div>
+      <div class="f"><label>&nbsp;</label><button id="csv">Скачать CSV</button></div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="hint" id="hint"></div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Как определяется источник — по месяцам</h3>
+        <div class="note">Приоритет: промокод → UTM-метка → реферер. «Неизвестно» — переход внутри сайта или прямой заход.</div>
+        <div class="cw"><canvas id="chCover"></canvas></div></div>
+      <div class="card"><h3>Каналы по выручке</h3>
+        <div class="note">Канал определяется по промокоду, UTM или домену реферера.</div>
+        <div class="cw"><canvas id="chChan"></canvas></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Группы каналов (заказов)</h3><div class="cw"><canvas id="chGroup"></canvas></div></div>
+      <div class="card"><h3>Куда приземляется покупатель</h3>
+        <div class="note">Тип страницы, с которой оформлен заказ.</div>
+        <div class="cw"><canvas id="chPage"></canvas></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Промокоды и блогеры</h3>
+        <div class="note" id="promoNote"></div>
+        <div class="scroll" style="max-height:340px"><table id="tPromo"></table></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Товары за период</h3>
+        <div class="note">Клик по товару — заказы и источники, которые его принесли.</div>
+        <div class="scroll" style="max-height:380px"><table id="tProd"></table></div></div>
+      <div class="card"><h3>Каналы — сводка</h3>
+        <div class="note">Клик по каналу — что именно по нему купили.</div>
+        <div class="scroll" style="max-height:380px"><table id="tChan"></table></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>UTM-метки</h3>
+        <div class="note">source / medium / campaign / content</div>
+        <div class="scroll" style="max-height:300px"><table id="tUtm"></table></div></div>
+      <div class="card"><h3>Рефереры — домены</h3>
+        <div class="scroll" style="max-height:300px"><table id="tRef"></table></div></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card"><h3>Страницы входа (landing page)</h3>
+        <div class="scroll" style="max-height:340px"><table id="tLand"></table></div></div>
+      <div class="card"><h3>Скидки по месяцам</h3>
+        <div class="note">Сумма выданных скидок и их доля от выручки периода.</div>
+        <div class="cw" style="height:250px"><canvas id="chDisc"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="ovl" id="ovl" hidden>
+  <div class="mod" role="dialog" aria-modal="true">
+    <div class="mh">
+      <div><h2 id="mTitle"></h2><div class="ms" id="mSub"></div></div>
+      <div class="sp">
+        <button id="mCsv">CSV по срезу</button>
+        <button class="x" id="mClose" title="Закрыть (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="mb" id="mBody"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   НАСТРОЙКА: справочник «промокод → блогер».
+   Впиши сюда, кому какой код выдан — колонка «Блогер» заполнится.
+   Ключ пиши ЗАГЛАВНЫМИ, ровно как код в таблице.
+   ============================================================ */
+const PROMO_OWNERS = {
+  // 'SKELETON'    : 'Имя · @ник · Instagram',
+  // 'RAARI'       : 'Имя · @ник · TikTok',
+  // 'CURFEN'      : '',
+  // 'ЛИНЧЕК'      : '',
+  // 'KARPOVAPROMO': '',
+  // 'MACRIMOZA'   : '',
+  // 'SHARM'       : '',
+  // 'ЭNВИ'        : '',
+  // 'BLADNES10PV' : 'общий код (не блогерский)',
+};
+
+// Источник — независимый архив заказов (его наполняет вебхук Тильды).
+// Порядок полей: 0 номер 1 дата 2 почта 3 оплачено 4 товар 5 — 6 статус
+// 7 служба доставки 8 стоимость доставки 9 utm_source 10 раздел 11 промокод
+// 12 товары 13 скидка 14 utm_medium 15 utm_campaign 16 utm_content 17 utm_term
+// 18 страница входа 19 страница заказа 20 реферер 21 тип страницы
+const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
+const API_KEY = 'bl7dsh2026rkqv4x9mzt';
+let FALLBACK = '';
+// запасной путь: старая таблица. Колонки выбраны так, чтобы встать на те же места
+const SHEET_ID = '1Zk_ZRLIxaFwVHmulNomfoGM-5jEh1e3kVi7PTmYA9wQ';
+const GID = '0';
+// E=orderid W=sent B=email H=price I=subtotal P=delivery N=payment_status G=products
+// AN=category AO=promocode AP=discount AD..AH=utm AI=landing AJ=page_url AK=referrer AL=page_type
+const QUERY = 'select E,W,B,H,I,J,N,O,P,AD,AN,AO,G,AP,AE,AF,AG,AH,AI,AJ,AK,AL';
+const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const SITE = 'bladnes.com';
+let RAW = [], charts = {}, sortState = {}, tblData = {}, LAST = [], SKIPPED = 0, drillStack = [];
+
+/* ---------- утилиты ---------- */
+const esc = v => String(v === null || v === undefined ? '' : v)
+  .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// «1 234,56» и «1234.56» → число. Английский формат «1,234.56» тоже разбирается корректно.
+function num(v){
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  let s = String(v).replace(/[^\d.,-]/g, '');
+  if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g,'').replace(',','.')      // 1.234,56
+      : s.replace(/,/g,'');                        // 1,234.56
+  else s = s.replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+const fmt = n => Math.round(n).toLocaleString('ru-RU');
+const money = n => fmt(n) + ' ₽';
+const pct = (a,b) => b ? (a/b*100).toFixed(1) + '%' : '—';
+const pad = n => String(n).padStart(2,'0');
+// местная дата YYYY-MM-DD; toISOString() нельзя — уводит в UTC и теряет последний день
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+const cell = c => !c ? '' : (c.f !== undefined && c.f !== null ? c.f : (c.v === null || c.v === undefined ? '' : c.v));
+// для числовых полей сырое значение надёжнее отформатированного
+const cellNum = c => !c ? 0 : (typeof c.v === 'number' ? c.v : num(cell(c)));
+const S = v => String(v || '').replace(/&amp;/g,'&').trim();
+const mLabel = k => { const [y,m] = k.split('-'); return MONTHS[+m-1] + ' ' + y.slice(2); };
+const dRu = s => s ? s.split('-').reverse().join('.') : '';
+
+function parseDate(v){
+  if (!v) return null;
+  const s = String(v);
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+  if (m) return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  m = s.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);          // сырой формат gviz
+  if (m) return `${m[1]}-${pad(+m[2]+1)}-${pad(+m[3])}`;
+  return null;
+}
+function host(url){
+  const u = S(url);
+  if (!u) return '';
+  let m = u.match(/^android-app:\/\/([^/]+)/i);
+  if (m) return 'app: ' + m[1];
+  m = u.match(/^https?:\/\/([^/?#]+)/i);
+  return m ? m[1].replace(/^www\./,'').toLowerCase() : u.slice(0,40);
+}
+
+/* ---------- разбор состава заказа ----------
+   Формат Tilda: «Название (Артикул, Размер: XL) - 1x3499 = 3499; Второй товар (...) - 2x999 = 1998» */
+// Тильда пишет апостроф как «&#039;», а внутри него точка с запятой — та самая,
+// по которой делятся товары. Без раскодирования «YOU&#039;RE NOT REAL» разваливается
+// на три несуществующих товара. Поэтому декодируем ДО split(';').
+function decodeEnt(s){
+  return String(s == null ? '' : s)
+    .replace(/&#(\d+);/g, (m,d) => String.fromCharCode(parseInt(d,10)))
+    .replace(/&#x([0-9a-f]+);/gi, (m,x) => String.fromCharCode(parseInt(x,16)))
+    .replace(/&quot;/gi,'"').replace(/&apos;/gi,"'").replace(/&nbsp;/gi,' ')
+    .replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&amp;/gi,'&');
+}
+
+function parseProducts(str){
+  const out = [];
+  decodeEnt(str).split(';').forEach(part => {
+    const t = part.trim();
+    if (!t) return;
+    const m = t.match(/^(.+?)\s*[-–—]\s*(\d+)\s*[xх×]\s*([\d\s.,]+?)\s*=\s*([\d\s.,]+)$/);
+    if (!m){ if (t) out.push({ full:t, model:t, sku:'', size:'', qty:1, unit:0, total:0, raw:true }); return; }
+    const full = m[1].trim(), qty = parseInt(m[2],10) || 1;
+    const unit = num(m[3]), total = num(m[4]) || unit * qty;
+    const n = splitName(full);
+    out.push({ full, model:n.model, sku:n.sku, size:n.size, qty, unit, total, raw:false });
+  });
+  return out;
+}
+function splitName(full){
+  const m = full.match(/^(.*)\(([^()]*)\)\s*$/);
+  if (!m) return { model: full.trim(), sku:'', size:'' };
+  const model = m[1].trim() || full.trim(), inside = m[2].trim();
+  const ms = inside.match(/Размер\s*:\s*([^,;)]+)/i);
+  let sku = inside.split(',')[0].trim();
+  if (/^Размер\s*:/i.test(sku)) sku = '';
+  return { model, sku, size: ms ? ms[1].trim() : '' };
+}
+
+/* ---------- определение канала ---------- */
+function classify(r){
+  if (r.promo) return { channel: 'Промокод: ' + r.promo, group: 'Промокод', how: 'promo' };
+  if (r.utmSource){
+    const s = r.utmSource.toLowerCase();
+    const nice = {telegram:'Telegram', tg:'Telegram', ig:'Instagram', instagram:'Instagram',
+      vk:'ВКонтакте', yt:'YouTube', youtube:'YouTube'}[s] || r.utmSource;
+    return { channel: 'UTM: ' + nice + (r.utmCampaign ? ' / ' + r.utmCampaign : ''), group: nice, how: 'utm' };
+  }
+  const h = host(r.referrer);
+  if (!h) return { channel: 'Прямой заход / нет реферера', group: 'Прямой / неизвестно', how: 'none' };
+  if (h.includes(SITE)) return { channel: 'Переход внутри сайта (источник потерян)', group: 'Прямой / неизвестно', how: 'none' };
+  if (/google|googlequicksearchbox/.test(h)) return { channel: 'Поиск Google', group: 'Поиск', how: 'ref' };
+  if (/yandex|ya\.ru/.test(h)) return { channel: 'Поиск Яндекс', group: 'Поиск', how: 'ref' };
+  if (/vk\.(com|ru)/.test(h)) return { channel: 'ВКонтакте', group: 'ВКонтакте', how: 'ref' };
+  if (/taplink/.test(h)) return { channel: 'Taplink (ссылка в шапке)', group: 'Ссылка в шапке', how: 'ref' };
+  if (/t\.me|telegram|ayugram|dahl\.messenger|nekogram|plus\.messenger/.test(h))
+    return { channel: 'Telegram', group: 'Telegram', how: 'ref' };
+  if (/instagram|ig\.me/.test(h)) return { channel: 'Instagram', group: 'Instagram', how: 'ref' };
+  if (/pinterest/.test(h)) return { channel: 'Pinterest', group: 'Другое', how: 'ref' };
+  if (/tiktok/.test(h)) return { channel: 'TikTok', group: 'Другое', how: 'ref' };
+  if (/mail\.ru|rambler|bing|duckduckgo/.test(h)) return { channel: 'Поиск ' + h, group: 'Поиск', how: 'ref' };
+  return { channel: h, group: 'Другое', how: 'ref' };
+}
+function decodePromo(code){
+  const p = String(code || '').split(/[_\-–]/).filter(Boolean);
+  if (p.length >= 3) return { type: p[0], who: p.slice(1,-1).join(' '), val: p[p.length-1] };
+  if (p.length === 2) return { type: p[0], who: p[1], val: '' };
+  return { type: '', who: '', val: '' };
+}
+const owner = code => PROMO_OWNERS[code] || decodePromo(code).who || '';
+
+/* ---------- загрузка ---------- */
+function load(){
+  const el = document.getElementById('loading');
+  el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю заказы из архива…';
+  FALLBACK = '';
+  loadArchive(3);
+}
+
+// Архив отдаёт данные через скрипт-приёмник. Google иногда отвечает 503 —
+// поэтому три попытки, и только потом запасной путь через старую таблицу.
+function loadArchive(left){
+  const cb = 'api_' + Math.random().toString(36).slice(2);
+  const s  = document.createElement('script');
+  const cleanup = () => { try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+                          if (s.parentNode) s.parentNode.removeChild(s); };
+  const retry = msg => {
+    cleanup();
+    if (left > 1) setTimeout(() => loadArchive(left - 1), 2000);
+    else { FALLBACK = msg; loadSheet(); }
+  };
+  const timer = setTimeout(() => retry('архив не ответил за 30 секунд'), 30000);
+  window[cb] = resp => { clearTimeout(timer); cleanup();
+    try { onData(resp); } catch(e){ fail('Ошибка разбора: ' + e.message); } };
+  s.onerror = () => { clearTimeout(timer); retry('не удалось загрузить архив'); };
+  s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
+  document.head.appendChild(s);
+}
+
+// запасной путь: старая таблица. Колонки в QUERY идут в том же порядке, что и у архива
+function loadSheet(){
+  const el = document.getElementById('loading');
+  el.textContent = 'Архив не ответил, читаю старую таблицу…';
+  const cb = 'gv_' + Math.random().toString(36).slice(2);
+  const s  = document.createElement('script');
+  const cleanup = () => { try { delete window[cb]; } catch(e){ window[cb] = undefined; }
+                          if (s.parentNode) s.parentNode.removeChild(s); };
+  const timer = setTimeout(() => { cleanup();
+    fail('Ни архив, ни таблица не ответили. Проверьте интернет.'); }, 20000);
+  window[cb] = resp => { clearTimeout(timer); cleanup();
+    try { onData(resp); } catch(e){ fail('Ошибка разбора: ' + e.message); } };
+  s.onerror = () => { clearTimeout(timer); cleanup(); fail('Таблица не ответила.'); };
+  // Google кэширует ответ по тексту запроса tq — меняющийся limit даёт свежие данные
+  const q = QUERY + ' limit ' + (900000 + Math.floor(Math.random() * 90000));
+  s.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?gid=' + GID +
+          '&headers=1&tqx=out:json;responseHandler:' + cb + '&tq=' + encodeURIComponent(q) +
+          '&_=' + Date.now();
+  document.head.appendChild(s);
+}
+function fail(m){ const el = document.getElementById('loading'); el.className='msg err'; el.textContent=m; el.style.display=''; }
+
+function onData(resp){
+  RAW = []; SKIPPED = 0;
+  ((resp.table && resp.table.rows) || []).forEach(row => {
+    const c = row.c || [];
+    const d = parseDate(cell(c[1]));
+    if (!d){ if ((c[0] && cell(c[0])) || (c[3] && cell(c[3]))) SKIPPED++; return; }
+    const items = parseProducts(cell(c[12]));
+    const itemsSum = items.reduce((s,i) => s + i.total, 0);
+    const r = {
+      id: S(cell(c[0])), date: d, ts: String(cell(c[1])), email: S(cell(c[2])).toLowerCase(),
+      tilda: cellNum(c[3]),
+      gross: cellNum(c[4]) || itemsSum,       // subtotal — товары по прайсу, до скидки
+      deliv: cellNum(c[8]),
+      pay: S(cell(c[6])) || '(нет)',
+      items, itemsSum,
+      units: items.reduce((s,i) => s + i.qty, 0),
+      cat: S(cell(c[10])) || '(нет)',
+      promo: S(cell(c[11])).toUpperCase(), discount: cellNum(c[13]),
+      utmSource: S(cell(c[9])), utmMedium: S(cell(c[14])), utmCampaign: S(cell(c[15])),
+      utmContent: S(cell(c[16])), utmTerm: S(cell(c[17])),
+      landing: S(cell(c[18])), pageUrl: S(cell(c[19])), referrer: S(cell(c[20])),
+      pageType: S(cell(c[21])) || '(нет)'
+    };
+    r.net = Math.max(0, r.gross - r.discount);          // товарная выручка после скидки
+    r.hasDeliv = Math.abs(r.tilda - r.net) > 1;         // в price зашита доставка
+    // считаем заказ оплаченным, пока статус прямо не говорит обратного — так ничего не исчезает молча
+    r.paid = !/(not\s*paid|unpaid|fail|cancel|refund|не\s*оплач|отмен|возврат)/i.test(r.pay);
+    Object.assign(r, classify(r));
+    r.refHost = host(r.referrer) || '(нет реферера)';
+    r.landPath = (r.landing || '').replace(/^https?:\/\/[^/]+/,'').split('?')[0] || '/';
+    RAW.push(r);
+  });
+  RAW.sort((a,b) => a.date < b.date ? -1 : 1);
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = '';
+  const lastDate = RAW.length ? dRu(RAW[RAW.length-1].date) : '—';
+  document.getElementById('upd').innerHTML = 'обновлено ' + esc(new Date().toLocaleString('ru-RU'))
+    + ' · заказов: <b>' + RAW.length + '</b> · последний в таблице: <b>' + esc(lastDate) + '</b>'
+    + (SKIPPED ? ' · <b class="bad">строк с нечитаемой датой: ' + SKIPPED + '</b>' : '');
+  initFilters(); render();
+}
+
+/* ---------- выручка ---------- */
+const revMode = () => document.getElementById('rev').value;
+const revOf = r => revMode() === 'tilda' ? r.tilda : r.net;
+
+/* ---------- фильтры ---------- */
+function initFilters(){
+  const keep = {};
+  ['period','chan','src','from','to','rev','paid'].forEach(id => {
+    const el = document.getElementById(id); if (el) keep[id] = el.value;
+  });
+  const ms = [...new Set(RAW.map(r => r.date.slice(0,7)))].sort();
+  document.getElementById('period').innerHTML =
+    '<option value="all">Всё время</option><option value="d30">Последние 30 дней</option>'
+    + '<option value="d90">Последние 90 дней</option>'
+    + ms.slice().reverse().map(m => `<option value="m:${esc(m)}">${esc(mLabel(m))}</option>`).join('')
+    + '<option value="custom">Свой диапазон</option>';
+  const gs = [...new Set(RAW.map(r => r.group))].sort();
+  document.getElementById('chan').innerHTML = '<option value="">Все</option>'
+    + gs.map(g => `<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  ['period','chan','src','rev','paid'].forEach(id => document.getElementById(id).onchange = render);
+  ['from','to'].forEach(id => document.getElementById(id).onchange = () => {
+    document.getElementById('period').value = 'custom'; render(); });
+  document.getElementById('reset').onclick = () => {
+    document.getElementById('period').value = 'all';
+    ['chan','src'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('rev').value = 'goods';
+    document.getElementById('paid').value = 'paid';
+    sortState = {}; render();
+  };
+  document.getElementById('reload').onclick = load;
+  document.getElementById('csv').onclick = () => exportCsv(filtered(), 'bladnes_' + range().join('_'));
+  Object.entries(keep).forEach(([id, v]) => {
+    if (!v) return;
+    const el = document.getElementById(id); if (!el) return;
+    if (el.tagName === 'SELECT'){ if ([...el.options].some(o => o.value === v)) el.value = v; }
+    else el.value = v;
+  });
+}
+function range(){
+  if (!RAW.length) return [ymd(new Date()), ymd(new Date())];
+  const d = RAW.map(r => r.date), last = d[d.length-1], p = document.getElementById('period').value;
+  const shift = n => { const x = new Date(last + 'T00:00:00'); x.setDate(x.getDate()-n+1); return ymd(x); };
+  if (p === 'all') return [d[0], last];
+  if (p === 'd30') return [shift(30), last];
+  if (p === 'd90') return [shift(90), last];
+  if (p.startsWith('m:')){ const m = p.slice(2), y = +m.slice(0,4), mo = +m.slice(5,7);
+    return [m + '-01', `${y}-${pad(mo)}-${pad(new Date(y,mo,0).getDate())}`]; }
+  return [document.getElementById('from').value || d[0], document.getElementById('to').value || last];
+}
+function filtered(){
+  const [a,b] = range();
+  if (document.getElementById('period').value !== 'custom'){
+    document.getElementById('from').value = a; document.getElementById('to').value = b;
+  }
+  const ch = document.getElementById('chan').value, sr = document.getElementById('src').value;
+  const pd = document.getElementById('paid').value;
+  return RAW.filter(r => r.date >= a && r.date <= b
+    && (!ch || r.group === ch) && (!sr || r.how === sr) && (!pd || r.paid));
+}
+
+/* ---------- агрегация ---------- */
+function agg(rows, keyFn){
+  const m = new Map();
+  rows.forEach(r => {
+    const ks = keyFn(r);
+    (Array.isArray(ks) ? ks : [ks]).forEach(k => {
+      if (k === null || k === undefined) return;
+      if (!m.has(k)) m.set(k, {k, orders:0, units:0, sum:0, gross:0, net:0, disc:0, deliv:0,
+        first:r.date, last:r.date, cust:new Set(), rows:[]});
+      const g = m.get(k);
+      g.orders++; g.units += r.units; g.sum += revOf(r); g.gross += r.gross;
+      g.net += r.net; g.disc += r.discount; g.deliv += r.deliv;
+      if (r.email) g.cust.add(r.email);
+      if (r.date < g.first) g.first = r.date;
+      if (r.date > g.last) g.last = r.date;
+      g.rows.push(r);
+    });
+  });
+  return [...m.values()].sort((x,y) => y.sum - x.sum);
+}
+// товары внутри набора заказов; скидка заказа раскидывается по позициям пропорционально
+function aggItems(rows, keyFn){
+  const m = new Map();
+  rows.forEach(r => {
+    const f = r.gross > 0 ? r.net / r.gross : 1;
+    r.items.forEach(it => {
+      const k = keyFn(it);
+      if (!m.has(k)) m.set(k, {k, qty:0, gross:0, net:0, orders:new Set(), sizes:new Map(), rows:new Set()});
+      const g = m.get(k);
+      g.qty += it.qty; g.gross += it.total; g.net += it.total * f;
+      g.orders.add(r.id || (r.date + r.email));
+      g.rows.add(r);
+      if (it.size) g.sizes.set(it.size, (g.sizes.get(it.size) || 0) + it.qty);
+    });
+  });
+  return [...m.values()].sort((a,b) => b.net - a.net);
+}
+const sum = (a,f) => a.reduce((s,x) => s + f(x), 0);
+const uniqCust = rows => new Set(rows.filter(r => r.email).map(r => r.email)).size;
+
+/* ---------- рендер ---------- */
+function render(){
+  LAST = filtered();
+  kpis(LAST); hint(LAST);
+  drawCover(LAST); drawChan(LAST); drawGroup(LAST); drawPage(LAST); drawDisc(LAST);
+  renderTables(LAST);
+}
+function renderTables(rows){
+  tPromo(rows); tProd(rows); tChan(rows); tUtm(rows); tRef(rows); tLand(rows);
+}
+
+function kpis(rows){
+  const n = rows.length, rev = sum(rows, revOf);
+  const byHow = h => rows.filter(r => r.how === h);
+  const promo = byHow('promo'), utm = byHow('utm'), ref = byHow('ref'), none = byHow('none');
+  const known = n - none.length;
+  const disc = sum(rows, r => r.discount);
+  const lost = sum(none, revOf);
+  const promoRev = sum(promo, revOf);
+  const deliv = sum(rows, r => r.deliv);
+  const k = [
+    ['Покрытие источников', pct(known, n), `${fmt(known)} из ${fmt(n)} заказов`, 'hero'],
+    ['Точная атрибуция', pct(promo.length + utm.length, n), 'промокод или UTM — ' + fmt(promo.length + utm.length) + ' заказов', ''],
+    ['Источник неизвестен', pct(none.length, n), fmt(none.length) + ' заказов', none.length/Math.max(1,n) > .3 ? 'warn' : ''],
+    ['Выручка без источника', money(lost), 'не знаем, что её принесло', none.length ? 'warn' : ''],
+    ['Заказов с промокодом', fmt(promo.length), pct(promo.length, n) + ' от всех', ''],
+    ['Выручка по промокодам', money(promoRev), pct(promoRev, rev) + ' от выручки', ''],
+    ['Заказов с UTM', fmt(utm.length), pct(utm.length, n) + ' от всех', ''],
+    ['Определено по рефереру', fmt(ref.length), pct(ref.length, n) + ' — «спасённая» атрибуция', ''],
+    ['Сумма скидок', money(disc), 'доля от выручки ' + pct(disc, rev), ''],
+    ['Доставка', money(deliv), 'считается отдельно от выручки', ''],
+    ['Всего заказов', fmt(n), money(rev) + ' · ' + fmt(uniqCust(rows)) + ' покупателей', ''],
+  ];
+  document.getElementById('kpis').innerHTML = k.map(([l,v,d,cls]) =>
+    `<div class="kpi ${cls}"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></div>`).join('');
+}
+
+function hint(rows){
+  const n = rows.length || 1;
+  const none = rows.filter(r => r.how === 'none');
+  const inner = none.filter(r => host(r.referrer).includes(SITE)).length;
+  const direct = none.length - inner;
+  const promo = rows.filter(r => r.how === 'promo').length;
+  const withDeliv = rows.filter(r => r.hasDeliv).length;
+  const parts = [];
+  parts.push(`Точную атрибуцию (промокод или UTM) имеют <b>${(rows.filter(r=>r.how==='promo'||r.how==='utm').length/n*100).toFixed(0)}%</b> заказов.`);
+  if (inner) parts.push(`У <b>${fmt(inner)}</b> заказов реферер — это ваш же сайт: человек ходил по каталогу, и Тильда записала последнюю внутреннюю страницу. Исходный источник потерян безвозвратно.`);
+  if (direct) parts.push(`<b>${fmt(direct)}</b> заказов вообще без реферера — прямой заход, закладка или переход из приложения, которое не передаёт источник.`);
+  if (promo < 15) parts.push(`Промокодов использовано <b class="bad">${promo}</b> — статистики по ним пока мало, выводы по отдельному блогеру делать рано.`);
+  if (document.getElementById('paid').value){
+    const [a,b] = range();
+    const hidden = RAW.filter(r => r.date >= a && r.date <= b && !r.paid).length;
+    if (hidden) parts.push(`Скрыто <b>${fmt(hidden)}</b> заказов со статусом «не оплачен / отменён / возврат» — переключатель «Оплата» вернёт их в расчёт.`);
+  }
+  if (withDeliv) parts.push(`В <b>${fmt(withDeliv)}</b> заказах поле <i>price</i> из Тильды включает доставку. Поэтому выручка по умолчанию считается как <b>товары − скидка</b>; переключатель «База выручки» показывает исходный вариант.`);
+  document.getElementById('hint').innerHTML = parts.join(' ');
+}
+
+const AX = {grid:{color:'#242c36'}, ticks:{color:'#9aa7b4'}};
+function mk(id, cfg){ if (charts[id]) charts[id].destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+
+function drawCover(rows){
+  const ms = [...new Set(rows.map(r => r.date.slice(0,7)))].sort();
+  const cnt = h => ms.map(m => rows.filter(r => r.date.slice(0,7) === m && r.how === h).length);
+  mk('chCover', { type:'bar', data:{ labels:ms.map(mLabel), datasets:[
+    {label:'Промокод', data:cnt('promo'), backgroundColor:'#3fb950'},
+    {label:'UTM-метка', data:cnt('utm'), backgroundColor:'#4f9cf9'},
+    {label:'Реферер', data:cnt('ref'), backgroundColor:'#a371f7'},
+    {label:'Неизвестно', data:cnt('none'), backgroundColor:'#39485a'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+      scales:{x:{...AX, stacked:true}, y:{...AX, stacked:true}} } });
+}
+function drawChan(rows){
+  const g = agg(rows, r => r.channel).slice(0,12);
+  mk('chChan', { type:'bar', data:{ labels:g.map(x => x.k.length > 32 ? x.k.slice(0,32)+'…' : x.k),
+    datasets:[{ label:'Выручка, ₽', data:g.map(x => x.sum), backgroundColor:'#4f9cf9' }] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{afterLabel:c => 'заказов: ' + g[c.dataIndex].orders}}},
+      onClick:(e,el) => { if (el.length) openDrill('Канал: ' + g[el[0].index].k, g[el[0].index].rows); },
+      scales:{x:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}}, y:{...AX, ticks:{color:'#9aa7b4',font:{size:10}}}} } });
+}
+function drawGroup(rows){
+  const g = agg(rows, r => r.group).sort((a,b) => b.orders - a.orders);
+  mk('chGroup', { type:'doughnut', data:{ labels:g.map(x => x.k), datasets:[{ data:g.map(x => x.orders),
+    backgroundColor:['#4f9cf9','#f2a65a','#3fb950','#a371f7','#39c5cf','#f85149','#d29922','#6e7681','#39485a'] }] },
+    options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9aa7b4',boxWidth:12,font:{size:11}}}},
+      onClick:(e,el) => { if (el.length) openDrill('Группа: ' + g[el[0].index].k, g[el[0].index].rows); } } });
+}
+function drawPage(rows){
+  const g = agg(rows, r => r.pageType).sort((a,b) => b.orders - a.orders);
+  mk('chPage', { type:'bar', data:{ labels:g.map(x => x.k), datasets:[
+    {label:'Заказов', data:g.map(x => x.orders), backgroundColor:'#39c5cf'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{afterLabel:c => 'выручка: ' + money(g[c.dataIndex].sum)}}}, scales:{x:AX, y:AX} } });
+}
+function drawDisc(rows){
+  const ms = [...new Set(rows.map(r => r.date.slice(0,7)))].sort();
+  const disc = ms.map(m => sum(rows.filter(r => r.date.slice(0,7) === m), r => r.discount));
+  const rev = ms.map(m => sum(rows.filter(r => r.date.slice(0,7) === m), revOf));
+  mk('chDisc', { data:{ labels:ms.map(mLabel), datasets:[
+    {type:'bar', label:'Скидки, ₽', data:disc, backgroundColor:'#f2a65a', yAxisID:'y'},
+    {type:'line', label:'Доля от выручки, %', data:disc.map((d,i) => rev[i] ? +(d/rev[i]*100).toFixed(2) : 0),
+     borderColor:'#f85149', yAxisID:'y1', tension:.3} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}}},
+      scales:{x:AX, y:{...AX, ticks:{color:'#9aa7b4', callback:v=>fmt(v)}},
+        y1:{position:'right', grid:{display:false}, ticks:{color:'#f85149'}}} } });
+}
+
+/* ---------- таблицы ---------- */
+function defSort(cols){
+  let i = cols.findIndex(c => /выручка/i.test(c.t));
+  if (i < 0) i = cols.findIndex(c => /штук|заказов/i.test(c.t));
+  return i < 0 ? {i:0, dir:1} : {i, dir:-1};
+}
+// opt: {totals, drill:{title:g=>string, rows:g=>[]}, mini:true}
+function tbl(id, cols, data, opt){
+  opt = opt || {};
+  const el = document.getElementById(id), st = sortState[id] || defSort(cols);
+  const d = data.slice().sort((a,b) => { const x = cols[st.i].v(a), y = cols[st.i].v(b);
+    return (x > y ? 1 : x < y ? -1 : 0) * st.dir; });
+  tblData[id] = d;
+  if (opt.mini) el.classList.add('mini');
+  el.innerHTML = '<thead><tr>' + cols.map((c,i) => `<th data-i="${i}">${esc(c.t)}${st.i===i?(st.dir>0?' ▲':' ▼'):''}</th>`).join('') + '</tr></thead>'
+    + '<tbody>' + (d.length ? d.map((r,ri) => `<tr${opt.drill?` class="clk" data-r="${ri}"`:''}>`
+        + cols.map(c => `<td>${c.f(r)}</td>`).join('') + '</tr>').join('')
+        : `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--tx2);padding:22px">Нет данных за период</td></tr>`) + '</tbody>'
+    + (opt.totals && d.length ? '<tfoot><tr>' + opt.totals.map(t => `<td>${t}</td>`).join('') + '</tr></tfoot>' : '');
+  el.querySelectorAll('th').forEach(th => th.onclick = () => {
+    const i = +th.dataset.i;
+    sortState[id] = {i, dir: st.i === i ? -st.dir : (i === 0 ? 1 : -1)};
+    renderTables(LAST);
+  });
+  if (opt.drill) el.querySelectorAll('tbody tr.clk').forEach(tr => tr.onclick = () => {
+    const g = tblData[id][+tr.dataset.r];
+    openDrill(opt.drill.title(g), opt.drill.rows(g));
+  });
+}
+const COLS_BASE = [
+  {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+  {t:'Покупателей', v:r=>r.cust.size, f:r=>fmt(r.cust.size)},
+  {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
+  {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
+  {t:'Средний чек', v:r=>r.orders?r.sum/r.orders:0, f:r=>money(r.orders?r.sum/r.orders:0)},
+];
+function totalsBase(g, rows, firstLabel){
+  const o = sum(g,x=>x.orders);
+  return [firstLabel, fmt(o), fmt(uniqCust(rows)), fmt(sum(g,x=>x.units)), money(sum(g,x=>x.sum)),
+    money(o ? sum(g,x=>x.sum)/o : 0)];
+}
+const HOW = {promo:['Промокод','#3fb950'], utm:['UTM','#4f9cf9'], ref:['Реферер','#a371f7'], none:['Неизвестно','#39485a']};
+
+function tPromo(rows){
+  const g = agg(rows.filter(r => r.promo), r => r.promo);
+  document.getElementById('promoNote').innerHTML = g.length
+    ? 'Клик по строке — какие именно товары продал этот промокод, в каких размерах и в каких заказах. '
+      + 'Имя блогера подставляется из справочника <b>PROMO_OWNERS</b> в начале файла.'
+    : 'За выбранный период промокодов не использовали.';
+  const tot = sum(g, x => x.sum);
+  tbl('tPromo', [
+    {t:'Промокод', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span><span class="arr">товары ▸</span>`},
+    {t:'Блогер', v:r=>owner(r.k), f:r=>esc(owner(r.k)) || '—'},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+    {t:'Покупателей', v:r=>r.cust.size, f:r=>fmt(r.cust.size)},
+    {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
+    {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
+    {t:'Доля', v:r=>r.sum, f:r=>pct(r.sum, tot)},
+    {t:'Скидок', v:r=>r.disc, f:r=>money(r.disc)},
+    {t:'Ср. чек', v:r=>r.orders?r.sum/r.orders:0, f:r=>money(r.orders?r.sum/r.orders:0)},
+    {t:'Первый', v:r=>r.first, f:r=>dRu(r.first)},
+    {t:'Последний', v:r=>r.last, f:r=>dRu(r.last)},
+  ], g, {
+    totals:['Итого','', fmt(sum(g,x=>x.orders)), fmt(uniqCust(rows.filter(r=>r.promo))),
+      fmt(sum(g,x=>x.units)), money(tot), '100%', money(sum(g,x=>x.disc)),
+      money(sum(g,x=>x.orders) ? tot/sum(g,x=>x.orders) : 0), '', ''],
+    drill:{ title: g => 'Промокод ' + g.k + (owner(g.k) ? ' — ' + owner(g.k) : ''), rows: g => g.rows }
+  });
+}
+
+function tProd(rows){
+  const g = aggItems(rows, it => it.model);
+  const tot = sum(g, x => x.net);
+  tbl('tProd', [
+    {t:'Товар', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span>`},
+    {t:'Размеры', v:r=>r.sizes.size, f:r=>[...r.sizes.entries()].sort((a,b)=>b[1]-a[1])
+      .map(([s,q]) => `<span class="pill">${esc(s)}·${q}</span>`).join('') || '—'},
+    {t:'Штук', v:r=>r.qty, f:r=>fmt(r.qty)},
+    {t:'Заказов', v:r=>r.orders.size, f:r=>fmt(r.orders.size)},
+    {t:'Выручка', v:r=>r.net, f:r=>money(r.net)},
+    {t:'Доля', v:r=>r.net, f:r=>pct(r.net, tot)},
+  ], g, {
+    totals:['Итого','', fmt(sum(g,x=>x.qty)), '', money(tot), '100%'],
+    drill:{ title: g => 'Товар: ' + g.k, rows: g => [...g.rows] }
+  });
+}
+
+function tChan(rows){
+  const g = agg(rows, r => r.channel);
+  const how = new Map(); rows.forEach(r => how.set(r.channel, r.how));
+  const tot = sum(g, x => x.sum);
+  tbl('tChan', [
+    {t:'Канал', v:r=>r.k, f:r=>{ const h = HOW[how.get(r.k)] || ['','#666'];
+      return `<span class="dot" style="background:${h[1]}"></span><span class="lnk">${esc(r.k)}</span> <span class="tag">${esc(h[0])}</span>`; }},
+  ].concat(COLS_BASE).concat([
+    {t:'Доля выручки', v:r=>r.sum, f:r=>pct(r.sum, tot)},
+    {t:'Последний заказ', v:r=>r.last, f:r=>dRu(r.last)},
+  ]), g, {
+    totals: totalsBase(g, rows, 'Итого').concat(['100%','']),
+    drill:{ title: g => 'Канал: ' + g.k, rows: g => g.rows }
+  });
+}
+function tUtm(rows){
+  const g = agg(rows.filter(r => r.utmSource), r => [r.utmSource, r.utmMedium, r.utmCampaign, r.utmContent].join(' / '));
+  tbl('tUtm', [{t:'source / medium / campaign / content', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span>`}]
+    .concat(COLS_BASE), g,
+    { totals: totalsBase(g, rows.filter(r=>r.utmSource), 'Итого'),
+      drill:{ title: g => 'UTM: ' + g.k, rows: g => g.rows } });
+}
+function tRef(rows){
+  const g = agg(rows, r => r.refHost);
+  const tot = sum(g, x => x.orders);
+  tbl('tRef', [{t:'Домен реферера', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span>`},
+    {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
+    {t:'Доля', v:r=>r.orders, f:r=>pct(r.orders, tot)},
+    {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
+    {t:'Ср. чек', v:r=>r.orders?r.sum/r.orders:0, f:r=>money(r.orders?r.sum/r.orders:0)},
+  ], g, { totals:['Итого', fmt(tot), '100%', money(sum(g,x=>x.sum)), ''],
+    drill:{ title: g => 'Реферер: ' + g.k, rows: g => g.rows } });
+}
+function tLand(rows){
+  const g = agg(rows, r => r.landPath);
+  tbl('tLand', [{t:'Страница входа', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span>`}].concat(COLS_BASE), g,
+    { totals: totalsBase(g, rows, 'Итого'),
+      drill:{ title: g => 'Страница входа: ' + g.k, rows: g => g.rows } });
+}
+
+/* ---------- drill-down ---------- */
+function openDrill(title, rows){
+  rows = (rows || []).slice().sort((a,b) => a.ts < b.ts ? 1 : -1);
+  const ovl = document.getElementById('ovl');
+  document.getElementById('mTitle').textContent = title;
+  const gross = sum(rows, r => r.gross), disc = sum(rows, r => r.discount);
+  const net = sum(rows, r => r.net), deliv = sum(rows, r => r.deliv);
+  const units = sum(rows, r => r.units);
+  const dates = rows.map(r => r.date).sort();
+  document.getElementById('mSub').textContent = rows.length
+    ? `${dRu(dates[0])} — ${dRu(dates[dates.length-1])} · ${rows.length} заказов · ${uniqCust(rows)} покупателей`
+    : 'нет заказов';
+
+  const K = [
+    ['Заказов', fmt(rows.length), fmt(uniqCust(rows)) + ' покупателей'],
+    ['Штук', fmt(units), rows.length ? (units/rows.length).toFixed(2) + ' на заказ' : ''],
+    ['По прайсу', money(gross), 'до скидки'],
+    ['Скидка', money(disc), pct(disc, gross) + ' от прайса'],
+    ['Выручка', money(net), 'товары − скидка'],
+    ['Доставка', money(deliv), 'сверх выручки'],
+    ['Ср. чек', money(rows.length ? net/rows.length : 0), ''],
+  ];
+  let html = '<div class="mk">' + K.map(([l,v,sm]) =>
+    `<div><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div>`
+    + (sm ? `<div class="s">${esc(sm)}</div>` : '') + '</div>').join('') + '</div>';
+
+  // товары
+  const items = aggItems(rows, it => it.model);
+  html += '<h4>Товары — что именно куплено</h4><div class="scroll" style="max-height:300px"><table class="mini"><thead><tr>'
+    + '<th>Товар</th><th>Размеры</th><th>Штук</th><th>Заказов</th><th>По прайсу</th><th>Выручка</th><th>Доля</th></tr></thead><tbody>';
+  const inet = sum(items, x => x.net) || 1;
+  html += items.map(x => '<tr>'
+    + `<td>${esc(x.k)}</td>`
+    + `<td>${[...x.sizes.entries()].sort((a,b)=>b[1]-a[1]).map(([s,q])=>`<span class="pill">${esc(s)}·${q}</span>`).join('') || '—'}</td>`
+    + `<td>${fmt(x.qty)}</td><td>${fmt(x.orders.size)}</td><td>${money(x.gross)}</td>`
+    + `<td>${money(x.net)}</td><td>${pct(x.net, inet)}</td></tr>`).join('')
+    + `<tr style="font-weight:700"><td>Итого</td><td></td><td>${fmt(sum(items,x=>x.qty))}</td><td></td>`
+    + `<td>${money(sum(items,x=>x.gross))}</td><td>${money(sum(items,x=>x.net))}</td><td>100%</td></tr>`;
+  html += '</tbody></table></div>';
+
+  // артикулы
+  const skus = aggItems(rows, it => (it.sku || it.model) + (it.size ? ' · ' + it.size : ''));
+  if (skus.length > items.length){
+    html += '<h4>Разбивка по артикулам и размерам</h4><div class="scroll" style="max-height:260px">'
+      + '<table class="mini"><thead><tr><th>Артикул · размер</th><th>Штук</th><th>По прайсу</th><th>Выручка</th></tr></thead><tbody>'
+      + skus.map(x => `<tr><td>${esc(x.k)}</td><td>${fmt(x.qty)}</td><td>${money(x.gross)}</td><td>${money(x.net)}</td></tr>`).join('')
+      + '</tbody></table></div>';
+  }
+
+  // источники (если их несколько)
+  const ch = agg(rows, r => r.channel);
+  if (ch.length > 1){
+    html += '<h4>Источники этих заказов</h4><div class="scroll" style="max-height:220px">'
+      + '<table class="mini"><thead><tr><th>Канал</th><th>Заказов</th><th>Штук</th><th>Выручка</th></tr></thead><tbody>'
+      + ch.map(x => `<tr><td>${esc(x.k)}</td><td>${fmt(x.orders)}</td><td>${fmt(x.units)}</td><td>${money(x.sum)}</td></tr>`).join('')
+      + '</tbody></table></div>';
+  }
+
+  // заказы
+  html += '<h4>Заказы</h4><div class="scroll" style="max-height:340px"><table class="mini"><thead><tr>'
+    + '<th>Дата</th><th>Состав</th><th>Штук</th><th>По прайсу</th><th>Скидка</th><th>Выручка</th><th>Доставка</th><th>Источник</th></tr></thead><tbody>';
+  html += (rows.length ? rows.map(r => '<tr>'
+    + `<td>${esc(dRu(r.date))}<div style="font-size:10.5px;color:var(--tx2)">${esc(r.email || '—')}</div></td>`
+    + `<td style="white-space:normal;max-width:340px;text-align:left">${r.items.map(i =>
+        `${esc(i.model)}${i.size?' <span class="pill">'+esc(i.size)+'</span>':''}${i.qty>1?' ×'+i.qty:''}`).join('<br>')}</td>`
+    + `<td>${fmt(r.units)}</td><td>${money(r.gross)}</td><td>${r.discount?money(r.discount):'—'}</td>`
+    + `<td>${money(r.net)}</td><td>${r.deliv?money(r.deliv):'—'}</td>`
+    + `<td style="white-space:normal;max-width:200px;text-align:left;font-size:11.5px;color:var(--tx2)">${esc(r.channel)}</td></tr>`).join('')
+    : '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--tx2)">Нет заказов</td></tr>');
+  html += '</tbody></table></div>';
+
+  document.getElementById('mBody').innerHTML = html;
+  document.getElementById('mBody').scrollTop = 0;
+  document.getElementById('mCsv').onclick = () => exportCsv(rows,
+    'bladnes_' + title.replace(/[^\wа-яА-ЯёЁ]+/g,'_').slice(0,40));
+  ovl.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeDrill(){ document.getElementById('ovl').hidden = true; document.body.style.overflow = ''; }
+document.getElementById('mClose').onclick = closeDrill;
+document.getElementById('ovl').onclick = e => { if (e.target.id === 'ovl') closeDrill(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrill(); });
+
+/* ---------- экспорт ---------- */
+function exportCsv(rows, name){
+  const head = ['Дата','ID заказа','Email','Товар','Артикул','Размер','Штук','Цена за шт','Сумма позиции',
+    'Выручка позиции (со скидкой)','Сумма заказа по прайсу','Скидка заказа','Выручка заказа','Доставка',
+    'Канал','Группа канала','Как определён','Промокод','Блогер','utm_source','utm_medium','utm_campaign',
+    'utm_content','utm_term','Реферер (домен)','Реферер (полный)','Страница входа','Тип страницы','Оплата'];
+  const e = v => '"' + String(v == null ? '' : v).replace(/"/g,'""') + '"';
+  const how = {promo:'промокод', utm:'utm', ref:'реферер', none:'неизвестно'};
+  const lines = [];
+  rows.forEach(r => {
+    const f = r.gross > 0 ? r.net / r.gross : 1;
+    const its = r.items.length ? r.items : [{model:'(не разобрано)',sku:'',size:'',qty:r.units,unit:0,total:r.gross}];
+    its.forEach(i => lines.push([
+      r.date, r.id, r.email, i.model, i.sku, i.size, i.qty, i.unit, i.total, Math.round(i.total*f*100)/100,
+      r.gross, r.discount, r.net, r.deliv,
+      r.channel, r.group, how[r.how], r.promo, owner(r.promo),
+      r.utmSource, r.utmMedium, r.utmCampaign, r.utmContent, r.utmTerm,
+      r.refHost, r.referrer, r.landing, r.pageType, r.pay
+    ].map(e).join(';')));
+  });
+  const csv = '﻿' + [head.map(e).join(';')].concat(lines).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = (name || 'bladnes') + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+load();
+</script>
+</body>
+</html>
