@@ -363,6 +363,8 @@ function loadJournal(left){
   JOURNAL_STATE = 'loading';
   const cb = 'jr_' + Math.random().toString(36).slice(2);
   const s  = document.createElement('script');
+  // без куки Google: при двух аккаунтах в браузере запрос иначе уходит на /macros/u/1/… и падает с 503
+  s.crossOrigin = 'anonymous';
   let done = false;
   const finish = () => { done = true; clearTimeout(timer); window[cb] = function(){}; if (s.parentNode) s.parentNode.removeChild(s); };
   const retry = () => {
