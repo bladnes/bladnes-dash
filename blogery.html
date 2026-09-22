@@ -82,7 +82,7 @@ tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;pos
 <body>
 <div class="wrap">
   <h1>Bladnes — промокоды, блогеры и источники трафика</h1>
-  <div class="sub"><span class="ver">сборка 4 · товары внутри промокода + честная выручка</span>
+  <div class="sub"><span class="ver">сборка 5 · ссылки из генератора UTM</span>
     Источник: Google-таблица «Сайт Бладнес», лист «Заказы» (только чтение) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из таблицы…</div>
@@ -143,6 +143,12 @@ tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;pos
       <div class="card"><h3>Промокоды и блогеры</h3>
         <div class="note" id="promoNote"></div>
         <div class="scroll" style="max-height:340px"><table id="tPromo"></table></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Ссылки из генератора UTM</h3>
+        <div class="note" id="linksNote"></div>
+        <div class="scroll" style="max-height:380px"><table id="tLinks"></table></div></div>
     </div>
 
     <div class="grid g2">
@@ -217,6 +223,10 @@ const GID = '0';
 // E=orderid W=sent B=email H=price I=subtotal P=delivery N=payment_status G=products
 // AN=category AO=promocode AP=discount AD..AH=utm AI=landing AJ=page_url AK=referrer AL=page_type
 const QUERY = 'select E,W,B,H,I,J,N,O,P,AD,AN,AO,G,AP,AE,AF,AG,AH,AI,AJ,AK,AL';
+// Журнал ссылок из генератора UTM (utm.html): отдельная таблица и скрипт на stepan.wb@gmail.com.
+// Дашборд его только читает. Если журнал не ответил — всё остальное считается как обычно.
+const JOURNAL_API = 'https://script.google.com/macros/s/AKfycbw7MGvJTSCb30GPitnv9C3UNdZN93JcboZe8uJ06_Y-Dmp8lGYvHWPoIh2HgxxNmTLl/exec';
+let JOURNAL = [], JOURNAL_STATE = 'loading', JPROMO = {};
 const MONTHS = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const SITE = 'bladnes.com';
 let RAW = [], charts = {}, sortState = {}, tblData = {}, LAST = [], SKIPPED = 0, drillStack = [];
@@ -313,7 +323,14 @@ function classify(r){
     const s = r.utmSource.toLowerCase();
     const nice = {telegram:'Telegram', tg:'Telegram', ig:'Instagram', instagram:'Instagram',
       vk:'ВКонтакте', yt:'YouTube', youtube:'YouTube'}[s] || r.utmSource;
-    return { channel: 'UTM: ' + nice + (r.utmCampaign ? ' / ' + r.utmCampaign : ''), group: nice, how: 'utm' };
+    const camp = r.utmCampaign ? ' / ' + r.utmCampaign : '';
+    // типы размещения из генератора UTM: у блогера и посева в utm_source — ник, а не площадка
+    const m = (r.utmMedium || '').toLowerCase();
+    if (m === 'blogger')     return { channel: 'Блогер: ' + r.utmSource + camp, group: 'Блогеры', how: 'utm' };
+    if (m === 'paid_post')   return { channel: 'Посев: ' + r.utmSource + camp, group: 'Посевы', how: 'utm' };
+    if (m === 'paid_social') return { channel: 'Таргет: ' + nice + camp, group: 'Таргет', how: 'utm' };
+    if (m === 'qr')          return { channel: 'QR: ' + (r.utmContent || 'офлайн') + camp, group: 'Офлайн (QR)', how: 'utm' };
+    return { channel: 'UTM: ' + nice + camp, group: nice, how: 'utm' };
   }
   const h = host(r.referrer);
   if (!h) return { channel: 'Прямой заход / нет реферера', group: 'Прямой / неизвестно', how: 'none' };
@@ -336,9 +353,38 @@ function decodePromo(code){
   if (p.length === 2) return { type: p[0], who: p[1], val: '' };
   return { type: '', who: '', val: '' };
 }
-const owner = code => PROMO_OWNERS[code] || decodePromo(code).who || '';
+// блогер по промокоду: сначала ручной справочник, потом журнал генератора, потом разбор кода
+const owner = code => PROMO_OWNERS[code] || JPROMO[code] || decodePromo(code).who || '';
 
 /* ---------- загрузка ---------- */
+/* ---------- журнал ссылок из генератора ---------- */
+function loadJournal(left){
+  left = left || 3;
+  JOURNAL_STATE = 'loading';
+  const cb = 'jr_' + Math.random().toString(36).slice(2);
+  const s  = document.createElement('script');
+  let done = false;
+  const finish = () => { done = true; clearTimeout(timer); window[cb] = function(){}; if (s.parentNode) s.parentNode.removeChild(s); };
+  const retry = () => {
+    finish();
+    if (left > 1) setTimeout(() => loadJournal(left - 1), 2000);
+    else { JOURNAL_STATE = 'error'; if (RAW.length) renderTables(LAST); }
+  };
+  const timer = setTimeout(retry, 30000);
+  window[cb] = resp => {
+    if (done) return;
+    if (!resp || !resp.ok){ retry(); return; }
+    finish();
+    JOURNAL = resp.rows || []; JOURNAL_STATE = 'ok';
+    JPROMO = {};
+    JOURNAL.forEach(j => { if (j.promo && j.blogger) JPROMO[String(j.promo).toUpperCase()] = j.blogger; });
+    if (RAW.length) renderTables(LAST);
+  };
+  s.onerror = () => { if (!done) retry(); };
+  s.src = JOURNAL_API + '?action=list&callback=' + cb + '&_=' + Date.now();
+  document.head.appendChild(s);
+}
+
 function load(){
   const el = document.getElementById('loading');
   el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю заказы из архива…';
@@ -459,7 +505,7 @@ function initFilters(){
     document.getElementById('paid').value = 'paid';
     sortState = {}; render();
   };
-  document.getElementById('reload').onclick = load;
+  document.getElementById('reload').onclick = () => { load(); loadJournal(); };
   document.getElementById('csv').onclick = () => exportCsv(filtered(), 'bladnes_' + range().join('_'));
   Object.entries(keep).forEach(([id, v]) => {
     if (!v) return;
@@ -538,7 +584,7 @@ function render(){
   renderTables(LAST);
 }
 function renderTables(rows){
-  tPromo(rows); tProd(rows); tChan(rows); tUtm(rows); tRef(rows); tLand(rows);
+  tPromo(rows); tLinks(rows); tProd(rows); tChan(rows); tUtm(rows); tRef(rows); tLand(rows);
 }
 
 function kpis(rows){
@@ -705,6 +751,64 @@ function tPromo(rows){
       fmt(sum(g,x=>x.units)), money(tot), '100%', money(sum(g,x=>x.disc)),
       money(sum(g,x=>x.orders) ? tot/sum(g,x=>x.orders) : 0), '', ''],
     drill:{ title: g => 'Промокод ' + g.k + (owner(g.k) ? ' — ' + owner(g.k) : ''), rows: g => g.rows }
+  });
+}
+
+// Ссылки из журнала, сведённые по пяти меткам: одна публикация на несколько товаров — одна строка.
+// Заказ засчитывается ссылке, если у него совпали все пять utm — промокод при этом не мешает.
+const plural = (n, one, few, many) => { const a = n % 10, b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 10 || b >= 20) ? few : many; };
+const ukey = (s, m, c, co, t) => [s, m, c, co, t].map(x => String(x || '').trim().toLowerCase()).join('|');
+const atKey = s => { const m = String(s || '').match(/^(\d{2})\.(\d{2})\.(\d{4})\s*(\d{1,2}:\d{2})?/);
+  return m ? `${m[3]}-${m[2]}-${m[1]} ${m[4] || ''}`.trim() : String(s || ''); };
+function tLinks(rows){
+  const note = document.getElementById('linksNote');
+  if (JOURNAL_STATE === 'loading'){ note.textContent = 'Загружаю журнал ссылок…'; document.getElementById('tLinks').innerHTML = ''; return; }
+  if (JOURNAL_STATE === 'error'){ note.innerHTML = '<span class="bad">Журнал ссылок не ответил.</span> Остальной дашборд считается как обычно — нажми «Обновить из таблицы» позже.';
+    document.getElementById('tLinks').innerHTML = ''; return; }
+  const groups = new Map();
+  JOURNAL.forEach(j => {
+    const k = ukey(j.source, j.medium, j.campaign, j.content, j.term);
+    if (!groups.has(k)) groups.set(k, {k, how:j.how, campaign:j.campaign, at:atKey(j.at), by:new Set(), dests:[], promo:''});
+    const g = groups.get(k);
+    g.by.add(j.by); if (!g.dests.includes(j.dest)) g.dests.push(j.dest);
+    if (j.promo) g.promo = j.promo;
+    if (atKey(j.at) < g.at) g.at = atKey(j.at);
+  });
+  const byKey = new Map();
+  rows.forEach(r => {
+    if (!r.utmSource) return;
+    const k = ukey(r.utmSource, r.utmMedium, r.utmCampaign, r.utmContent, r.utmTerm);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  });
+  const data = [...groups.values()].map(g => {
+    const rs = byKey.get(g.k) || [];
+    return Object.assign(g, {rows:rs, orders:rs.length, sum:sum(rs, revOf),
+      last: rs.length ? rs.map(r => r.date).sort().pop() : ''});
+  });
+  const withOrders = data.filter(g => g.orders).length;
+  note.innerHTML = JOURNAL.length
+    ? `В журнале <b>${fmt(JOURNAL.length)}</b> ${plural(JOURNAL.length, 'ссылка', 'ссылки', 'ссылок')}, `
+      + `это <b>${fmt(data.length)}</b> ${plural(data.length, 'публикация', 'публикации', 'публикаций')}; `
+      + `заказы за выбранный период принесли <b>${fmt(withOrders)}</b>. `
+      + 'Заказ засчитывается ссылке, если у него совпали все пять меток. Клик по строке — что именно купили.'
+    : 'Журнал пока пуст. Ссылки появятся здесь, когда команда начнёт сохранять их в генераторе UTM.';
+  const cutAt = s => s ? dRu(s.slice(0, 10)) + (s.length > 10 ? ' ' + s.slice(11) : '') : '—';
+  tbl('tLinks', [
+    {t:'Публикация', v:r=>r.how, f:r=>`<span class="lnk">${esc(r.how)}</span> <span class="pill">${esc(r.campaign === 'always_on' ? 'постоянная' : r.campaign)}</span>`
+      + (r.promo ? ` <span class="pill">промокод ${esc(r.promo)}</span>` : '')},
+    {t:'Куда', v:r=>r.dests.length, f:r=>esc(r.dests.slice(0, 2).join(', ')) + (r.dests.length > 2 ? ` <span class="tag">+${r.dests.length - 2}</span>` : '')},
+    {t:'Кто сделал', v:r=>[...r.by].join(', '), f:r=>esc([...r.by].join(', '))},
+    {t:'Создана', v:r=>r.at, f:r=>esc(cutAt(r.at))},
+    {t:'Заказов', v:r=>r.orders, f:r=>r.orders ? fmt(r.orders) : '<span style="color:var(--tx2)">0</span>'},
+    {t:'Выручка', v:r=>r.sum, f:r=>r.sum ? money(r.sum) : '—'},
+    {t:'Ср. чек', v:r=>r.orders ? r.sum / r.orders : 0, f:r=>r.orders ? money(r.sum / r.orders) : '—'},
+    {t:'Последний заказ', v:r=>r.last, f:r=>r.last ? dRu(r.last) : '—'},
+  ], data, {
+    totals:['Итого', '', '', '', fmt(sum(data, x => x.orders)), money(sum(data, x => x.sum)),
+      money(sum(data, x => x.orders) ? sum(data, x => x.sum) / sum(data, x => x.orders) : 0), ''],
+    drill:{ title: g => 'Ссылка: ' + g.how + ' · ' + g.campaign, rows: g => g.rows }
   });
 }
 
@@ -877,6 +981,7 @@ function exportCsv(rows, name){
 }
 
 load();
+loadJournal();
 </script>
 </body>
 </html>

@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bladnes — генератор UTM-ссылок</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0e1116;--panel:#161b22;--panel2:#1c232c;--line:#2a323d;--tx:#e6edf3;--tx2:#9aa7b4;
+--acc:#4f9cf9;--acc2:#f2a65a;--ok:#3fb950;--bad:#f85149;--vio:#a371f7;--cy:#39c5cf}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:20px 18px 60px}
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--tx2);font-size:12px}
+.ver{display:inline-block;padding:2px 8px;border-radius:999px;background:#12331d;color:var(--ok);
+  font-size:11px;font-weight:600;margin-right:8px;border:1px solid #1d5c31}
+.f{display:flex;flex-direction:column;gap:4px}
+.f label,.lbl{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+select,input,button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13px;outline:none;font-family:inherit}
+input{min-width:0}
+select:focus,input:focus{border-color:var(--acc)}
+button{cursor:pointer}button:hover{border-color:var(--acc)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pri{background:var(--acc);border-color:var(--acc);color:#07121f;font-weight:600}
+.pri:hover{background:#6aabfa}
+.pri:disabled{opacity:.45;cursor:default}
+.ghost{background:none}
+
+/* кто делает ссылку */
+.gate{max-width:720px;padding:22px 22px 24px}
+.gate h2{margin:0 0 4px;font-size:18px;text-wrap:balance}
+.gate .note{margin:0 0 16px}
+.people{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.person{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;text-align:left;font-size:15px;font-weight:600}
+.person small{display:block;font-size:11px;font-weight:500;color:var(--tx2);margin-top:1px}
+.person.last{border-color:#35506f;background:#18222e}
+.av{flex:none;width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#0e1116}
+.nav{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12.5px}
+.nav a{color:var(--acc);text-decoration:none;border-bottom:1px dashed rgba(79,156,249,.5)}
+.nav a:hover{color:#8cc0ff}
+.other{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:12px}
+.other .f{flex:1;min-width:180px}
+.meline{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 6px;font-size:13px}
+.meline .av{width:28px;height:28px;font-size:12px}
+.meline button{border-radius:999px;padding:5px 11px;font-size:12px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:16px;align-items:start}
+.side{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+@media(max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}.side{position:static;max-height:none}}
+
+.card,.step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.step{margin-bottom:12px}
+.step h3,.card h3{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:13px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em}
+.num{flex:none;width:22px;height:22px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);color:var(--tx);
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:0}
+.step.done .num{background:#12331d;border-color:#1d5c31;color:var(--ok)}
+.opt{font-size:10.5px;font-weight:500;text-transform:none;letter-spacing:0;color:var(--tx2);opacity:.8}
+.note{font-size:12px;color:var(--tx2);margin-top:8px;line-height:1.5}
+.note code,.sub code{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:0 5px;color:var(--tx);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border-radius:999px;padding:7px 13px;display:inline-flex;align-items:center;gap:7px;line-height:1.2}
+.chip .d{width:8px;height:8px;border-radius:50%;flex:none}
+.chip small{color:var(--tx2);font-size:11px}
+.chip.on{background:#18283d;border-color:var(--acc);color:#fff}
+.chip.on small{color:#b9cde6}
+.who{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.who .chip{border-radius:10px;flex-direction:column;align-items:flex-start;gap:3px;padding:9px 12px;text-align:left}
+.sublist{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:12px}
+.sublist[hidden]{display:none}
+.req{color:var(--acc2)}
+
+.tabs{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:12px}
+.tabs button{border:none;background:none;border-radius:7px;padding:6px 14px;color:var(--tx2)}
+.tabs button.on{background:var(--panel);color:var(--tx);box-shadow:0 0 0 1px var(--line)}
+.row{display:flex;gap:8px}
+.row input{flex:1}
+.pane[hidden]{display:none}
+.or{display:flex;align-items:center;gap:10px;margin-top:10px;color:var(--tx2);font-size:12px}
+.msgline{font-size:12px;margin-top:8px;min-height:0}
+.msgline:empty{display:none}
+.bad{color:var(--bad)}.ok{color:var(--ok)}.warn{color:var(--acc2)}
+
+.dests{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.dests:empty{display:none}
+.dh{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+.lnkbtn{background:none;border:none;padding:0;color:var(--acc);font-size:12px;text-transform:none;letter-spacing:0}
+.dst{display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.th{flex:none;width:44px;height:44px;border-radius:8px;background:#efede6;object-fit:cover;display:flex;align-items:center;justify-content:center;
+  color:#3a3a3a;font-weight:700;font-size:13px;overflow:hidden}
+.th.pg{background:#20303f;color:var(--tx2);font-size:16px}
+.dst .tt{flex:1;min-width:0}
+.dst .tt b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dst .tt span{font-size:12px;color:var(--tx2)}
+.x{background:none;border:1px solid var(--line);border-radius:8px;color:var(--tx2);font-size:16px;line-height:1;padding:6px 10px;cursor:pointer}
+.x:hover{color:var(--tx);border-color:var(--acc)}
+
+details.more{margin-top:0}
+details.more summary{cursor:pointer;color:var(--tx2);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;list-style:none;display:flex;align-items:center;gap:10px}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:'+';width:22px;height:22px;border-radius:50%;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:var(--tx)}
+details.more[open] summary::before{content:'−'}
+.ovgrid{display:grid;grid-template-columns:120px 1fr;gap:8px 10px;align-items:center;margin-top:8px}
+.ovgrid code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx2)}
+
+/* результат */
+.side h3 .cnt{margin-left:auto;font-size:11px;letter-spacing:0;text-transform:none;color:var(--tx2);font-weight:500}
+.sum{font-size:14px;font-weight:600;margin-bottom:10px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.tag{display:inline-flex;gap:5px;align-items:baseline;padding:3px 8px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+.tag i{font-style:normal;color:var(--tx2)}
+.tag.man{border-color:#6b4b25}
+.legend{font-size:11px;color:var(--tx2);margin-bottom:14px;line-height:1.55}
+.empty{color:var(--tx2);font-size:13px;line-height:1.6;padding:6px 0 4px}
+.empty ul{margin:6px 0 0;padding-left:18px}
+.res{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.rh{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.rh .th{width:36px;height:36px}
+.rh b{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rh span{font-size:11.5px;color:var(--tx2)}
+.rh>div{min-width:0}
+.url{font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:text;user-select:all}
+.ub{color:var(--tx2)}.uq{color:#6d7b89}.uv{color:#7ee2a8}.uo{color:var(--tx2)}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.acts a{color:var(--tx2);font-size:13px;text-decoration:none;padding:7px 4px}
+.acts a:hover{color:var(--tx)}
+.foot{display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.foot .pri{flex:1}
+
+/* журнал */
+.logc{margin-top:16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+.bar input{flex:1;min-width:180px}
+.scroll{max-height:480px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--tx2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--panel);z-index:2;white-space:nowrap}
+tbody tr:hover{background:#1b2430}
+td.nw{white-space:nowrap}
+td .s{display:block;font-size:11.5px;color:var(--tx2)}
+td .u{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx2);word-break:break-all;display:block;max-width:360px}
+.pill{display:inline-block;padding:1px 6px;border-radius:6px;background:#20303f;color:var(--tx2);font-size:11px;margin:1px 3px 1px 0}
+.sm{padding:4px 9px;font-size:12px}
+.msg{padding:26px;text-align:center;color:var(--tx2)}
+
+/* модалки */
+.ovl{position:fixed;inset:0;background:rgba(6,9,13,.72);backdrop-filter:blur(2px);z-index:50;
+  display:flex;align-items:flex-start;justify-content:center;padding:28px 16px;overflow:auto}
+.ovl[hidden]{display:none!important}
+.mod{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:1080px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+.mod.sm{max-width:440px}
+.mh{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--panel);border-radius:14px 14px 0 0;z-index:5}
+.mh h2{margin:0;font-size:17px}
+.mh .ms{color:var(--tx2);font-size:12px;margin-top:3px}
+.mh .x{margin-left:auto}
+.mb{padding:14px 18px 18px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+.pc{position:relative;display:flex;flex-direction:column;align-items:stretch;text-align:left;padding:0;overflow:hidden;border-radius:10px;background:var(--panel2)}
+.pc img{width:100%;aspect-ratio:1/1;object-fit:cover;background:#efede6;display:block}
+.pc .pt{padding:8px 9px 9px;font-size:12.5px;line-height:1.3}
+.pc .pp{display:block;margin-top:4px;color:var(--tx2);font-size:12px}
+.pc .pp s{opacity:.7;margin-left:4px}
+.pc .mk{position:absolute;top:6px;left:6px;background:#0e1116;color:#fff;font-size:10px;font-weight:700;letter-spacing:.05em;border-radius:5px;padding:2px 6px}
+.pc .ck{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(14,17,22,.65);border:1px solid rgba(255,255,255,.35);
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:transparent}
+.pc.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.pc.on .ck{background:var(--acc);border-color:var(--acc);color:#07121f}
+.mf{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--panel);border-radius:0 0 14px 14px}
+.mf span{color:var(--tx2);font-size:13px;margin-right:auto}
+.qrbox{background:#fff;border-radius:10px;padding:14px;display:flex;justify-content:center}
+.qrbox img{width:100%;max-width:300px;height:auto;display:block;image-rendering:pixelated}
+.qru{font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx2);word-break:break-all;margin:12px 0}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#12331d;border:1px solid #1d5c31;color:#c8f5d3;
+  padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:80}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:#3a1717;border-color:#6b2a2a;color:#ffd1cf}
+
+/* нижняя панель на телефоне */
+.mbar{display:none}
+@media(max-width:980px){
+  .mbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(22,27,34,.96);border-top:1px solid var(--line);
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom));gap:8px;backdrop-filter:blur(4px)}
+  .mbar.show{display:flex}
+  .mbar .pri{flex:1}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom, 0px))}
+  .wrap{padding-bottom:110px}
+}
+@media(max-width:560px){
+  .wrap{padding:16px 16px 110px}
+  .step,.card{padding:12px}
+  .who{grid-template-columns:1fr 1fr}
+  .ovgrid{grid-template-columns:1fr}
+  .people{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ovgrid code{margin-top:4px}
+  .pgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tabs{display:flex}
+  .tabs button{flex:1}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Bladnes — генератор UTM-ссылок</h1>
+      <div class="sub"><span class="ver">сборка 2 · общий журнал</span>
+        Выбери, куда ведёт ссылка и где её разместишь, и метка соберётся сама. Вписывать руками ничего не нужно.</div>
+      <nav class="nav" aria-label="Другие страницы">
+        <a href="https://bladnes.github.io/bladnes-dash/">Дашборд продаж</a>
+        <a href="https://bladnes.github.io/bladnes-dash/blogery.html">Блогеры, промокоды и трафик</a>
+      </nav>
+    </div>
+    <div class="meline" id="meline" hidden>
+      <span id="meAv"></span><span>Ссылку делает <b id="meName"></b></span>
+      <button type="button" id="meChange">Сменить</button>
+    </div>
+  </div>
+
+  <!-- 0. кто делает ссылку: пока не выбран, остальное скрыто -->
+  <section class="card gate" id="gate">
+    <h2>Кто делает ссылку?</h2>
+    <p class="note">Имя попадёт в журнал рядом со ссылкой, чтобы было видно, кто её сделал и для чего.</p>
+    <div class="people" id="people"></div>
+    <div class="other" id="otherBox" hidden>
+      <div class="f"><label for="otherName">Как тебя зовут</label>
+        <input id="otherName" autocomplete="off" maxlength="40" placeholder="Имя"></div>
+      <button type="button" class="pri" id="otherGo">Продолжить</button>
+    </div>
+  </section>
+
+  <div id="work" hidden>
+  <div class="layout">
+    <div>
+      <!-- 1. куда -->
+      <section class="step" id="st1">
+        <h3><span class="num">1</span>Куда ведёт ссылка</h3>
+        <div class="tabs" role="tablist">
+          <button type="button" class="on" data-tab="prod">Товары</button>
+          <button type="button" data-tab="page">Разделы сайта</button>
+        </div>
+        <div class="pane" id="pane-prod">
+          <div class="row">
+            <input id="paste" type="url" inputmode="url" autocomplete="off"
+              placeholder="Вставь ссылку на товар с сайта: https://bladnes.com/hoodie/tproduct/…">
+            <button type="button" class="pri" id="addBtn">Добавить</button>
+          </div>
+          <div class="msgline" id="pasteMsg"></div>
+          <div class="or">или <button type="button" id="openPicker">Выбрать из каталога · <span id="pcount"></span> товаров</button></div>
+        </div>
+        <div class="pane" id="pane-page" hidden>
+          <div class="chips" id="pages"></div>
+          <div class="note">Можно выбрать несколько. На каждую страницу получится своя ссылка с одной и той же меткой.</div>
+        </div>
+        <div class="dests" id="dests"></div>
+      </section>
+
+      <!-- 2. кто -->
+      <section class="step" id="st2">
+        <h3><span class="num">2</span>Кто размещает</h3>
+        <div class="who" id="who"></div>
+        <div class="sublist" id="f-blogger" hidden>
+          <div class="f"><label for="blogger">Ник блогера <span class="req">*</span></label>
+            <input id="blogger" list="bloggers" autocomplete="off" placeholder="например, skeleton или @skeleton.art"></div>
+          <div class="f"><label for="promo">Его промокод</label>
+            <input id="promo" autocomplete="off" placeholder="SKELETON" style="text-transform:uppercase"></div>
+        </div>
+        <div class="sublist" id="f-seed" hidden>
+          <div class="f"><label for="seed">Название канала <span class="req">*</span></label>
+            <input id="seed" autocomplete="off" placeholder="например, darkwear_daily"></div>
+        </div>
+        <datalist id="bloggers"></datalist>
+      </section>
+
+      <!-- 3. где -->
+      <section class="step" id="st3">
+        <h3><span class="num">3</span><span id="st3t">Где размещаем</span></h3>
+        <div class="chips" id="platforms"></div>
+        <div class="chips" id="offline" hidden></div>
+        <div class="sublist" id="f-plother" hidden>
+          <div class="f"><label for="plother">Какая площадка <span class="req">*</span></label>
+            <input id="plother" autocomplete="off" placeholder="например, threads или wishlist"></div>
+        </div>
+        <div class="sublist" id="f-offother" hidden>
+          <div class="f"><label for="offother">Где именно <span class="req">*</span></label>
+            <input id="offother" autocomplete="off" placeholder="например, стикерпак или флаер"></div>
+        </div>
+      </section>
+
+      <!-- 4. формат -->
+      <section class="step" id="st4">
+        <h3><span class="num">4</span>Формат <span class="opt">необязательно</span></h3>
+        <div class="chips" id="formats"></div>
+        <div class="sublist" id="f-fmother" hidden>
+          <div class="f"><label for="fmother">Какой формат</label>
+            <input id="fmother" autocomplete="off" placeholder="например, карусель или подкаст"></div>
+        </div>
+      </section>
+
+      <!-- 5. кампания -->
+      <section class="step" id="st5">
+        <h3><span class="num">5</span>Что продвигаем — кампания</h3>
+        <input id="campaign" autocomplete="off" style="width:100%" placeholder="например: дроп you're not real, осенний sale, коллаборация с …">
+        <div class="chips" id="camps" style="margin-top:10px"></div>
+        <div class="note" id="campNote">Пиши как удобно, по-русски тоже можно: «Дроп You're not real» станет <code>drop_youre_not_real</code>.
+          Для ссылки, которая висит постоянно (в профиле, в закрепе), выбери «Постоянная ссылка».</div>
+      </section>
+
+      <!-- доп -->
+      <section class="step">
+        <details class="more" id="more">
+          <summary>Дополнительно</summary>
+          <div class="sublist">
+            <div class="f"><label for="term">Вариант или номер</label>
+              <input id="term" autocomplete="off" placeholder="например, 2 или вариант_б"></div>
+            <div class="f"><label for="note">Заметка для журнала</label>
+              <input id="note" autocomplete="off" placeholder="что это за ссылка, своими словами"></div>
+          </div>
+          <div class="note" style="margin-top:14px">Ручная правка меток: впиши значение, и оно заменит собранное автоматически.
+            Пустое поле — значит, как собралось само.</div>
+          <div class="ovgrid" id="ovgrid"></div>
+        </details>
+      </section>
+    </div>
+
+    <!-- результат -->
+    <aside class="side card" id="result">
+      <h3>Готовые ссылки <span class="cnt" id="rcount"></span></h3>
+      <div id="rbody"></div>
+    </aside>
+  </div>
+
+  <!-- журнал -->
+  <section class="card logc">
+    <h3>Журнал ссылок <span class="opt" id="logCount"></span></h3>
+    <div class="bar">
+      <input id="logq" type="search" placeholder="Поиск: блогер, кампания, товар, кто сделал…">
+      <button type="button" id="csv">Скачать CSV</button>
+      <a class="lnkbtn" id="sheetLink" target="_blank" rel="noopener">Открыть таблицу ↗</a>
+    </div>
+    <div class="scroll" id="log"></div>
+    <div class="note">Журнал общий: в нём ссылки всей команды, и его видит каждый, у кого есть адрес этой страницы.
+      Удалить или поправить запись можно только в Google-таблице журнала. Сколько заказов и выручки принесла
+      каждая ссылка — в дашборде «Блогеры, промокоды и трафик».</div>
+  </section>
+  </div>
+</div>
+
+<div class="mbar" id="mbar">
+  <button type="button" class="pri" id="mCopy">Скопировать ссылку</button>
+  <button type="button" id="mGo">Показать</button>
+</div>
+
+<!-- выбор товаров -->
+<div class="ovl" id="picker" hidden>
+  <div class="mod" role="dialog" aria-modal="true" aria-labelledby="pkT">
+    <div class="mh">
+      <div><h2 id="pkT">Товары с сайта</h2><div class="ms" id="pkSub"></div></div>
+      <button type="button" class="x" data-close="picker" aria-label="Закрыть">×</button>
+    </div>
+    <div class="mb">
+      <input id="pq" type="search" placeholder="Поиск по названию" style="width:100%">
+      <div class="chips" id="pcat" style="margin-top:10px"></div>
+      <div class="pgrid" id="pgrid"></div>
+    </div>
+    <div class="mf"><span id="pkSel"></span><button type="button" class="pri" data-close="picker">Готово</button></div>
+  </div>
+</div>
+
+<!-- QR -->
+<div class="ovl" id="qr" hidden>
+  <div class="mod sm" role="dialog" aria-modal="true" aria-labelledby="qrT">
+    <div class="mh">
+      <div><h2 id="qrT">QR-код</h2><div class="ms" id="qrSub"></div></div>
+      <button type="button" class="x" data-close="qr" aria-label="Закрыть">×</button>
+    </div>
+    <div class="mb">
+      <div class="qrbox" id="qrBox"></div>
+      <div class="note" style="margin-top:8px">На телефоне: зажми код и выбери «Сохранить изображение».</div>
+      <div class="qru" id="qrUrl"></div>
+      <div class="acts">
+        <button type="button" class="pri" id="qrPng">Скачать PNG</button>
+        <button type="button" id="qrSvg">Скачать SVG (для печати)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Данные
+   ============================================================ */
+
+/* Снимок каталога Тильды. Сам сайт отдаёт товары только своему домену,
+   поэтому список вшит в страницу. Товары, которых тут нет, всё равно
+   добавляются по ссылке — просто без фото. */
+let PRODUCTS = [{"id":"607590395233","t":"cursed watch black","u":"https://bladnes.com/limited/tproduct/607590395233-cursed-watch-black","p":12999,"po":0,"img":"https://thb.tildacdn.com/stor3165-6166-4530-b731-626438656430/-/resize/200x/badec9629f6afb179c1a800a7e3bb50f.png","m":"LIMITED","c":"limited"},
+{"id":"476176254503","t":"cursed watch silver","u":"https://bladnes.com/limited/tproduct/476176254503-cursed-watch-silver","p":11499,"po":0,"img":"https://thb.tildacdn.com/stor6262-6438-4733-a431-336235313739/-/resize/200x/8600437ea52e0f449b80cd80486129f6.png","m":"LIMITED","c":"limited"},
+{"id":"878156394552","t":"Джинсы оверсайз / пирсинг / черные","u":"https://bladnes.com/trousers-and-jeans/tproduct/878156394552-dzhinsi-oversaiz-pirsing-chernie","p":5199,"po":0,"img":"https://thb.tildacdn.com/stor3935-6461-4464-b038-303736633032/-/resize/200x/58b0a413b8df7d286624785b232f022c.png","m":"","c":"trousers-and-jeans"},
+{"id":"807721664142","t":"Джерси «Анор Лондо» черный","u":"https://bladnes.com/jersey/tproduct/807721664142-dzhersi-anor-londo-chernii","p":3199,"po":0,"img":"https://thb.tildacdn.com/stor3666-6365-4865-a531-623035323063/-/resize/200x/1d0a028cfc20cd6ecd274e01d0b73d37.png","m":"","c":"jersey"},
+{"id":"788903536872","t":"Джерси «Анор Лондо» красный","u":"https://bladnes.com/jersey/tproduct/788903536872-dzhersi-anor-londo-krasnii","p":3399,"po":0,"img":"https://thb.tildacdn.com/stor6136-6266-4136-b261-383533313462/-/resize/200x/00350a8de721a9f314984eb17f5a1273.png","m":"","c":"jersey"},
+{"id":"441394296162","t":"Плюшевая куртка / «ГОРДОСТЬ»","u":"https://bladnes.com/jackets/tproduct/441394296162-plyushevaya-kurtka-gordost","p":7499,"po":0,"img":"https://thb.tildacdn.com/stor6639-3163-4435-b033-386136376161/-/resize/200x/600d8c82754991defc520eef7823404f.png","m":"SALE","c":"jackets"},
+{"id":"522302426462","t":"Джерси «Анор Лондо» белый","u":"https://bladnes.com/jersey/tproduct/522302426462-dzhersi-anor-londo-belii","p":3199,"po":0,"img":"https://thb.tildacdn.com/stor3466-6330-4735-a535-326339396666/-/resize/200x/4022a0a20065782e571924a3e22dd4be.png","m":"","c":"jersey"},
+{"id":"111007495082","t":"Штаны оверсайз с молнией","u":"https://bladnes.com/trousers-and-jeans/tproduct/111007495082-shtani-oversaiz-s-molniei","p":5199,"po":0,"img":"https://thb.tildacdn.com/stor3434-6365-4831-b463-336463663531/-/resize/200x/6d8882798140f75f31c19f8f25708f4d.png","m":"","c":"trousers-and-jeans"},
+{"id":"634875826052","t":"Шарф двусторонний «СОБОР»","u":"https://bladnes.com/scarves/tproduct/634875826052-sharf-dvustoronnii-sobor","p":2499,"po":2999,"img":"https://thb.tildacdn.com/stor6133-3663-4330-a338-666334343034/-/resize/200x/6474520b41893d465062b8dd1499437a.png","m":"SALE","c":"scarves"},
+{"id":"506457442122","t":"Штаны оверсайз / вышивка / « меч »","u":"https://bladnes.com/trousers-and-jeans/tproduct/506457442122-shtani-oversaiz-vishivka-mech-","p":4799,"po":0,"img":"https://thb.tildacdn.com/stor6138-6335-4963-b736-333531383736/-/resize/200x/5c164febc9736b76d8e4729313b01908.png","m":"","c":"trousers-and-jeans"},
+{"id":"753378797292","t":"Плюшевая куртка / «ПАЦИЕНТ»","u":"https://bladnes.com/jackets/tproduct/753378797292-plyushevaya-kurtka-patsient","p":6199,"po":0,"img":"https://thb.tildacdn.com/stor6131-3735-4261-b939-333066306133/-/resize/200x/40f8fc0c5aaabec5ff9df9de4f1147f6.png","m":"SALE","c":"jackets"},
+{"id":"996864814012","t":"Футболка с мечом","u":"https://bladnes.com/sale/tproduct/996864814012-futbolka-s-mechom","p":2199,"po":0,"img":"https://thb.tildacdn.com/stor3565-3331-4031-b063-663334616133/-/resize/200x/44131207b624628ebefa73f5d1b57fe6.png","m":"SALE","c":"sale"},
+{"id":"959159786792","t":"Укороченные белые штаны с лампасами с молнией","u":"https://bladnes.com/sale/tproduct/959159786792-ukorochennie-belie-shtani-s-lampasami-s","p":2299,"po":0,"img":"https://thb.tildacdn.com/stor3232-6162-4837-b763-653264643162/-/resize/200x/cd87f628ca140dfeb49cb0439bb6e252.png","m":"SALE","c":"sale"},
+{"id":"167788360302","t":"Лонгслив «КРЕСТЫ»","u":"https://bladnes.com/longs/tproduct/167788360302-longsliv-kresti","p":4499,"po":0,"img":"https://thb.tildacdn.com/stor3932-6531-4463-b163-366663303031/-/resize/200x/d6eceb57b4d4779350f2f59d5dd00a98.png","m":"","c":"longs"},
+{"id":"425256365682","t":"Укороченные белые штаны с лампасами со стежками","u":"https://bladnes.com/sale/tproduct/425256365682-ukorochennie-belie-shtani-s-lampasami-so","p":2299,"po":0,"img":"https://thb.tildacdn.com/stor6435-6636-4234-b536-373665313938/-/resize/200x/72f8d009a35df22f6c2204c3a32b221b.png","m":"SALE","c":"sale"},
+{"id":"841276775982","t":"Утепленные черные штаны с лампасами","u":"https://bladnes.com/sale/tproduct/841276775982-uteplennie-chernie-shtani-s-lampasami","p":2699,"po":0,"img":"https://thb.tildacdn.com/stor3562-3266-4661-a665-623562346134/-/resize/200x/4f5a03443cf85b64af730716cac41100.png","m":"SALE","c":"sale"},
+{"id":"734877044382","t":"Лонгслив «ДАРК СОУЛС» черный","u":"https://bladnes.com/longs/tproduct/734877044382-longsliv-dark-souls-chernii","p":3399,"po":0,"img":"https://thb.tildacdn.com/stor3363-3031-4463-a364-613566316430/-/resize/200x/2528088c2f19d33b2b1f14886998f531.png","m":"","c":"longs"},
+{"id":"826964456222","t":"Лонгслив «ДАРК СОУЛС» белый","u":"https://bladnes.com/longs/tproduct/826964456222-longsliv-dark-souls-belii","p":3399,"po":0,"img":"https://thb.tildacdn.com/stor3733-3632-4265-a262-393061303832/-/resize/200x/055a20e80db6f3d37533ba9cc199317a.png","m":"","c":"longs"},
+{"id":"546619649632","t":"Лонгслив «ДАРК СОУЛС» красный","u":"https://bladnes.com/longs/tproduct/546619649632-longsliv-dark-souls-krasnii","p":3399,"po":0,"img":"https://thb.tildacdn.com/stor3630-3036-4262-b064-633865383436/-/resize/200x/603126e60118d07563b1bc600186143b.png","m":"","c":"longs"},
+{"id":"206726078412","t":"Велюровый лонгслив с длинными рукавами","u":"https://bladnes.com/sale/tproduct/206726078412-velyurovii-longsliv-s-dlinnimi-rukavami","p":2399,"po":0,"img":"https://thb.tildacdn.com/stor3638-3334-4961-b236-393734326363/-/resize/200x/12945620e4c1f212208cad38c88a6d28.png","m":"SALE","c":"sale"},
+{"id":"106816008672","t":"Велюровый черный лонгслив «Паучья лилия»","u":"https://bladnes.com/sale/tproduct/106816008672-velyurovii-chernii-longsliv-pauchya-lili","p":2899,"po":0,"img":"https://thb.tildacdn.com/stor6530-3630-4566-b761-356432633137/-/resize/200x/64343a52672209d68432f2777baa1e11.png","m":"SALE","c":"sale"},
+{"id":"401674150202","t":"Лонгслив «КРИК» черный","u":"https://bladnes.com/longs/tproduct/401674150202-longsliv-krik-chernii","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor3630-6463-4236-b033-306535333137/-/resize/200x/72124e51dc97a91b3ca0d7f3129e534b.png","m":"","c":"longs"},
+{"id":"926126387532","t":"VELOUR LONG HELPLESSPEOPLE","u":"https://bladnes.com/sale/tproduct/926126387532-velour-long-helplesspeople","p":2899,"po":0,"img":"https://thb.tildacdn.com/stor3733-3034-4962-b532-366434643533/-/resize/200x/389e2e87aaa49ac5d0332af6c48335ab.png","m":"SALE","c":"sale"},
+{"id":"760113576742","t":"Лонгслив «КРИК» красный","u":"https://bladnes.com/longs/tproduct/760113576742-longsliv-krik-krasnii","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor3762-3533-4430-b065-653730623163/-/resize/200x/6fabbb1f1d5e4714cff1ba5900cb5153.png","m":"","c":"longs"},
+{"id":"587658289212","t":"Джинсы оверсайз / пирсинг / дистресс","u":"https://bladnes.com/trousers-and-jeans/tproduct/587658289212-dzhinsi-oversaiz-pirsing-distress","p":5199,"po":0,"img":"https://thb.tildacdn.com/stor3064-6632-4236-b337-663334613565/-/resize/200x/42afd08c277c9064de7526c81551b5f0.png","m":"","c":"trousers-and-jeans"},
+{"id":"962379630582","t":"Шорты «ТРАЙБЛ»","u":"https://bladnes.com/sale/tproduct/962379630582-shorti-traibl","p":2999,"po":0,"img":"https://thb.tildacdn.com/stor3539-3332-4339-b434-643939383436/-/resize/200x/7485fe938fe3754be98699a6024ed8e5.png","m":"SALE","c":"sale"},
+{"id":"224601815552","t":"Лонгслив «КРИК» белый","u":"https://bladnes.com/longs/tproduct/224601815552-longsliv-krik-belii","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor6635-3130-4764-a166-333965333262/-/resize/200x/c785ed7c6296a967afece5ce7145fe46.png","m":"","c":"longs"},
+{"id":"866436618642","t":"Велюровый лонгслив «ИММОРТАЛ»","u":"https://bladnes.com/longs/tproduct/866436618642-velyurovii-longsliv-immortal","p":2899,"po":0,"img":"https://thb.tildacdn.com/stor3933-6466-4032-b634-333731396634/-/resize/200x/9169840a3a514481b329f8d13da1b0b8.png","m":"SALE","c":"longs"},
+{"id":"805941896812","t":"Футболка «КЛИНОК СМЕРТИ» белая","u":"https://bladnes.com/t-shirts/tproduct/805941896812-futbolka-klinok-smerti-belaya","p":3299,"po":0,"img":"https://thb.tildacdn.com/stor6661-3131-4366-b630-663439313362/-/resize/200x/df7ea49c6c85e0f1c92e44031bf80ba5.png","m":"","c":"t-shirts"},
+{"id":"209570555412","t":"Футболка/мантия «КЁЛЬНСКИЙ СОБОР»","u":"https://bladnes.com/t-shirts/tproduct/209570555412-futbolkamantiya-kyolnskii-sobor","p":4399,"po":0,"img":"https://thb.tildacdn.com/stor3066-6139-4162-b037-353635303934/-/resize/200x/d18142c86e2868253fad3ee157f3206a.png","m":"","c":"t-shirts"},
+{"id":"835546653212","t":"Футболка «КЛИНОК СМЕРТИ» черная","u":"https://bladnes.com/t-shirts/tproduct/835546653212-futbolka-klinok-smerti-chernaya","p":3299,"po":0,"img":"https://thb.tildacdn.com/stor3734-6537-4431-b165-636431346637/-/resize/200x/6955daad06806566940f2075dfd5b234.png","m":"","c":"t-shirts"},
+{"id":"533064016422","t":"Футболка «КЛИНОК СМЕРТИ» бордовая","u":"https://bladnes.com/t-shirts/tproduct/533064016422-futbolka-klinok-smerti-bordovaya","p":3299,"po":0,"img":"https://thb.tildacdn.com/stor3231-3864-4635-b134-383665636635/-/resize/200x/7e5bdf38548abc58cb6b9c2b1e32938c.png","m":"","c":"t-shirts"},
+{"id":"531722203022","t":"Зип-худи «СМАЙЛ» / дистресс / черный","u":"https://bladnes.com/hoodie/tproduct/531722203022-zip-hudi-smail-distress-chernii","p":5299,"po":0,"img":"https://thb.tildacdn.com/stor3838-6533-4035-a638-336366353330/-/resize/200x/4ff3d7d3d9d450656d389df59dcf1f07.png","m":"","c":"hoodie"},
+{"id":"336160937852","t":"Бомбер двусторонний деним/мех","u":"https://bladnes.com/tproduct/336160937852-bomber-dvustoronnii-denimmeh","p":11899,"po":0,"img":"https://thb.tildacdn.com/stor6463-6265-4032-b766-353438306237/-/resize/200x/55b077094465340712fd4dedafdf998b.png","m":"","c":""},
+{"id":"657974434892","t":"Велюровый лонгслив «ТЕНИ»","u":"https://bladnes.com/sale/tproduct/657974434892-velyurovii-longsliv-teni","p":2899,"po":0,"img":"https://thb.tildacdn.com/stor6133-3862-4737-b532-313465386332/-/resize/200x/cf1d83ad96ca5f032ab70b29976d358d.jpg","m":"SALE","c":"sale"},
+{"id":"454654122443","t":"Футболка «abstraction» бордовая","u":"https://bladnes.com/tproduct/454654122443-futbolka-abstraction-bordovaya","p":3499,"po":0,"img":"https://thb.tildacdn.com/stor6537-6362-4337-a239-323261313632/-/resize/200x/b19324169c82da70be587f76828ebad1.png","m":"","c":""},
+{"id":"769499649333","t":"Футболка «abstraction» черная","u":"https://bladnes.com/tproduct/769499649333-futbolka-abstraction-chernaya","p":3499,"po":0,"img":"https://thb.tildacdn.com/stor3161-3132-4631-b461-663836666465/-/resize/200x/a1ecd3014e5b6f9ccc55fa156d506fa8.png","m":"","c":""},
+{"id":"519289046583","t":"Футболка «abstraction» серая","u":"https://bladnes.com/tproduct/519289046583-futbolka-abstraction-seraya","p":3499,"po":0,"img":"https://thb.tildacdn.com/stor3234-6564-4637-a332-346131623061/-/resize/200x/25f3855cf2e2ab299e139c1230b6170b.png","m":"","c":""},
+{"id":"894950057103","t":"Футболка «social media» серая","u":"https://bladnes.com/t-shirts/tproduct/894950057103-futbolka-social-media-seraya","p":3699,"po":0,"img":"https://thb.tildacdn.com/stor3432-3164-4131-b563-376462303032/-/resize/200x/60ed035ba90cbabb2f529d8df5364188.png","m":"","c":"t-shirts"},
+{"id":"657561396513","t":"Футболка «social media» черная","u":"https://bladnes.com/t-shirts/tproduct/657561396513-futbolka-social-media-chernaya","p":3699,"po":0,"img":"https://thb.tildacdn.com/stor3533-6665-4933-b438-353336326163/-/resize/200x/51665376a0f700cf7b787e66efba8bec.png","m":"","c":"t-shirts"},
+{"id":"778119037313","t":"Футболка «social media» красная","u":"https://bladnes.com/t-shirts/tproduct/778119037313-futbolka-social-media-krasnaya","p":3699,"po":0,"img":"https://thb.tildacdn.com/stor3164-3635-4566-b162-636230666666/-/resize/200x/e660b93765f454d19f6137952ed10818.png","m":"","c":"t-shirts"},
+{"id":"991764221833","t":"Футболка «escape from reality» черная","u":"https://bladnes.com/t-shirts/tproduct/991764221833-futbolka-escape-from-reality-chernaya","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor3031-3162-4034-a162-653461663663/-/resize/200x/3610983648af3407f8e637eb3795f7a9.png","m":"NEW","c":"t-shirts"},
+{"id":"935695795293","t":"Футболка «escape from reality» красная","u":"https://bladnes.com/t-shirts/tproduct/935695795293-futbolka-escape-from-reality-krasnaya","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor6661-3337-4663-a438-623166613235/-/resize/200x/e9fdaac421653b510835f3be6838e034.png","m":"NEW","c":"t-shirts"},
+{"id":"177376605423","t":"Футболка «escape from reality» серая","u":"https://bladnes.com/t-shirts/tproduct/177376605423-futbolka-escape-from-reality-seraya","p":3899,"po":0,"img":"https://thb.tildacdn.com/stor6235-6237-4335-b932-623530316261/-/resize/200x/75912dbbc804b50d9c58c434fe09415d.png","m":"NEW","c":"t-shirts"},
+{"id":"271419419853","t":"Футболка «CAPTCHA» серая","u":"https://bladnes.com/t-shirts/tproduct/271419419853-futbolka-captcha-seraya","p":5299,"po":0,"img":"https://thb.tildacdn.com/stor6166-3337-4465-b762-386136623836/-/resize/200x/a4eb57904fce98173f0060a22338b8f2.png","m":"LIMITED","c":"t-shirts"},
+{"id":"393493380593","t":"Футболка «UNITE» черная","u":"https://bladnes.com/t-shirts/tproduct/393493380593-futbolka-unite-chernaya","p":5499,"po":0,"img":"https://thb.tildacdn.com/stor3465-6538-4962-b164-653035633533/-/resize/200x/0d7f1444d197acc6bda33fe299edaacd.png","m":"LIMITED","c":"t-shirts"},
+{"id":"357886017523","t":"Зип-худи «ХИНАКО» / дистресс / серый","u":"https://bladnes.com/hoodie/tproduct/357886017523-zip-hudi-hinako-distress-serii","p":5599,"po":0,"img":"https://thb.tildacdn.com/stor3362-3230-4263-a137-336639316630/-/resize/200x/d6e3a53a7a728153f479485d2c4a5a31.png","m":"LIMITED","c":"hoodie"},
+{"id":"237323648893","t":"Плюшевая куртка / «YOU'RE NOT REAL»","u":"https://bladnes.com/jackets/tproduct/237323648893-plyushevaya-kurtka-youre-not-real","p":7499,"po":0,"img":"https://thb.tildacdn.com/stor3965-3730-4535-b564-323230666662/-/resize/200x/d70865c473bb586bfd5216511656c8b4.png","m":"","c":"jackets"}];
+const SNAP = '22.09.2026';
+const SITE = 'https://bladnes.com';
+const KEYS = ['source','medium','campaign','content','term'];
+const KEY_HELP = {
+  source:   'откуда пришёл человек: площадка, ник блогера или канала',
+  medium:   'тип размещения',
+  campaign: 'что продвигаем',
+  content:  'формат публикации',
+  term:     'вариант или номер'
+};
+
+const PAGES = [
+  {k:'home',               t:'Главная',            p:'/'},
+  {k:'catalog',            t:'Каталог',            p:'/catalog'},
+  {k:'longs',              t:'Лонгсливы',          p:'/longs'},
+  {k:'t-shirts',           t:'Футболки',           p:'/t-shirts'},
+  {k:'hoodie',             t:'Худи',               p:'/hoodie'},
+  {k:'jackets',            t:'Куртки',             p:'/jackets'},
+  {k:'trousers-and-jeans', t:'Брюки и джинсы',     p:'/trousers-and-jeans'},
+  {k:'jersey',             t:'Джерси',             p:'/jersey'},
+  {k:'scarves',            t:'Шарфы',              p:'/scarves'},
+  {k:'limited',            t:'Лимитки',            p:'/limited'},
+  {k:'sale',               t:'Sale',               p:'/sale'},
+  {k:'about-us',           t:'О бренде',           p:'/about-us'},
+  {k:'social',             t:'Соцсети',            p:'/social'},
+  {k:'delivery',           t:'Доставка и возврат', p:'/delivery'}
+];
+const CAT = {'': 'Каталог'};
+PAGES.forEach(p => { CAT[p.k] = p.t; });
+
+/* старые адреса (до переименования 10.09.2026) → нынешние */
+const OLD = {'futbolki':'t-shirts', 'khudi':'hoodie', 'kurtki':'jackets', 'bryuki-i-dzhinsy':'trousers-and-jeans',
+  'dzhersi':'jersey', 'sharfy':'scarves', 'outlet':'sale', 'to-buyers':'delivery'};
+
+const WHO = [
+  {k:'own',     t:'Наш аккаунт',      d:'наш канал или профиль',   m:'social'},
+  {k:'blogger', t:'Блогер',           d:'интеграция, обзор, бартер', m:'blogger'},
+  {k:'seed',    t:'Посев',            d:'платный пост в чужом канале', m:'paid_post'},
+  {k:'ads',     t:'Таргет / реклама', d:'рекламный кабинет',       m:'paid_social'},
+  {k:'offline', t:'Офлайн · QR',      d:'вкладыш, бирка, поп-ап',  m:'qr'}
+];
+const PLATFORMS = [
+  {k:'telegram',  t:'Telegram',  c:'#2aabee'},
+  {k:'instagram', t:'Instagram', c:'#e1306c'},
+  {k:'vk',        t:'ВКонтакте', c:'#2787f5'},
+  {k:'tiktok',    t:'TikTok',    c:'#25f4ee'},
+  {k:'pinterest', t:'Pinterest', c:'#e60023'},
+  {k:'youtube',   t:'YouTube',   c:'#ff4e45'},
+  {k:'other',     t:'Другое',    c:'#9aa7b4'}
+];
+const FORMATS = [
+  {k:'post',   t:'Пост'},
+  {k:'stories',t:'Сторис'},
+  {k:'reels',  t:'Reels / клип'},
+  {k:'bio',    t:'Ссылка в профиле'},
+  {k:'pinned', t:'Закреп'},
+  {k:'live',   t:'Эфир'},
+  {k:'other',  t:'Другое'}
+];
+const OFFLINE = [
+  {k:'insert', t:'Вкладыш в заказ'},
+  {k:'tag',    t:'Бирка'},
+  {k:'popup',  t:'Поп-ап / маркет'},
+  {k:'event',  t:'Мероприятие'},
+  {k:'other',  t:'Другое'}
+];
+const ALWAYS = 'always_on';
+/* по алфавиту — так попросил Степан; новых людей добавлять сюда же, в своё место */
+const PEOPLE = [
+  {n:'Валерия', c:'#f778ba'},
+  {n:'Диана',   c:'#39c5cf'},
+  {n:'Марлен',  c:'#a371f7'},
+  {n:'Матвей',  c:'#f2a65a'},
+  {n:'Степан',  c:'#4f9cf9'},
+  {n:'Юля',     c:'#3fb950'}
+];
+
+/* Общий журнал: таблица и скрипт на stepan.wb@gmail.com (apps-script/Журнал-UTM.gs).
+   Ключ даёт только право дописать строку — удалить через него ничего нельзя. */
+const JOURNAL_API   = 'https://script.google.com/macros/s/AKfycbw7MGvJTSCb30GPitnv9C3UNdZN93JcboZe8uJ06_Y-Dmp8lGYvHWPoIh2HgxxNmTLl/exec';
+const JOURNAL_KEY   = 'blutm26wr8kq3xv5';
+const JOURNAL_SHEET = 'https://docs.google.com/spreadsheets/d/1KpDpdQb6X9cWA0aAzfbyRZyFt43BEiH5nNR6DNjBqYk/edit';
+
+/* ============================================================
+   Утилиты
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const esc = v => String(v === null || v === undefined ? '' : v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const fmtRub = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+
+const TR = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',
+  п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya'};
+/* любое значение метки → латиница, нижний регистр, подчёркивания */
+const slug = s => String(s || '').toLowerCase()
+  .replace(/[а-яё]/g, c => TR[c] !== undefined ? TR[c] : '')
+  .replace(/['’‘`ʼ]/g, '')
+  .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
+
+/* время — московское, как во всех дашбордах bladnes */
+const mskNow = () => new Intl.DateTimeFormat('ru-RU', {timeZone:'Europe/Moscow', year:'numeric', month:'2-digit',
+  day:'2-digit', hour:'2-digit', minute:'2-digit'}).format(new Date()).replace(',', '');
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
+};
+
+let toastT;
+function toast(text, bad){
+  const t = $('toast');
+  t.textContent = text; t.className = 'toast show' + (bad ? ' err' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => { t.className = 'toast' + (bad ? ' err' : ''); }, 1800);
+}
+
+async function copy(text){
+  try { await navigator.clipboard.writeText(text); return true; } catch(e){}
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand('copy'); } catch(e){}
+  ta.remove(); return ok;
+}
+async function copyAndSay(text, what){
+  (await copy(text)) ? toast((what || 'Ссылка') + ' скопирована') : toast('Не удалось скопировать — выдели ссылку вручную', true);
+}
+
+/* ============================================================
+   Связь с журналом — JSONP, как у дашбордов с приёмником заказов
+   ============================================================ */
+function jsonp(params, timeout){
+  return new Promise((resolve, reject) => {
+    const cb = 'j_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    let done = false;
+    const finish = () => { done = true; clearTimeout(t); window[cb] = function(){}; s.remove(); };
+    const t = setTimeout(() => { if (!done){ finish(); reject(new Error('timeout')); } }, timeout || 25000);
+    window[cb] = data => { if (done) return; finish(); resolve(data); };
+    s.onerror = () => { if (!done){ finish(); reject(new Error('network')); } };
+    const all = Object.assign({}, params, {callback: cb, _: Date.now()});
+    s.src = JOURNAL_API + '?' + Object.keys(all).map(k => k + '=' + encodeURIComponent(all[k])).join('&');
+    document.head.appendChild(s);
+  });
+}
+/* Google под нагрузкой иногда отвечает ошибкой — пробуем ещё раз с паузой.
+   Повтор записи безопасен: скрипт не пишет одну и ту же ссылку дважды. */
+async function jsonpRetry(params, tries){
+  for (let i = 0; i < tries; i++){
+    try {
+      const r = await jsonp(params);
+      if (r && r.ok) return r;
+      throw new Error((r && r.error) || 'bad_answer');
+    } catch(e){
+      if (i === tries - 1 || e.message === 'bad_key' || e.message === 'bad_utm' || e.message === 'bad_url') throw e;
+      await new Promise(res => setTimeout(res, 1500 * (i + 1)));
+    }
+  }
+}
+const ERR = {timeout:'журнал не ответил вовремя', network:'нет связи с журналом', bad_key:'неверный ключ журнала',
+  bad_utm:'метка с недопустимыми символами', bad_url:'ссылка не похожа на адрес', bad_data:'пустой запрос'};
+const errText = e => ERR[e && e.message] || (e && e.message) || 'неизвестная ошибка';
+
+async function loadLog(){
+  LOG_STATE = 'loading'; renderLog();
+  try { const r = await jsonpRetry({action:'list'}, 3); LOG = r.rows || []; LOG_STATE = 'ok'; }
+  catch(e){ LOG_STATE = 'error'; LOG_ERR = errText(e); }
+  renderLog(); renderCamps(); refresh();
+}
+let LOG_ERR = '';
+
+/* живой список товаров с сайта; не ответил — остаётся вшитый снимок */
+async function loadProducts(){
+  try {
+    const r = await jsonpRetry({action:'products'}, 2);
+    if (r.products && r.products.length){
+      PRODUCTS = r.products; PRODUCTS_AT = 'с сайта, ' + r.at;
+      $('pcount').textContent = PRODUCTS.length;
+      if (!$('picker').hidden) openPicker();
+    }
+  } catch(e){}
+}
+
+/* ============================================================
+   Состояние формы
+   ============================================================ */
+const fresh = () => ({
+  dest: [], who: 'own', blogger: '', promo: '', seed: '',
+  platform: '', plOther: '', offline: '', offOther: '',
+  format: '', fmOther: '', campaign: '', term: '', note: '',
+  ov: {source:'', medium:'', campaign:'', content:'', term:''}
+});
+let S = fresh();
+let LOG = [], LOG_STATE = 'loading', SAVING = false;
+let PRODUCTS_AT = 'снимок на ' + SNAP;
+
+/* ============================================================
+   Как собирается метка
+   ============================================================
+   source   — откуда пришёл человек: наша площадка, либо ник блогера / канала
+   medium   — тип размещения: social, blogger, paid_post, paid_social, qr
+   campaign — что продвигаем
+   content  — формат; у блогера и посева впереди площадка: instagram_stories
+   term     — вариант или номер, если нужен                                  */
+function auto(){
+  const pl  = S.platform === 'other' ? slug(S.plOther) : S.platform;
+  const fmt = S.format === 'other' ? slug(S.fmOther) : S.format;
+  const w = WHO.find(x => x.k === S.who);
+  const v = {source:'', medium: w ? w.m : '', campaign: slug(S.campaign), content:'', term: slug(S.term)};
+  if (S.who === 'own' || S.who === 'ads'){ v.source = pl; v.content = fmt; }
+  else if (S.who === 'blogger'){ v.source = slug(S.blogger); v.content = [pl, fmt].filter(Boolean).join('_'); }
+  else if (S.who === 'seed'){ v.source = slug(S.seed); v.content = [pl, fmt].filter(Boolean).join('_'); }
+  else if (S.who === 'offline'){ v.source = 'offline'; v.content = S.offline === 'other' ? slug(S.offOther) : S.offline; }
+  return v;
+}
+function utm(){
+  const v = auto();
+  KEYS.forEach(k => { const o = slug(S.ov[k]); if (o) v[k] = o; });
+  return v;
+}
+function missing(v){
+  const m = [];
+  if (!S.dest.length) m.push('куда ведёт ссылка');
+  if (!v.source){
+    if (S.who === 'blogger') m.push('ник блогера');
+    else if (S.who === 'seed') m.push('название канала');
+    else m.push('где размещаем');
+  }
+  if (S.who === 'offline' && !v.content) m.push('где будет QR-код');
+  if (!v.medium) m.push('кто размещает');
+  if (!v.campaign) m.push('что продвигаем');
+  return m;
+}
+function buildUrl(base, v){
+  const u = new URL(base);
+  [...u.searchParams.keys()].filter(k => /^utm_/i.test(k)).forEach(k => u.searchParams.delete(k));
+  KEYS.forEach(k => { if (v[k]) u.searchParams.append('utm_' + k, v[k]); });
+  return u.toString();
+}
+
+/* ============================================================
+   Куда ведёт: товары, разделы, произвольные ссылки
+   ============================================================ */
+const has = key => S.dest.some(d => d.key === key);
+function addDest(d){ if (!has(d.key)) S.dest.push(d); }
+function removeDest(key){ S.dest = S.dest.filter(d => d.key !== key); }
+
+function productDest(p){
+  return {key:'p:' + p.id, type:'product', title:p.t, url:p.u, img:p.img,
+    sub:[CAT[p.c] || 'Каталог', p.p ? fmtRub(p.p) : ''].filter(Boolean).join(' · ')};
+}
+function pageDest(pg, warn){
+  return {key:'g:' + pg.k, type:'page', title:pg.t, url:SITE + pg.p, sub:'раздел · bladnes.com' + (pg.p === '/' ? '' : pg.p), warn:warn || ''};
+}
+const humanSlug = s => String(s || '').replace(/-/g, ' ').trim();
+
+/* разбирает одну вставленную ссылку, возвращает текст для подсказки */
+function addFromUrl(raw){
+  let s = raw.trim().replace(/[.,;)]+$/, '');
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  let u;
+  try { u = new URL(s); } catch(e){ return {bad:true, text:'Не похоже на ссылку: ' + raw}; }
+  const host = u.hostname.replace(/^www\./, '');
+  if (!/\./.test(host)) return {bad:true, text:'Не похоже на ссылку: ' + raw};
+
+  if (host !== 'bladnes.com'){
+    const clean = buildUrl(u.toString(), {});
+    addDest({key:'u:' + clean, type:'custom', title:host, url:clean, sub:u.pathname,
+      warn:'Ссылка ведёт не на bladnes.com: метка сработает, но в наши отчёты заказ не попадёт.'});
+    return {warn:true, text:'Добавил, но это не bladnes.com.'};
+  }
+
+  const tp = u.pathname.match(/\/tproduct\/(\d+)(?:-([^/]*))?/);
+  const uid = tp ? tp[1] : u.searchParams.get('blprod');
+  if (uid){
+    const p = PRODUCTS.find(x => x.id === uid);
+    if (p){
+      if (has('p:' + uid)) return {text:'«' + p.t + '» уже в списке.'};
+      addDest(productDest(p));
+      return {ok:true, text:'Добавил: ' + p.t};
+    }
+    /* товара нет в снимке — берём ссылку как есть, без фото */
+    const base = tp ? SITE + u.pathname.replace(/\/+$/, '') : SITE + u.pathname + '?blprod=' + uid;
+    addDest({key:'p:' + uid, type:'product', title:humanSlug(tp && tp[2]) || ('Товар ' + uid), url:base,
+      sub:'товар ' + uid, warn:'Этого товара нет в каталоге (' + PRODUCTS_AT + '). Ссылка сработает, если он опубликован на сайте.'});
+    return {warn:true, text:'Товара нет в каталоге — добавил по ссылке, без фото.'};
+  }
+
+  const parts = u.pathname.split('/').filter(Boolean);
+  let seg = parts[0] || 'home', fixed = '';
+  if (OLD[seg]){ fixed = '/' + seg; seg = OLD[seg]; }
+  const pg = PAGES.find(x => x.k === seg);
+  const extra = [...u.searchParams.keys()].some(k => !/^utm_/i.test(k)) || u.hash;
+  if (pg && parts.length <= 1 && !extra){
+    addDest(pageDest(pg, fixed ? 'Старый адрес ' + fixed + ' поменял на ' + pg.p + ': прежний больше не работает.' : ''));
+    return fixed ? {warn:true, text:'Адрес ' + fixed + ' устарел — добавил ' + pg.p + '.'} : {ok:true, text:'Добавил раздел «' + pg.t + '».'};
+  }
+  const clean = buildUrl(SITE + u.pathname + u.search + u.hash, {});
+  addDest({key:'u:' + clean, type:'custom', title:'bladnes.com' + u.pathname, url:clean, sub:'своя ссылка'});
+  return {ok:true, text:'Добавил ссылку.'};
+}
+function addPasted(){
+  const text = $('paste').value;
+  const tokens = text.split(/[\s]+/).filter(Boolean);
+  if (!tokens.length){
+    showPasteMsg(S.dest.length ? null : {warn:true, text:'Вставь ссылку с сайта — из адресной строки или через «Поделиться».'});
+    return;
+  }
+  const res = tokens.map(addFromUrl).filter(Boolean);
+  const last = res[res.length - 1];
+  const bad = res.filter(r => r.bad);
+  showPasteMsg(res.length > 1 ? {ok:!bad.length, bad:!!bad.length, text:'Обработано ссылок: ' + res.length + (bad.length ? ', не распознано: ' + bad.length : '')} : last);
+  if (!bad.length) $('paste').value = '';
+  refresh();
+}
+function showPasteMsg(r){
+  const el = $('pasteMsg');
+  if (!r){ el.textContent = ''; return; }
+  el.className = 'msgline ' + (r.bad ? 'bad' : r.warn ? 'warn' : 'ok');
+  el.textContent = r.text;
+}
+
+/* ============================================================
+   Отрисовка
+   ============================================================ */
+function chipHTML(items, cls, withDot){
+  return items.map(i => `<button type="button" class="chip ${cls||''}" data-v="${esc(i.k)}" aria-pressed="false">` +
+    (withDot ? `<span class="d" style="background:${i.c}"></span>` : '') +
+    `<span>${esc(i.t)}</span>` + (i.d ? `<small>${esc(i.d)}</small>` : '') + `</button>`).join('');
+}
+function setOn(container, fn){
+  container.querySelectorAll('[data-v]').forEach(b => {
+    const on = fn(b.dataset.v); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+function buildStatic(){
+  $('pages').innerHTML = chipHTML(PAGES);
+  $('who').innerHTML = chipHTML(WHO);
+  $('platforms').innerHTML = chipHTML(PLATFORMS, '', true);
+  $('offline').innerHTML = chipHTML(OFFLINE);
+  $('formats').innerHTML = chipHTML(FORMATS);
+  $('pcount').textContent = PRODUCTS.length;
+  $('ovgrid').innerHTML = KEYS.map(k =>
+    `<code>utm_${k}</code><input id="ov-${k}" data-ov="${k}" autocomplete="off" aria-label="utm_${k}">`).join('');
+}
+
+function thumb(d, big){
+  if (d.img) return `<img class="th" src="${esc(d.img)}" alt="" loading="lazy">`;
+  const ch = d.type === 'page' ? '⌂' : d.type === 'custom' ? '↗' : '◻';
+  return `<div class="th pg">${ch}</div>`;
+}
+
+function renderDests(){
+  const el = $('dests');
+  if (!S.dest.length){ el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="dh"><span>Выбрано: ${S.dest.length}</span><button type="button" class="lnkbtn" id="clearDest">Очистить</button></div>` +
+    S.dest.map(d => `<div class="dst">${thumb(d)}<div class="tt"><b>${esc(d.title)}</b><span>${esc(d.sub || '')}</span>` +
+      (d.warn ? `<span class="warn" style="display:block">${esc(d.warn)}</span>` : '') +
+      `</div><button type="button" class="x" data-rm="${esc(d.key)}" aria-label="Убрать">×</button></div>`).join('');
+}
+
+function recentCamps(){
+  const seen = new Set(), out = [];
+  for (let i = LOG.length - 1; i >= 0 && out.length < 6; i--){
+    const c = LOG[i].campaign;
+    if (c && c !== ALWAYS && !seen.has(c)){ seen.add(c); out.push(c); }
+  }
+  return out;
+}
+function renderCamps(){
+  const cur = slug(S.campaign);
+  const items = [{k:ALWAYS, t:'Постоянная ссылка'}].concat(recentCamps().map(c => ({k:c, t:c})));
+  $('camps').innerHTML = chipHTML(items);
+  setOn($('camps'), v => v === cur);
+  const bl = [...new Set(LOG.map(r => r.blogger).filter(Boolean))];
+  $('bloggers').innerHTML = bl.map(b => `<option value="${esc(b)}">`).join('');
+}
+
+function stepState(v){
+  const offline = S.who === 'offline';
+  $('f-blogger').hidden = S.who !== 'blogger';
+  $('f-seed').hidden = S.who !== 'seed';
+  $('platforms').hidden = offline;
+  $('offline').hidden = !offline;
+  $('f-plother').hidden = offline || S.platform !== 'other';
+  $('f-offother').hidden = !offline || S.offline !== 'other';
+  $('st3t').textContent = offline ? 'Где будет QR-код' : (S.who === 'blogger' ? 'Где у блогера выйдет' : S.who === 'seed' ? 'Где выйдет посев' : 'Где размещаем');
+  $('st4').hidden = offline;
+  $('f-fmother').hidden = S.format !== 'other';
+
+  setOn($('pages'), k => has('g:' + k));
+  setOn($('who'), k => k === S.who);
+  setOn($('platforms'), k => k === S.platform);
+  setOn($('offline'), k => k === S.offline);
+  setOn($('formats'), k => k === S.format);
+
+  const a = auto();
+  const pl = S.platform === 'other' ? slug(S.plOther) : S.platform;
+  $('st1').classList.toggle('done', S.dest.length > 0);
+  $('st2').classList.toggle('done', !!a.medium && (S.who === 'blogger' ? !!slug(S.blogger) : S.who === 'seed' ? !!slug(S.seed) : true));
+  $('st3').classList.toggle('done', offline ? !!a.content : !!pl);
+  $('st4').classList.toggle('done', !!(S.format === 'other' ? slug(S.fmOther) : S.format));
+  $('st5').classList.toggle('done', !!v.campaign);
+
+  document.querySelectorAll('[data-ov]').forEach(i => { i.placeholder = a[i.dataset.ov] || '—'; });
+  const c = slug(S.campaign);
+  $('campNote').innerHTML = c && c !== S.campaign.trim()
+    ? `В метке будет <code>${esc(c)}</code>`
+    : `Пиши как удобно, по-русски тоже можно: «Дроп You're not real» станет <code>drop_youre_not_real</code>.
+       Для ссылки, которая висит постоянно (в профиле, в закрепе), выбери «Постоянная ссылка».`;
+}
+
+function summaryText(){
+  const parts = [];
+  if (S.who === 'offline'){
+    parts.push('Офлайн · QR');
+    const o = OFFLINE.find(x => x.k === S.offline);
+    if (o) parts.push(S.offline === 'other' ? (S.offOther || 'другое') : o.t.toLowerCase());
+  } else {
+    const p = PLATFORMS.find(x => x.k === S.platform);
+    if (p) parts.push(S.platform === 'other' ? (S.plOther || 'другая площадка') : p.t);
+    if (S.who === 'own') parts.push('наш аккаунт');
+    if (S.who === 'ads') parts.push('таргет');
+    if (S.who === 'blogger') parts.push(S.blogger ? 'блогер ' + S.blogger : 'блогер');
+    if (S.who === 'seed') parts.push(S.seed ? 'посев в ' + S.seed : 'посев');
+    const f = FORMATS.find(x => x.k === S.format);
+    if (f) parts.push(S.format === 'other' ? (S.fmOther || 'другой формат') : f.t.toLowerCase());
+  }
+  return parts.join(' · ');
+}
+
+let READY = [];
+function renderResult(v){
+  const miss = missing(v);
+  const a = auto();
+  const tags = KEYS.filter(k => v[k]).map(k =>
+    `<span class="tag${slug(S.ov[k]) ? ' man' : ''}" title="${esc(KEY_HELP[k])}${slug(S.ov[k]) ? ' · вписано вручную' : ''}"><i>${k}</i>${esc(v[k])}</span>`).join('');
+  const legend = `<div class="legend">source — откуда пришёл человек · medium — тип размещения · campaign — что продвигаем ·
+    content — формат · term — вариант</div>`;
+
+  if (miss.length){
+    READY = [];
+    $('rcount').textContent = '';
+    $('rbody').innerHTML = (tags ? `<div class="tags">${tags}</div>${legend}` : '') +
+      `<div class="empty">Осталось указать:<ul>${miss.map(m => `<li>${esc(m)}</li>`).join('')}</ul></div>` +
+      (S.dest.length || S.campaign ? '' : '<button type="button" id="example" style="margin-top:12px">Показать на примере</button>');
+    $('mbar').classList.remove('show');
+    return;
+  }
+
+  READY = S.dest.map(d => ({d, url: buildUrl(d.url, v)}));
+  $('rcount').textContent = READY.length === 1 ? '1 ссылка' : READY.length + (READY.length < 5 ? ' ссылки' : ' ссылок');
+  const inLog = new Set(LOG.map(r => r.url));
+  const allSaved = READY.every(r => inLog.has(r.url));
+  $('rbody').innerHTML =
+    `<div class="sum">${esc(summaryText())}${v.campaign ? ' · ' + esc(v.campaign === ALWAYS ? 'постоянная' : v.campaign) : ''}</div>` +
+    `<div class="tags">${tags}</div>${legend}` +
+    READY.map((r, i) => `<div class="res">
+        <div class="rh">${thumb(r.d)}<div><b>${esc(r.d.title)}</b><span>${esc(r.d.sub || '')}</span></div></div>
+        <div class="url">${hl(r.url)}</div>
+        <div class="acts">
+          <button type="button" class="pri" data-copy="${i}">Копировать</button>
+          <button type="button" data-qr="${i}">QR-код</button>
+          <a href="${esc(r.url)}" target="_blank" rel="noopener">Открыть ↗</a>
+        </div></div>`).join('') +
+    `<div class="foot">
+        ${READY.length > 1 ? '<button type="button" id="copyAll">Скопировать все</button>' : ''}
+        <button type="button" class="pri" id="save" ${allSaved || SAVING ? 'disabled' : ''}>${SAVING ? 'Сохраняю…' : allSaved ? 'Уже в журнале ✓' : 'Сохранить в журнал'}</button>
+        <button type="button" class="ghost" id="reset">Начать заново</button>
+     </div>`;
+  $('mCopy').textContent = READY.length > 1 ? 'Скопировать все (' + READY.length + ')' : 'Скопировать ссылку';
+  $('mbar').classList.toggle('show', !!ME);
+}
+/* подсветка: адрес серым, значения меток зелёным */
+function hl(url){
+  const qi = url.indexOf('?');
+  if (qi < 0) return `<span class="ub">${esc(url)}</span>`;
+  let rest = url.slice(qi + 1), hash = '';
+  const hi = rest.indexOf('#'); if (hi >= 0){ hash = rest.slice(hi); rest = rest.slice(0, hi); }
+  return `<span class="ub">${esc(url.slice(0, qi))}</span>` + rest.split('&').map((kv, j) => {
+    const e = kv.indexOf('='), k = e < 0 ? kv : kv.slice(0, e), val = e < 0 ? '' : kv.slice(e + 1);
+    return `<span class="uq">${j ? '&amp;' : '?'}${esc(k)}=</span><span class="${/^utm_/.test(k) ? 'uv' : 'uo'}">${esc(val)}</span>`;
+  }).join('') + (hash ? `<span class="ub">${esc(hash)}</span>` : '');
+}
+
+function renderLog(){
+  const q = $('logq').value.trim().toLowerCase();
+  const rows = LOG.slice().reverse().filter(r => !q || Object.values(r).join(' ').toLowerCase().includes(q));
+  $('logCount').textContent = LOG.length ? '· ' + LOG.length : '';
+  if (LOG_STATE === 'loading' && !LOG.length){ $('log').innerHTML = '<div class="msg">Загружаю журнал…</div>'; return; }
+  if (LOG_STATE === 'error' && !LOG.length){
+    $('log').innerHTML = `<div class="msg">Журнал не загрузился: ${esc(LOG_ERR)}. Ссылки делать можно, а сохранить их получится, когда журнал ответит.
+      <br><button type="button" id="logRetry" style="margin-top:10px">Попробовать ещё раз</button></div>`;
+    return;
+  }
+  if (!LOG.length){ $('log').innerHTML = '<div class="msg">Пока пусто. Нажми «Сохранить в журнал» — ссылка появится здесь.</div>'; return; }
+  if (!rows.length){ $('log').innerHTML = '<div class="msg">Ничего не нашлось.</div>'; return; }
+  $('log').innerHTML = `<table><thead><tr><th>Когда</th><th>Кто</th><th>Куда</th><th>Где и как</th><th>Кампания</th><th>Ссылка</th><th></th></tr></thead><tbody>` +
+    rows.map(r => `<tr>
+      <td class="nw">${esc(r.at)}</td>
+      <td class="nw">${esc(r.by || '—')}</td>
+      <td>${esc(r.dest)}</td>
+      <td>${esc(r.how)}${r.promo ? ` <span class="pill">промокод ${esc(r.promo)}</span>` : ''}${r.note ? `<span class="s">${esc(r.note)}</span>` : ''}</td>
+      <td>${esc(r.campaign === ALWAYS ? 'постоянная' : r.campaign)}</td>
+      <td><span class="u">${esc(r.url)}</span></td>
+      <td class="nw"><button type="button" class="sm" data-lcopy="${esc(r.id)}">Копировать</button></td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+function refresh(){
+  const v = utm();
+  renderDests();
+  stepState(v);
+  renderResult(v);
+}
+
+/* ============================================================
+   Журнал
+   ============================================================ */
+async function saveToLog(){
+  if (!ME){ showGate(); return; }
+  if (SAVING) return;
+  const v = utm();
+  const inLog = new Set(LOG.map(r => r.url));
+  const items = READY.filter(r => !inLog.has(r.url)).map(r => ({
+    by: ME, dest: r.d.title, type: r.d.type, url: r.url, page: r.d.url, how: summaryText(),
+    source: v.source, medium: v.medium, campaign: v.campaign, content: v.content, term: v.term,
+    blogger: S.who === 'blogger' ? S.blogger.trim() : '',
+    promo: S.who === 'blogger' ? S.promo.trim().toUpperCase() : '',
+    note: S.note.trim()}));
+  if (!items.length){ toast('Эти ссылки уже в журнале'); return; }
+  SAVING = true; refresh();
+  let added = 0;
+  try {
+    for (const part of chunks(items)){
+      const r = await jsonpRetry({action:'add', key: JOURNAL_KEY, data: JSON.stringify(part)}, 3);
+      added += r.added || 0;
+      if (r.rows){ LOG = r.rows; LOG_STATE = 'ok'; }
+    }
+    toast(added === 1 ? 'Ссылка в журнале' : added ? 'В журнал добавлено: ' + added : 'Эти ссылки уже в журнале');
+  } catch(e){
+    toast('Не получилось сохранить: ' + errText(e) + '. Попробуй ещё раз', true);
+  }
+  SAVING = false;
+  renderCamps(); refresh(); renderLog();
+}
+/* адрес запроса не должен выйти слишком длинным — шлём пачками */
+function chunks(items){
+  const out = []; let cur = [], len = 0;
+  items.forEach(it => {
+    const l = encodeURIComponent(JSON.stringify(it)).length;
+    if (cur.length && (len + l > 5000 || cur.length >= 10)){ out.push(cur); cur = []; len = 0; }
+    cur.push(it); len += l;
+  });
+  if (cur.length) out.push(cur);
+  return out;
+}
+function exportCsv(){
+  if (!LOG.length){ toast('Журнал пуст', true); return; }
+  const cols = ['at','by','dest','how','source','medium','campaign','content','term','blogger','promo','note','url'];
+  const head = ['Когда (МСК)','Кто','Куда','Где и как','utm_source','utm_medium','utm_campaign','utm_content','utm_term','Блогер','Промокод','Заметка','Ссылка'];
+  const q = s => '"' + String(s || '').replace(/"/g, '""') + '"';
+  const csv = '﻿' + [head.map(q).join(';')].concat(LOG.map(r => cols.map(c => q(r[c])).join(';'))).join('\r\n');
+  download(new Blob([csv], {type:'text/csv;charset=utf-8'}), 'bladnes-utm-журнал.csv');
+}
+
+/* ============================================================
+   Выбор товаров из каталога
+   ============================================================ */
+let PK_CAT = '';
+function renderPicker(){
+  const q = $('pq').value.trim().toLowerCase();
+  const list = PRODUCTS.filter(p => (!PK_CAT || p.c === PK_CAT) && (!q || p.t.toLowerCase().includes(q)));
+  $('pgrid').innerHTML = list.length ? list.map(p => `<button type="button" class="pc${has('p:' + p.id) ? ' on' : ''}" data-pid="${p.id}">
+      <img src="${esc(p.img)}" alt="" loading="lazy">
+      ${p.m ? `<span class="mk">${esc(p.m)}</span>` : ''}<span class="ck">✓</span>
+      <span class="pt">${esc(p.t)}<span class="pp">${p.p ? fmtRub(p.p) : ''}${p.po ? `<s>${fmtRub(p.po)}</s>` : ''}</span></span>
+    </button>`).join('') : '<div class="msg" style="grid-column:1/-1">Ничего не нашлось</div>';
+  const n = S.dest.filter(d => d.type === 'product').length;
+  $('pkSel').textContent = n ? 'Выбрано товаров: ' + n : 'Нажми на товар, чтобы выбрать';
+}
+function openPicker(){
+  const cats = PAGES.filter(pg => PRODUCTS.some(p => p.c === pg.k));
+  $('pcat').innerHTML = chipHTML([{k:'', t:'Все'}].concat(cats));
+  setOn($('pcat'), k => k === PK_CAT);
+  $('pkSub').textContent = PRODUCTS.length + ' товаров · ' + PRODUCTS_AT;
+  renderPicker();
+  $('picker').hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => $('pq').focus(), 30);
+}
+
+/* ============================================================
+   QR-код
+   ============================================================ */
+let QR = null;
+function qrMatrix(text){
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  const n = q.getModuleCount(), m = [];
+  for (let r = 0; r < n; r++){ m.push([]); for (let c = 0; c < n; c++) m[r].push(q.isDark(r, c)); }
+  return m;
+}
+function qrSvg(m){
+  const n = m.length, pad = 4, size = n + pad * 2;
+  let d = '';
+  m.forEach((row, r) => row.forEach((on, c) => { if (on) d += `M${c + pad},${r + pad}h1v1h-1z`; }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">` +
+    `<rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+function openQr(i){
+  const r = READY[i]; if (!r) return;
+  if (typeof qrcode !== 'function'){ toast('Не загрузилась библиотека QR — нужен интернет', true); return; }
+  const m = qrMatrix(r.url);
+  QR = {m, url:r.url, name: 'bladnes-qr-' + (slug(r.d.title) || 'link') + '-' + (utm().campaign || '')};
+  $('qrBox').innerHTML = `<img src="${qrCanvas(m).toDataURL('image/png')}" alt="QR-код ссылки">`;
+  $('qrUrl').textContent = r.url;
+  $('qrSub').textContent = r.d.title;
+  $('qr').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+/* На claude.ai страница не может скачивать файлы сама — там файл отдаётся
+   через claude.use('downloads'). С диска и с GitHub Pages — обычной ссылкой. */
+let DL = null;
+if (window.claude && window.claude.use) window.claude.use('downloads').then(d => { DL = d; }, () => {});
+async function download(blob, name){
+  if (DL){
+    try { await DL.save({filename: name, data: blob}); toast('Файл сохранён'); }
+    catch(e){ if (!e || e.code !== 'declined') toast('Не получилось сохранить файл', true); }
+    return;
+  }
+  if (window.claude){ toast('Здесь файл не скачать. QR-код можно сохранить долгим нажатием', true); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function qrCanvas(m){
+  const n = m.length, pad = 4, scale = Math.ceil(1200 / (n + pad * 2)), size = (n + pad * 2) * scale;
+  const cv = document.createElement('canvas'); cv.width = cv.height = size;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, size, size); x.fillStyle = '#000';
+  m.forEach((row, r) => row.forEach((on, c) => { if (on) x.fillRect((c + pad) * scale, (r + pad) * scale, scale, scale); }));
+  return cv;
+}
+function qrPng(){ qrCanvas(QR.m).toBlob(b => download(b, QR.name + '.png'), 'image/png'); }
+function closeModal(id){ $(id).hidden = true; document.body.style.overflow = ''; if (id === 'picker') refresh(); }
+
+/* ============================================================
+   События
+   ============================================================ */
+function bind(){
+  document.querySelectorAll('.tabs [data-tab]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b));
+    $('pane-prod').hidden = b.dataset.tab !== 'prod';
+    $('pane-page').hidden = b.dataset.tab !== 'page';
+  }));
+
+  $('addBtn').addEventListener('click', addPasted);
+  $('paste').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addPasted(); } });
+  $('paste').addEventListener('paste', () => setTimeout(addPasted, 0));
+  $('openPicker').addEventListener('click', openPicker);
+
+  $('pages').addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    const pg = PAGES.find(p => p.k === b.dataset.v);
+    has('g:' + pg.k) ? removeDest('g:' + pg.k) : addDest(pageDest(pg));
+    refresh();
+  });
+  $('dests').addEventListener('click', e => {
+    const rm = e.target.closest('[data-rm]');
+    if (rm){ removeDest(rm.dataset.rm); refresh(); return; }
+    if (e.target.id === 'clearDest'){ S.dest = []; showPasteMsg(null); refresh(); }
+  });
+
+  const pick = (id, key, after) => $(id).addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    S[key] = S[key] === b.dataset.v && key !== 'who' ? '' : b.dataset.v;
+    if (after) after();
+    refresh();
+  });
+  pick('who', 'who');
+  pick('platforms', 'platform', () => { if (S.platform === 'other') setTimeout(() => $('plother').focus(), 0); });
+  pick('offline', 'offline', () => { if (S.offline === 'other') setTimeout(() => $('offother').focus(), 0); });
+  pick('formats', 'format', () => { if (S.format === 'other') setTimeout(() => $('fmother').focus(), 0); });
+  $('camps').addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    S.campaign = slug(S.campaign) === b.dataset.v ? '' : b.dataset.v;
+    $('campaign').value = S.campaign;
+    renderCamps(); refresh();
+  });
+
+  const txt = (id, key) => $(id).addEventListener('input', () => { S[key] = $(id).value; refresh(); if (id === 'campaign') setOn($('camps'), v => v === slug(S.campaign)); });
+  txt('blogger', 'blogger'); txt('promo', 'promo'); txt('seed', 'seed');
+  txt('plother', 'plOther'); txt('offother', 'offOther'); txt('fmother', 'fmOther');
+  txt('campaign', 'campaign'); txt('term', 'term'); txt('note', 'note');
+  $('ovgrid').addEventListener('input', e => { const k = e.target.dataset.ov; if (k){ S.ov[k] = e.target.value; refresh(); } });
+
+  $('rbody').addEventListener('click', e => {
+    const c = e.target.closest('[data-copy]'); if (c){ copyAndSay(READY[+c.dataset.copy].url); return; }
+    const q = e.target.closest('[data-qr]'); if (q){ openQr(+q.dataset.qr); return; }
+    if (e.target.id === 'copyAll') copyAndSay(READY.map(r => r.d.title + '\n' + r.url).join('\n\n'), 'Все ссылки');
+    if (e.target.id === 'save') saveToLog();
+    if (e.target.id === 'reset') resetForm();
+    if (e.target.id === 'example') fillExample();
+  });
+  $('mCopy').addEventListener('click', () => {
+    if (READY.length === 1) copyAndSay(READY[0].url);
+    else copyAndSay(READY.map(r => r.d.title + '\n' + r.url).join('\n\n'), 'Все ссылки');
+  });
+  $('mGo').addEventListener('click', () => $('result').scrollIntoView({behavior:'smooth', block:'start'}));
+
+  $('people').addEventListener('click', e => {
+    const b = e.target.closest('[data-person]'); if (!b) return;
+    if (b.dataset.person !== OTHER){ setMe(b.dataset.person); return; }
+    $('otherBox').hidden = false;
+    const last = store.get('bl_utm_me', '');
+    if (last && !PEOPLE.some(p => p.n === last)) $('otherName').value = last;
+    $('otherName').focus();
+  });
+  const goOther = () => {
+    const n = $('otherName').value.trim().replace(/\s+/g, ' ');
+    if (n.length < 2){ toast('Напиши имя — оно попадёт в журнал', true); $('otherName').focus(); return; }
+    setMe(n);
+  };
+  $('otherGo').addEventListener('click', goOther);
+  $('otherName').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); goOther(); } });
+  $('meChange').addEventListener('click', showGate);
+
+  $('logq').addEventListener('input', renderLog);
+  $('csv').addEventListener('click', exportCsv);
+  $('log').addEventListener('click', e => {
+    const c = e.target.closest('[data-lcopy]');
+    if (c){ const r = LOG.find(x => x.id === c.dataset.lcopy); if (r) copyAndSay(r.url); return; }
+    if (e.target.id === 'logRetry') loadLog();
+  });
+  $('sheetLink').href = JOURNAL_SHEET;
+
+  $('pq').addEventListener('input', renderPicker);
+  $('pcat').addEventListener('click', e => {
+    const b = e.target.closest('[data-v]'); if (!b) return;
+    PK_CAT = b.dataset.v; setOn($('pcat'), k => k === PK_CAT); renderPicker();
+  });
+  $('pgrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-pid]'); if (!b) return;
+    const p = PRODUCTS.find(x => x.id === b.dataset.pid);
+    has('p:' + p.id) ? removeDest('p:' + p.id) : addDest(productDest(p));
+    renderPicker();
+  });
+
+  $('qrPng').addEventListener('click', qrPng);
+  $('qrSvg').addEventListener('click', () => download(new Blob([qrSvg(QR.m)], {type:'image/svg+xml'}), QR.name + '.svg'));
+
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.close)));
+  ['picker', 'qr'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id === id) closeModal(id); }));
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    ['picker', 'qr'].forEach(id => { if (!$(id).hidden) closeModal(id); });
+  });
+}
+
+/* ============================================================
+   Кто делает ссылку — первый шаг, без него форма не открывается
+   ============================================================ */
+let ME = '';
+const OTHER = '__other';
+function avatar(name){
+  const p = PEOPLE.find(x => x.n === name);
+  return `<span class="av" style="background:${p ? p.c : '#9aa7b4'}">${esc(String(name || '?').charAt(0))}</span>`;
+}
+function renderGate(){
+  const last = store.get('bl_utm_me', '');
+  const custom = last && !PEOPLE.some(p => p.n === last);
+  $('people').innerHTML = PEOPLE.map(p => `<button type="button" class="person${p.n === last ? ' last' : ''}" data-person="${esc(p.n)}">` +
+    `${avatar(p.n)}<span>${esc(p.n)}${p.n === last ? '<small>в прошлый раз</small>' : ''}</span></button>`).join('') +
+    `<button type="button" class="person${custom ? ' last' : ''}" data-person="${OTHER}"><span class="av" style="background:#9aa7b4">+</span>` +
+    `<span>Другой${custom ? `<small>в прошлый раз: ${esc(last)}</small>` : '<small>вписать имя</small>'}</span></button>`;
+  $('otherBox').hidden = true;
+}
+function showGate(){
+  $('work').hidden = true; $('meline').hidden = true; $('gate').hidden = false;
+  $('mbar').classList.remove('show');
+  renderGate();
+  window.scrollTo({top:0});
+}
+function setMe(name){
+  ME = name; store.set('bl_utm_me', name);
+  $('meAv').innerHTML = avatar(name); $('meName').textContent = name;
+  $('gate').hidden = true; $('work').hidden = false; $('meline').hidden = false;
+  refresh();
+  window.scrollTo({top:0});
+}
+
+/* пример: сторис в нашем Telegram про плюшевую куртку «YOU'RE NOT REAL» */
+function fillExample(){
+  const p = PRODUCTS.find(x => x.id === '237323648893') || PRODUCTS[0];
+  if (p) addDest(productDest(p));
+  S.who = 'own'; S.platform = 'telegram'; S.format = 'stories';
+  S.campaign = "Дроп You're not real"; $('campaign').value = S.campaign;
+  renderCamps(); refresh();
+}
+function resetForm(){
+  S = fresh();
+  ['paste','blogger','promo','seed','plother','offother','fmother','campaign','term','note'].forEach(id => { $(id).value = ''; });
+  document.querySelectorAll('[data-ov]').forEach(i => { i.value = ''; });
+  showPasteMsg(null);
+  renderCamps(); refresh();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+buildStatic();
+bind();
+renderCamps();
+renderLog();
+refresh();
+showGate();
+loadLog();
+loadProducts();
+</script>
+</body>
+</html>
