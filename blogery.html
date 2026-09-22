@@ -140,9 +140,15 @@ tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;pos
     </div>
 
     <div class="grid">
-      <div class="card"><h3>Промокоды и блогеры</h3>
+      <div class="card"><h3>Промокоды блогеров</h3>
         <div class="note" id="promoNote"></div>
         <div class="scroll" style="max-height:340px"><table id="tPromo"></table></div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Другие промокоды</h3>
+        <div class="note" id="promoOtherNote"></div>
+        <div class="scroll" style="max-height:340px"><table id="tPromoOther"></table></div></div>
     </div>
 
     <div class="grid">
@@ -197,6 +203,42 @@ tfoot td{font-weight:700;border-top:2px solid var(--line);border-bottom:none;pos
    Впиши сюда, кому какой код выдан — колонка «Блогер» заполнится.
    Ключ пиши ЗАГЛАВНЫМИ, ровно как код в таблице.
    ============================================================ */
+/* ---------- промокоды: блогерские и свои ----------
+   Свои коды всегда начинаются на BLADNES(S) — так исторически повелось, и в Тильде
+   это выдерживается без исключений. Всё остальное — ник блогера.
+   Разбор типа внутри своих:
+     …WB2S  — вкладыш в заказе с маркетплейса (Wildberries/Ozon → сайт), 7%
+     …2S    — вкладыш в заказе с сайта, скидка на повторную покупку, 7%
+     BLADNESS + только цифры — разовая компенсация за проблему с заказом
+     остальные BLADNES…       — акции и общие коды
+   Если появится свой код без приставки BLADNES — впишите его в PROMO_FORCE_OTHER. */
+const PROMO_FORCE_OTHER = {
+  // 'КОД': 'что это за код',
+};
+
+// описания из Тильды (Настройки сайта → Настройки промокодов). Обновлять руками.
+const PROMO_PURPOSE = {
+  'BLADNESS140910': 'Компенсация',
+  'BLADNESS130910': 'Подарок за то что приехал испорченный товар',
+  'BLADNESS110915': 'Промик за лонг с плохим цветом',
+  'BLADNESS091110': 'Компенсация за отмену (выдали до этого нерабочий промик)',
+  'BLADNESS1109'  : 'Компенсация за неверно отправленный товар',
+};
+
+function promoKind(code){
+  const c = String(code || '').toUpperCase().trim();
+  if (PROMO_FORCE_OTHER[c]) return {свой:true, тип:'прочее', ярлык:PROMO_FORCE_OTHER[c]};
+  // у вкладышей впереди стоит цифра партии: 1BLADNESS2S, 2BLADNESS2S…
+  if (!/^\d*BLADNES/.test(c)) return {свой:false, тип:'блогер', ярлык:''};
+  if (/WB2S$/.test(c))      return {свой:true, тип:'wb2s', ярлык:'Вкладыш из заказа на маркетплейсе'};
+  if (/2S$/.test(c))        return {свой:true, тип:'s2s', ярлык:'Вкладыш из заказа на сайте'};
+  if (/^\d*BLADNESS?\d+$/.test(c))
+                            return {свой:true, тип:'компенсация', ярлык:PROMO_PURPOSE[c] || 'Компенсация за проблему с заказом'};
+  return {свой:true, тип:'акция', ярлык:PROMO_PURPOSE[c] || 'Акция или общий код'};
+}
+const ТИПЫ = {s2s:'Вкладыш · сайт', wb2s:'Вкладыш · маркетплейс',
+              'компенсация':'Компенсация', 'акция':'Акция', 'прочее':'Прочее'};
+
 const PROMO_OWNERS = {
   // 'SKELETON'    : 'Имя · @ник · Instagram',
   // 'RAARI'       : 'Имя · @ник · TikTok',
@@ -730,15 +772,35 @@ function totalsBase(g, rows, firstLabel){
 const HOW = {promo:['Промокод','#3fb950'], utm:['UTM','#4f9cf9'], ref:['Реферер','#a371f7'], none:['Неизвестно','#39485a']};
 
 function tPromo(rows){
+  const сПромо = rows.filter(r => r.promo);
+  const блогеры = сПромо.filter(r => !promoKind(r.promo).свой);
+  const свои    = сПромо.filter(r =>  promoKind(r.promo).свой);
+  promoTable('tPromo',      'promoNote',      блогеры, false);
+  promoTable('tPromoOther', 'promoOtherNote', свои,    true);
+}
+
+// Одна и та же таблица для обоих разделов. Разница только во второй колонке:
+// у блогеров это имя из справочника, у своих — назначение кода.
+function promoTable(tid, noteId, rows, свои){
   const g = agg(rows.filter(r => r.promo), r => r.promo);
-  document.getElementById('promoNote').innerHTML = g.length
-    ? 'Клик по строке — какие именно товары продал этот промокод, в каких размерах и в каких заказах. '
-      + 'Имя блогера подставляется из справочника <b>PROMO_OWNERS</b> в начале файла.'
-    : 'За выбранный период промокодов не использовали.';
+  document.getElementById(noteId).innerHTML = g.length
+    ? (свои
+        ? 'Наши собственные коды: вкладыши в заказы, компенсации и акции. '
+          + 'Назначение берётся из описаний в Тильде — справочник <b>PROMO_PURPOSE</b> в начале файла.'
+        : 'Коды блогеров и посевов. Клик по строке — какие именно товары продал этот промокод. '
+          + 'Имя блогера подставляется из справочника <b>PROMO_OWNERS</b> в начале файла.')
+    : (свои ? 'За выбранный период своих промокодов не использовали.'
+            : 'За выбранный период блогерских промокодов не использовали.');
   const tot = sum(g, x => x.sum);
-  tbl('tPromo', [
+  const вторая = свои
+    ? {t:'Назначение', v:r=>promoKind(r.k).тип + ' ' + promoKind(r.k).ярлык,
+       f:r=>{ const k = promoKind(r.k);
+              return `<span class="tag">${esc(ТИПЫ[k.тип] || k.тип)}</span>`
+                   + (k.ярлык ? ' <span style="color:var(--tx2)">' + esc(k.ярлык) + '</span>' : ''); }}
+    : {t:'Блогер', v:r=>owner(r.k), f:r=>esc(owner(r.k)) || '—'};
+  tbl(tid, [
     {t:'Промокод', v:r=>r.k, f:r=>`<span class="lnk">${esc(r.k)}</span><span class="arr">товары ▸</span>`},
-    {t:'Блогер', v:r=>owner(r.k), f:r=>esc(owner(r.k)) || '—'},
+    вторая,
     {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
     {t:'Покупателей', v:r=>r.cust.size, f:r=>fmt(r.cust.size)},
     {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
@@ -749,10 +811,11 @@ function tPromo(rows){
     {t:'Первый', v:r=>r.first, f:r=>dRu(r.first)},
     {t:'Последний', v:r=>r.last, f:r=>dRu(r.last)},
   ], g, {
-    totals:['Итого','', fmt(sum(g,x=>x.orders)), fmt(uniqCust(rows.filter(r=>r.promo))),
+    totals:['Итого','', fmt(sum(g,x=>x.orders)), fmt(new Set(rows.filter(r=>r.email).map(r=>r.email)).size),
       fmt(sum(g,x=>x.units)), money(tot), '100%', money(sum(g,x=>x.disc)),
       money(sum(g,x=>x.orders) ? tot/sum(g,x=>x.orders) : 0), '', ''],
-    drill:{ title: g => 'Промокод ' + g.k + (owner(g.k) ? ' — ' + owner(g.k) : ''), rows: g => g.rows }
+    drill:{ title: g => 'Промокод ' + g.k + (свои ? ' — ' + (ТИПЫ[promoKind(g.k).тип] || '') : (owner(g.k) ? ' — ' + owner(g.k) : '')),
+            rows: g => g.rows }
   });
 }
 
