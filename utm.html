@@ -583,6 +583,9 @@ function jsonp(params, timeout){
   return new Promise((resolve, reject) => {
     const cb = 'j_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
+    /* без куки Google: иначе при двух аккаунтах в браузере Google уводит запрос на
+       /macros/u/1/… и отвечает 503. Скрипт журнала отдаёт CORS-заголовки, так что это безопасно */
+    s.crossOrigin = 'anonymous';
     let done = false;
     const finish = () => { done = true; clearTimeout(t); window[cb] = function(){}; s.remove(); };
     const t = setTimeout(() => { if (!done){ finish(); reject(new Error('timeout')); } }, timeout || 25000);
