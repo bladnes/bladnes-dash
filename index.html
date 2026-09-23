@@ -209,7 +209,8 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
 <script>
 // Источник заказов — независимый архив, который наполняет вебхук Тильды.
 // Сама таблица архива закрыта: скрипт отдаёт только обезличенные данные.
-const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
+// С 23.09.2026 приёмник на stepan.wb (старый, на darkside.reon, пока не выключен).
+const API     = 'https://script.google.com/macros/s/AKfycbyPB8rLmVJLlyfxvg2O7fMax4i7Jt571GDxg9_H0O2ynbdddR4jJSpQ9-mcJre-P_MCoQ/exec';
 const API_KEY = 'bl7dsh2026rkqv4x9mzt';
 // запасной источник: старая таблица «Сайт Бладнес». Используется, только если
 // архив не ответил с трёх попыток — тогда в шапке появится предупреждение.
@@ -384,6 +385,9 @@ function jsonpApi(onOk, onErr, attempt){
   timer = setTimeout(() => retry('архив не ответил за 30 секунд'), 30000);
   window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
   const s = document.createElement('script');
+  // без куки Google: приёмник на stepan.wb — втором аккаунте в браузере Степана,
+  // с куки Google уводит запрос на /macros/u/1/… и отвечает 503
+  s.crossOrigin = 'anonymous';
   s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
   s.onerror = () => { clearTimeout(timer); retry('не удалось загрузить архив'); };
   document.head.appendChild(s);
