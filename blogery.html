@@ -256,7 +256,8 @@ const PROMO_OWNERS = {
 // 7 служба доставки 8 стоимость доставки 9 utm_source 10 раздел 11 промокод
 // 12 товары 13 скидка 14 utm_medium 15 utm_campaign 16 utm_content 17 utm_term
 // 18 страница входа 19 страница заказа 20 реферер 21 тип страницы
-const API     = 'https://script.google.com/macros/s/AKfycbz5PYOAbpwQQTHXR0xM58yIC2GG_y2CUztg55dldnZuCRG2LHiocjxS0tqiOil2DrRy/exec';
+// с 23.09.2026 приёмник на stepan.wb
+const API     = 'https://script.google.com/macros/s/AKfycbyPB8rLmVJLlyfxvg2O7fMax4i7Jt571GDxg9_H0O2ynbdddR4jJSpQ9-mcJre-P_MCoQ/exec';
 const API_KEY = 'bl7dsh2026rkqv4x9mzt';
 let FALLBACK = '';
 // запасной путь: старая таблица. Колонки выбраны так, чтобы встать на те же места
@@ -441,6 +442,8 @@ function load(){
 function loadArchive(left){
   const cb = 'api_' + Math.random().toString(36).slice(2);
   const s  = document.createElement('script');
+  // без куки Google: при двух аккаунтах в браузере запрос иначе уходит на /macros/u/1/… и падает с 503
+  s.crossOrigin = 'anonymous';
   const cleanup = () => { try { delete window[cb]; } catch(e){ window[cb] = undefined; }
                           if (s.parentNode) s.parentNode.removeChild(s); };
   const retry = msg => {
