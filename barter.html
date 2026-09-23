@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Бартер">
+<title>Бартер bladnes</title>
+<style>
+:root{--bg:#0e1116;--panel:#161b22;--panel2:#1c232c;--panel3:#232c37;--line:#2a323d;--line2:#343e4b;
+--tx:#e6edf3;--tx2:#9aa7b4;--tx3:#6e7b88;--acc:#4f9cf9;--acc2:#f2a65a;--ok:#3fb950;--warn:#d29922;--bad:#f85149;
+--s1:#3987e5;--s2:#d95926;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+body{overflow-x:hidden}
+body.lock{overflow:hidden}
+a{color:var(--acc);text-decoration:none}
+button{font-family:inherit}
+b{font-weight:600}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--tx2)}.dim{color:var(--tx3)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- каркас ---------- */
+.side{display:none}
+.main{min-height:100vh;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:20;background:rgba(14,17,22,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);padding:calc(10px + env(safe-area-inset-top)) 16px 10px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top .sp{margin-left:auto;display:flex;align-items:center;gap:8px}
+.who{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px 10px 4px 4px;
+  color:var(--tx);font-size:13px;cursor:pointer;min-height:36px}
+.ava{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;font-weight:700;font-size:12px;color:#0e1116;flex:none}
+.ib{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--tx2);display:grid;place-items:center;cursor:pointer}
+.ib:hover{color:var(--tx);border-color:var(--line2)}
+.view{padding:14px 16px 24px;max-width:1180px;margin:0 auto}
+.draft{font-size:12px;color:var(--tx2);background:#1a2129;border:1px solid var(--line);border-left:3px solid var(--acc2);border-radius:10px;padding:9px 12px;margin-bottom:14px;line-height:1.5}
+.draft b{color:var(--tx)}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(22,27,34,.97);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+.tabs a{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--tx3);font-size:11px;padding:6px 0;border-radius:10px;min-height:52px;justify-content:center;position:relative}
+.tabs a.on{color:var(--tx)}
+.tabs a.on svg{stroke:var(--acc)}
+.tabs .bd{position:absolute;top:2px;left:calc(50% + 6px);background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:0 5px;min-width:16px;line-height:16px;text-align:center}
+.fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:31;width:58px;height:58px;border-radius:18px;border:none;
+  background:var(--acc);color:#fff;box-shadow:0 10px 28px rgba(0,0,0,.45);display:grid;place-items:center;cursor:pointer}
+.fab svg{width:28px;height:28px;stroke-width:2.4}
+
+@media(min-width:900px){
+  .side{display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;width:232px;background:var(--panel);border-right:1px solid var(--line);padding:18px 12px;gap:4px;z-index:25}
+  .side .logo{font-weight:800;font-size:17px;padding:4px 10px 16px;letter-spacing:-.01em}
+  .side .logo span{display:block;font-size:11px;font-weight:500;color:var(--tx2);letter-spacing:.02em;margin-top:2px}
+  .side a{display:flex;align-items:center;gap:10px;color:var(--tx2);padding:10px 10px;border-radius:10px;font-size:14px;position:relative}
+  .side a:hover{background:var(--panel2);color:var(--tx)}
+  .side a.on{background:var(--panel3);color:var(--tx)}
+  .side a.on svg{stroke:var(--acc)}
+  .side .bd{margin-left:auto;background:var(--bad);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:0 7px;line-height:18px}
+  .side .sep{height:1px;background:var(--line);margin:10px 6px}
+  .side .add{margin-top:6px;background:var(--acc);color:#fff;justify-content:center;font-weight:600}
+  .side .add:hover{background:#3d8ae8;color:#fff}
+  .side .foot{margin-top:auto;font-size:11px;color:var(--tx3);padding:8px 10px;line-height:1.5}
+  .main{margin-left:232px;padding-bottom:40px}
+  .tabs,.fab{display:none}
+  .view{padding:18px 26px 40px}
+}
+
+/* ---------- элементы ---------- */
+.sec{margin:20px 0 10px;display:flex;align-items:baseline;gap:10px}
+.sec h2{font-size:13px;margin:0;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.sec .r{margin-left:auto;font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.list{display:grid;gap:10px}
+@media(min-width:900px){.list.g2{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}}
+.cols{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+.cols>div{min-width:0}
+@media(min-width:1100px){.cols{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);align-items:start}}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line2);
+  background:var(--panel2);color:var(--tx);font-size:15px;font-weight:500;cursor:pointer;text-align:center;line-height:1.2}
+.btn:hover{border-color:#4a5667}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.pri:hover{background:#3d8ae8}
+.btn.pri:disabled{background:#26374d;border-color:#26374d;color:#7d8fa6;cursor:not-allowed}
+.btn.ok{background:#12331d;border-color:#1d5c31;color:#56d364}
+.btn.danger{color:#ff7b72;border-color:#5a2a2a;background:#2a1717}
+.btn.sm{min-height:36px;padding:0 12px;font-size:13.5px;border-radius:10px}
+.btn.w{width:100%}
+.btn.link{background:none;border:none;color:var(--acc);padding:0 4px;min-height:32px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:2px 0 4px;-webkit-overflow-scrolling:touch}
+.chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 14px;border-radius:999px;border:1px solid var(--line2);background:var(--panel2);
+  color:var(--tx2);font-size:14px;cursor:pointer;white-space:nowrap;user-select:none}
+.chip .n{color:var(--tx3);font-size:12.5px}
+.chip.on{background:#1c3350;border-color:var(--acc);color:var(--tx)}
+.chip.on .n{color:#9cc5fb}
+
+.stc{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.stc::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.st-agreed{background:#262d36;color:#b1bac4}
+.st-transit{background:#132a45;color:#79b8ff}
+.st-delivered{background:#0f3036;color:#56d4dd}
+.st-posted{background:#12331d;color:#56d364}
+.st-overdue{background:#3d1616;color:#ff7b72}
+.st-refused{background:#22272e;color:#768390}
+.gr{display:inline-grid;place-items:center;min-width:26px;height:22px;border-radius:6px;font-size:12px;font-weight:700;padding:0 6px}
+.gr-A{background:#12331d;color:#56d364}.gr-B{background:#132a45;color:#79b8ff}.gr-C{background:#3d1616;color:#ff7b72}.gr-w{background:#262d36;color:#b1bac4}
+.pl{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;font-size:10px;font-weight:800;flex:none;letter-spacing:-.02em}
+.pl-TikTok{background:#111;color:#fff;border:1px solid #3a3a3a}
+.pl-Instagram{background:linear-gradient(135deg,#f58529,#dd2a7b 55%,#8134af);color:#fff}
+.pl-YouTube{background:#c4302b;color:#fff}.pl-VK{background:#0077ff;color:#fff}.pl-Telegram{background:#229ed9;color:#fff}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:6px;background:var(--panel3);color:var(--tx2);white-space:nowrap}
+.tag.ex{background:#3a2a10;color:#f2c46d}
+
+/* карточки отправок и блогеров */
+.it{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;display:block;color:inherit}
+.it:hover{border-color:var(--line2)}
+.it .l1{display:flex;align-items:center;gap:8px;min-width:0}
+.it .l1 .nm{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .l1 .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.it .l2{display:flex;align-items:center;gap:10px;margin-top:9px}
+.it .l3{display:flex;gap:14px;margin-top:10px;font-size:13px;color:var(--tx2);flex-wrap:wrap}
+.it .l3 b{color:var(--tx);font-weight:600}
+.it .dl{font-size:12.5px;margin-top:8px;color:var(--tx2)}
+.thumbs{display:flex;gap:6px}
+.th{width:44px;height:44px;border-radius:9px;background:#fff center/cover no-repeat;border:1px solid var(--line);flex:none}
+.th.sm{width:34px;height:34px;border-radius:7px}
+.th.none{background:var(--panel3);display:grid;place-items:center;color:var(--tx3);font-size:11px}
+.bava{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--panel3);color:var(--tx);flex:none;font-size:15px}
+
+/* задачи */
+.tk{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;display:flex;gap:12px}
+.tk .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none}
+.tk .ic svg{width:18px;height:18px}
+.tk.red .ic{background:#3d1616;color:#ff7b72}
+.tk.amb .ic{background:#3a2a10;color:#f2c46d}
+.tk.blu .ic{background:#132a45;color:#79b8ff}
+.tk.grn .ic{background:#12331d;color:#56d364}
+.tk .bd{flex:1;min-width:0}
+.tk .tt{font-weight:600;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.tk .tx{font-size:13.5px;color:var(--tx2);margin-top:3px;line-height:1.45}
+.tk .tx b{color:var(--tx)}
+.tk .row{margin-top:10px}
+.sub{border-top:1px solid var(--line);margin-top:10px;padding-top:4px}
+.sub .li{display:flex;align-items:center;gap:8px 10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.sub .li .row{margin:0!important;flex-wrap:wrap}
+.sub .li:last-child{border-bottom:none}
+.sub .li .g{flex:1 1 180px;min-width:0;font-size:14px;overflow-wrap:anywhere}
+.sub .li .g .s{font-size:12.5px;color:var(--tx2)}
+.cnts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cnt{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 10px 9px;cursor:pointer}
+.cnt .v{font-size:22px;font-weight:700;line-height:1.1}
+.cnt .l{font-size:11.5px;color:var(--tx2);margin-top:3px;line-height:1.25}
+
+/* журнал */
+.log{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px 14px}
+.lg{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.lg:last-child{border-bottom:none}
+.lg .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--panel3);color:var(--tx2)}
+.lg .ic svg{width:16px;height:16px}
+.lg .ic.m{background:#3a2a10;color:#f2a65a}.lg .ic.s{background:#132a45;color:#79b8ff}.lg .ic.o{background:#12331d;color:#56d364}.lg .ic.a{background:#2b1f45;color:#b392f0}
+.lg .t{flex:1;min-width:0;font-size:14px;line-height:1.4}
+.lg .t .w{font-size:12px;color:var(--tx3);margin-top:2px}
+.lg .t b{font-weight:600}
+.lg .undo{font-size:12.5px}
+.lg.new{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:#1c3350}100%{background:transparent}}
+.day{font-size:12px;color:var(--tx3);text-transform:uppercase;letter-spacing:.05em;padding:12px 0 4px}
+
+/* поиск */
+.search{position:relative}
+.search input.in{padding-left:42px}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tx3);width:18px;height:18px}
+
+/* формы */
+.fld{margin-bottom:16px}
+.fld>label,.lab{display:block;font-size:13px;color:var(--tx2);margin-bottom:7px;font-weight:500}
+.fld .hint{font-size:12.5px;color:var(--tx3);margin-top:6px;line-height:1.45}
+input.in,textarea.in,select.in{width:100%;min-height:48px;background:var(--panel2);border:1px solid var(--line2);border-radius:12px;color:var(--tx);
+  font-size:16px;padding:10px 14px;font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
+textarea.in{min-height:120px;resize:vertical;line-height:1.5;font-size:14.5px}
+input.in:focus,textarea.in:focus{border-color:var(--acc)}
+.inb{display:flex;gap:8px}.inb .in{flex:1;min-width:0}
+.box{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.box.warn{background:#2a2110;border-color:#5c4514}
+.box.bad{background:#2a1515;border-color:#5a2a2a}
+.box.ok{background:#10261a;border-color:#1d5c31}
+.box.info{background:#12233a;border-color:#1f3f66}
+.box .t{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.box .d{font-size:13.5px;color:var(--tx2);margin-top:4px;line-height:1.45}
+.box .row{margin-top:10px}
+.res{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;cursor:pointer;margin-top:8px}
+.res:hover,.res:focus{border-color:var(--acc);outline:none}
+.res .g{flex:1;min-width:0}
+.res .g .a{font-weight:600}.res .g .b{font-size:12.5px;color:var(--tx2)}
+.sel{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#132a45;border:1px solid #1f4f86}
+.sel .g{flex:1;min-width:0}
+.prods{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:330px;overflow:auto;margin-top:10px;padding:2px}
+@media(min-width:600px){.prods{grid-template-columns:repeat(4,1fr)}}
+.pc{border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:6px;cursor:pointer;text-align:left;color:var(--tx)}
+.pc:hover{border-color:var(--acc)}
+.pc .ph{aspect-ratio:1;border-radius:8px;background:#fff center/cover no-repeat}
+.pc .n{font-size:11.5px;line-height:1.25;margin-top:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:29px}
+.pc .p{font-size:11px;color:var(--tx3);margin-top:2px}
+.pi{display:flex;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-top:8px}
+.pi .g{flex:1;min-width:0}
+.pi .n{font-size:14px;font-weight:500;line-height:1.3}
+.pi .c{font-size:12.5px;color:var(--tx2);margin-top:2px}
+.pi .chips{margin-top:8px}
+.pi .chip{min-height:34px;padding:0 12px;font-size:13.5px}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+.step button{width:36px;height:34px;background:var(--panel3);border:none;color:var(--tx);font-size:18px;cursor:pointer}
+.step span{min-width:30px;text-align:center;font-weight:600}
+.x{background:none;border:none;color:var(--tx3);cursor:pointer;padding:4px;align-self:flex-start}
+.x:hover{color:var(--tx)}
+.toggle{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.toggle .g{flex:1}
+.sw2{width:44px;height:26px;border-radius:999px;background:#3a4452;position:relative;flex:none;transition:.15s}
+.sw2::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.toggle.on .sw2{background:var(--ok)}.toggle.on .sw2::after{left:21px}
+.copy{display:flex;gap:8px;align-items:stretch}
+.copy .v{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;word-break:break-all;color:var(--tx2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:14px;line-height:1.55}
+
+/* шторки */
+.sw{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,12,.66);animation:fade .15s ease-out}
+.shx{background:var(--panel);width:100%;max-width:620px;max-height:93vh;max-height:93dvh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;
+  animation:up .22s cubic-bezier(.2,.8,.3,1);border:1px solid var(--line);border-bottom:none;box-shadow:0 -12px 40px rgba(0,0,0,.4)}
+.shx.wide{max-width:860px}
+.shx .grab{width:40px;height:5px;border-radius:9px;background:#3a4452;margin:8px auto 0}
+.sh-h{display:flex;align-items:flex-start;gap:10px;padding:10px 16px 12px;border-bottom:1px solid var(--line)}
+.sh-h .g{flex:1;min-width:0}
+.sh-h h3{margin:0;font-size:18px;line-height:1.3}
+.sh-h .s{font-size:13px;color:var(--tx2);margin-top:3px}
+.sh-b{padding:16px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1;overscroll-behavior:contain}
+.sh-f{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px}
+.sh-f .btn{flex:1;min-height:50px}
+@media(min-width:900px){.sw{align-items:center;padding:24px}.shx{border-radius:18px;border-bottom:1px solid var(--line);max-height:88vh}.shx .grab{display:none}.sh-h{padding-top:16px}}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.menu .mi{display:flex;align-items:center;gap:14px;padding:14px 12px;border-radius:12px;cursor:pointer;border:1px solid transparent}
+.menu .mi:hover{background:var(--panel2);border-color:var(--line)}
+.menu .mi .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--panel3);flex:none}
+.menu .mi .ic.p{background:var(--acc);color:#fff}
+.menu .mi .a{font-weight:600;font-size:16px}.menu .mi .b{font-size:13px;color:var(--tx2);margin-top:1px}
+
+/* детали */
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kv>div{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.kv .l{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em}
+.kv .v{font-size:16px;font-weight:700;margin-top:2px;white-space:nowrap}
+.kv .v.sm{font-size:14px}
+.tl{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:4px 0 6px}
+.tl .st{text-align:center;font-size:11.5px;color:var(--tx3);position:relative;padding-top:18px}
+.tl .st::before{content:'';position:absolute;top:4px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:#3a4452;z-index:1}
+.tl .st::after{content:'';position:absolute;top:8px;left:-50%;width:100%;height:2px;background:#3a4452}
+.tl .st:first-child::after{display:none}
+.tl .st.d{color:var(--tx)}.tl .st.d::before{background:var(--ok)}.tl .st.d::after{background:var(--ok)}
+.tl .st.x::before{background:var(--bad)}
+.tl .st b{display:block;font-size:12.5px;margin-top:2px}
+table.t{width:100%;border-collapse:collapse;font-size:13.5px}
+table.t th,table.t td{padding:8px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t td:first-child{white-space:normal}
+@media(max-width:620px){table.t th,table.t td{padding:8px 6px}}
+table.t th{font-size:11px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
+@media(max-width:620px){.hm{display:none}}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px}
+
+/* итоги */
+.hero{background:linear-gradient(180deg,#18283d,#161b22);border:1px solid #1f3f66;border-radius:16px;padding:16px}
+.hero .l{font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.05em}
+.hero .v{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin-top:6px}
+.hero .d{font-size:13.5px;color:var(--tx2);margin-top:8px;line-height:1.5}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:700px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.kpi .l{font-size:12px;color:var(--tx2);line-height:1.3}
+.kpi .v{font-size:21px;font-weight:700;margin-top:5px;letter-spacing:-.01em;white-space:nowrap}
+.kpi .d{font-size:12px;color:var(--tx3);margin-top:3px;line-height:1.35}
+.legend{display:flex;gap:16px;font-size:12.5px;color:var(--tx2);margin:2px 0 8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{fill:var(--tx2);font-size:11px;font-family:inherit}
+.chart .gl{stroke:#232b35;stroke-width:1}
+.chart .hit{fill:transparent;cursor:pointer}
+.tip{position:fixed;z-index:90;pointer-events:none;background:#0b0f14;border:1px solid var(--line2);border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.45;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:240px;display:none}
+.tip b{color:var(--tx)}
+.fun{display:grid;gap:10px}
+.fun .fr .lb{display:flex;justify-content:space-between;font-size:13px;color:var(--tx2);margin-bottom:5px}
+.fun .fr .lb b{color:var(--tx)}
+.fun .bar{height:16px;border-radius:0 4px 4px 0;background:var(--s1);min-width:3px}
+.fun .trk{background:#1e2733;border-radius:0 4px 4px 0}
+.q{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px;align-items:flex-start}
+.q:last-child{border-bottom:none}
+.q .m{flex:none;width:18px;text-align:center}
+
+/* как устроено */
+.flow{display:grid;gap:10px}
+@media(min-width:900px){.flow{grid-template-columns:1fr 60px 1fr 60px 1fr;align-items:center}}
+.fcol{display:grid;gap:8px}
+.fb{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.4}
+.fb b{display:block;font-size:14px;margin-bottom:2px}
+.fb.core{background:#132a45;border-color:#1f4f86}
+.fb.ui{background:#12331d;border-color:#1d5c31}
+.farr{text-align:center;color:var(--tx3);font-size:22px}
+.farr .h{display:none}
+@media(min-width:900px){.farr .v{display:none}.farr .h{display:inline}}
+.doc h3{font-size:16px;margin:22px 0 8px}
+.doc p,.doc li{font-size:14px;line-height:1.6;color:#cfd7df}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--panel3);padding:1px 6px;border-radius:5px;color:#d2dae3;word-break:break-all}
+.cmp td{white-space:normal!important;vertical-align:top;text-align:left!important;line-height:1.45}
+.cmp td:first-child{font-weight:600;width:22%}
+.cmp td.was{color:var(--tx2)}
+
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100;background:#0b0f14;border:1px solid var(--line2);
+  color:var(--tx);padding:11px 16px;border-radius:12px;font-size:14px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:none;max-width:92vw;text-align:center}
+@media(min-width:900px){.toast{bottom:28px}}
+.empty{padding:30px 10px;text-align:center;color:var(--tx2);font-size:14px}
+/* вход и синхронизация */
+.login{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+.login[hidden]{display:none}
+.login .box2{width:100%;max-width:340px;text-align:center}
+.login h2{margin:0 0 6px;font-size:22px}
+.login p{color:var(--tx2);font-size:14px;margin:0 0 18px;line-height:1.5}
+.login input{text-align:center;letter-spacing:.5em;font-size:26px;font-weight:700;min-height:58px}
+.login .err{color:var(--bad);font-size:13.5px;min-height:20px;margin-top:10px}
+.sync{font-size:12px;color:var(--tx3);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sync::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.sync.busy::before{background:var(--acc);animation:pulse 1s infinite}
+.sync.off::before{background:var(--warn)}
+@keyframes pulse{50%{opacity:.3}}
+@media(max-width:560px){.sync span{display:none}}
+.btn.busy{opacity:.7;pointer-events:none}
+</style>
+</head>
+<body>
+<aside class="side" id="side"></aside>
+<div class="main">
+  <header class="top">
+    <h1 id="ttl">Сегодня</h1>
+    <div class="sp">
+      <div class="sync" id="sync"><span></span></div>
+      <button class="who" id="who"></button>
+      <button class="ib" id="gear" title="Настройки" aria-label="Настройки"></button>
+    </div>
+  </header>
+  <main class="view" id="view"></main>
+</div>
+<nav class="tabs" id="tabs"></nav>
+<button class="fab" id="fab" aria-label="Добавить"></button>
+<div id="sheets"></div>
+<div class="toast" id="toast"></div>
+<div class="tip" id="tip"></div>
+<div class="login" id="login" hidden><div class="box2">
+  <h2>Бартер bladnes</h2>
+  <p>Введите PIN. Телефон его запомнит — в следующий раз вводить не нужно.</p>
+  <form id="pinForm" autocomplete="on"><input class="in" id="pinIn" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12" placeholder="••••••" enterkeyhint="go">
+  <button class="btn pri w" id="pinGo" type="submit" style="margin-top:12px;min-height:52px">Войти</button></form>
+  <div class="err" id="pinErr"></div>
+</div></div>
+
+<script>window.PRODUCTS_FALLBACK=[{"id": "607590395233", "t": "cursed watch black", "u": "https://bladnes.com/limited/tproduct/607590395233-cursed-watch-black", "p": 12999, "po": 0, "img": "https://thb.tildacdn.com/stor3165-6166-4530-b731-626438656430/-/resize/200x/badec9629f6afb179c1a800a7e3bb50f.png", "m": "LIMITED", "c": "limited"}, {"id": "476176254503", "t": "cursed watch silver", "u": "https://bladnes.com/limited/tproduct/476176254503-cursed-watch-silver", "p": 11499, "po": 0, "img": "https://thb.tildacdn.com/stor6262-6438-4733-a431-336235313739/-/resize/200x/8600437ea52e0f449b80cd80486129f6.png", "m": "LIMITED", "c": "limited"}, {"id": "878156394552", "t": "Джинсы оверсайз / пирсинг / черные", "u": "https://bladnes.com/trousers-and-jeans/tproduct/878156394552-dzhinsi-oversaiz-pirsing-chernie", "p": 5199, "po": 0, "img": "https://thb.tildacdn.com/stor3935-6461-4464-b038-303736633032/-/resize/200x/58b0a413b8df7d286624785b232f022c.png", "m": "", "c": "trousers-and-jeans"}, {"id": "807721664142", "t": "Джерси «Анор Лондо» черный", "u": "https://bladnes.com/jersey/tproduct/807721664142-dzhersi-anor-londo-chernii", "p": 3199, "po": 0, "img": "https://thb.tildacdn.com/stor3666-6365-4865-a531-623035323063/-/resize/200x/1d0a028cfc20cd6ecd274e01d0b73d37.png", "m": "", "c": "jersey"}, {"id": "788903536872", "t": "Джерси «Анор Лондо» красный", "u": "https://bladnes.com/jersey/tproduct/788903536872-dzhersi-anor-londo-krasnii", "p": 3399, "po": 0, "img": "https://thb.tildacdn.com/stor6136-6266-4136-b261-383533313462/-/resize/200x/00350a8de721a9f314984eb17f5a1273.png", "m": "", "c": "jersey"}, {"id": "441394296162", "t": "Плюшевая куртка / «ГОРДОСТЬ»", "u": "https://bladnes.com/jackets/tproduct/441394296162-plyushevaya-kurtka-gordost", "p": 7499, "po": 0, "img": "https://thb.tildacdn.com/stor6639-3163-4435-b033-386136376161/-/resize/200x/600d8c82754991defc520eef7823404f.png", "m": "SALE", "c": "jackets"}, {"id": "522302426462", "t": "Джерси «Анор Лондо» белый", "u": "https://bladnes.com/jersey/tproduct/522302426462-dzhersi-anor-londo-belii", "p": 3199, "po": 0, "img": "https://thb.tildacdn.com/stor3466-6330-4735-a535-326339396666/-/resize/200x/4022a0a20065782e571924a3e22dd4be.png", "m": "", "c": "jersey"}, {"id": "111007495082", "t": "Штаны оверсайз с молнией", "u": "https://bladnes.com/trousers-and-jeans/tproduct/111007495082-shtani-oversaiz-s-molniei", "p": 5199, "po": 0, "img": "https://thb.tildacdn.com/stor3434-6365-4831-b463-336463663531/-/resize/200x/6d8882798140f75f31c19f8f25708f4d.png", "m": "", "c": "trousers-and-jeans"}, {"id": "634875826052", "t": "Шарф двусторонний «СОБОР»", "u": "https://bladnes.com/scarves/tproduct/634875826052-sharf-dvustoronnii-sobor", "p": 2499, "po": 2999, "img": "https://thb.tildacdn.com/stor6133-3663-4330-a338-666334343034/-/resize/200x/6474520b41893d465062b8dd1499437a.png", "m": "SALE", "c": "scarves"}, {"id": "506457442122", "t": "Штаны оверсайз / вышивка / « меч »", "u": "https://bladnes.com/trousers-and-jeans/tproduct/506457442122-shtani-oversaiz-vishivka-mech-", "p": 4799, "po": 0, "img": "https://thb.tildacdn.com/stor6138-6335-4963-b736-333531383736/-/resize/200x/5c164febc9736b76d8e4729313b01908.png", "m": "", "c": "trousers-and-jeans"}, {"id": "753378797292", "t": "Плюшевая куртка / «ПАЦИЕНТ»", "u": "https://bladnes.com/jackets/tproduct/753378797292-plyushevaya-kurtka-patsient", "p": 6199, "po": 0, "img": "https://thb.tildacdn.com/stor6131-3735-4261-b939-333066306133/-/resize/200x/40f8fc0c5aaabec5ff9df9de4f1147f6.png", "m": "SALE", "c": "jackets"}, {"id": "996864814012", "t": "Футболка с мечом", "u": "https://bladnes.com/sale/tproduct/996864814012-futbolka-s-mechom", "p": 2199, "po": 0, "img": "https://thb.tildacdn.com/stor3565-3331-4031-b063-663334616133/-/resize/200x/44131207b624628ebefa73f5d1b57fe6.png", "m": "SALE", "c": "sale"}, {"id": "959159786792", "t": "Укороченные белые штаны с лампасами с молнией", "u": "https://bladnes.com/sale/tproduct/959159786792-ukorochennie-belie-shtani-s-lampasami-s", "p": 2299, "po": 0, "img": "https://thb.tildacdn.com/stor3232-6162-4837-b763-653264643162/-/resize/200x/cd87f628ca140dfeb49cb0439bb6e252.png", "m": "SALE", "c": "sale"}, {"id": "167788360302", "t": "Лонгслив «КРЕСТЫ»", "u": "https://bladnes.com/longs/tproduct/167788360302-longsliv-kresti", "p": 4499, "po": 0, "img": "https://thb.tildacdn.com/stor3932-6531-4463-b163-366663303031/-/resize/200x/d6eceb57b4d4779350f2f59d5dd00a98.png", "m": "", "c": "longs"}, {"id": "425256365682", "t": "Укороченные белые штаны с лампасами со стежками", "u": "https://bladnes.com/sale/tproduct/425256365682-ukorochennie-belie-shtani-s-lampasami-so", "p": 2299, "po": 0, "img": "https://thb.tildacdn.com/stor6435-6636-4234-b536-373665313938/-/resize/200x/72f8d009a35df22f6c2204c3a32b221b.png", "m": "SALE", "c": "sale"}, {"id": "841276775982", "t": "Утепленные черные штаны с лампасами", "u": "https://bladnes.com/sale/tproduct/841276775982-uteplennie-chernie-shtani-s-lampasami", "p": 2699, "po": 0, "img": "https://thb.tildacdn.com/stor3562-3266-4661-a665-623562346134/-/resize/200x/4f5a03443cf85b64af730716cac41100.png", "m": "SALE", "c": "sale"}, {"id": "734877044382", "t": "Лонгслив «ДАРК СОУЛС» черный", "u": "https://bladnes.com/longs/tproduct/734877044382-longsliv-dark-souls-chernii", "p": 3399, "po": 0, "img": "https://thb.tildacdn.com/stor3363-3031-4463-a364-613566316430/-/resize/200x/2528088c2f19d33b2b1f14886998f531.png", "m": "", "c": "longs"}, {"id": "826964456222", "t": "Лонгслив «ДАРК СОУЛС» белый", "u": "https://bladnes.com/longs/tproduct/826964456222-longsliv-dark-souls-belii", "p": 3399, "po": 0, "img": "https://thb.tildacdn.com/stor3733-3632-4265-a262-393061303832/-/resize/200x/055a20e80db6f3d37533ba9cc199317a.png", "m": "", "c": "longs"}, {"id": "546619649632", "t": "Лонгслив «ДАРК СОУЛС» красный", "u": "https://bladnes.com/longs/tproduct/546619649632-longsliv-dark-souls-krasnii", "p": 3399, "po": 0, "img": "https://thb.tildacdn.com/stor3630-3036-4262-b064-633865383436/-/resize/200x/603126e60118d07563b1bc600186143b.png", "m": "", "c": "longs"}, {"id": "206726078412", "t": "Велюровый лонгслив с длинными рукавами", "u": "https://bladnes.com/sale/tproduct/206726078412-velyurovii-longsliv-s-dlinnimi-rukavami", "p": 2399, "po": 0, "img": "https://thb.tildacdn.com/stor3638-3334-4961-b236-393734326363/-/resize/200x/12945620e4c1f212208cad38c88a6d28.png", "m": "SALE", "c": "sale"}, {"id": "106816008672", "t": "Велюровый черный лонгслив «Паучья лилия»", "u": "https://bladnes.com/sale/tproduct/106816008672-velyurovii-chernii-longsliv-pauchya-lili", "p": 2899, "po": 0, "img": "https://thb.tildacdn.com/stor6530-3630-4566-b761-356432633137/-/resize/200x/64343a52672209d68432f2777baa1e11.png", "m": "SALE", "c": "sale"}, {"id": "401674150202", "t": "Лонгслив «КРИК» черный", "u": "https://bladnes.com/longs/tproduct/401674150202-longsliv-krik-chernii", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor3630-6463-4236-b033-306535333137/-/resize/200x/72124e51dc97a91b3ca0d7f3129e534b.png", "m": "", "c": "longs"}, {"id": "926126387532", "t": "VELOUR LONG HELPLESSPEOPLE", "u": "https://bladnes.com/sale/tproduct/926126387532-velour-long-helplesspeople", "p": 2899, "po": 0, "img": "https://thb.tildacdn.com/stor3733-3034-4962-b532-366434643533/-/resize/200x/389e2e87aaa49ac5d0332af6c48335ab.png", "m": "SALE", "c": "sale"}, {"id": "760113576742", "t": "Лонгслив «КРИК» красный", "u": "https://bladnes.com/longs/tproduct/760113576742-longsliv-krik-krasnii", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor3762-3533-4430-b065-653730623163/-/resize/200x/6fabbb1f1d5e4714cff1ba5900cb5153.png", "m": "", "c": "longs"}, {"id": "587658289212", "t": "Джинсы оверсайз / пирсинг / дистресс", "u": "https://bladnes.com/trousers-and-jeans/tproduct/587658289212-dzhinsi-oversaiz-pirsing-distress", "p": 5199, "po": 0, "img": "https://thb.tildacdn.com/stor3064-6632-4236-b337-663334613565/-/resize/200x/42afd08c277c9064de7526c81551b5f0.png", "m": "", "c": "trousers-and-jeans"}, {"id": "962379630582", "t": "Шорты «ТРАЙБЛ»", "u": "https://bladnes.com/sale/tproduct/962379630582-shorti-traibl", "p": 2999, "po": 0, "img": "https://thb.tildacdn.com/stor3539-3332-4339-b434-643939383436/-/resize/200x/7485fe938fe3754be98699a6024ed8e5.png", "m": "SALE", "c": "sale"}, {"id": "224601815552", "t": "Лонгслив «КРИК» белый", "u": "https://bladnes.com/longs/tproduct/224601815552-longsliv-krik-belii", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor6635-3130-4764-a166-333965333262/-/resize/200x/c785ed7c6296a967afece5ce7145fe46.png", "m": "", "c": "longs"}, {"id": "866436618642", "t": "Велюровый лонгслив «ИММОРТАЛ»", "u": "https://bladnes.com/longs/tproduct/866436618642-velyurovii-longsliv-immortal", "p": 2899, "po": 0, "img": "https://thb.tildacdn.com/stor3933-6466-4032-b634-333731396634/-/resize/200x/9169840a3a514481b329f8d13da1b0b8.png", "m": "SALE", "c": "longs"}, {"id": "805941896812", "t": "Футболка «КЛИНОК СМЕРТИ» белая", "u": "https://bladnes.com/t-shirts/tproduct/805941896812-futbolka-klinok-smerti-belaya", "p": 3299, "po": 0, "img": "https://thb.tildacdn.com/stor6661-3131-4366-b630-663439313362/-/resize/200x/df7ea49c6c85e0f1c92e44031bf80ba5.png", "m": "", "c": "t-shirts"}, {"id": "209570555412", "t": "Футболка/мантия «КЁЛЬНСКИЙ СОБОР»", "u": "https://bladnes.com/t-shirts/tproduct/209570555412-futbolkamantiya-kyolnskii-sobor", "p": 4399, "po": 0, "img": "https://thb.tildacdn.com/stor3066-6139-4162-b037-353635303934/-/resize/200x/d18142c86e2868253fad3ee157f3206a.png", "m": "", "c": "t-shirts"}, {"id": "835546653212", "t": "Футболка «КЛИНОК СМЕРТИ» черная", "u": "https://bladnes.com/t-shirts/tproduct/835546653212-futbolka-klinok-smerti-chernaya", "p": 3299, "po": 0, "img": "https://thb.tildacdn.com/stor3734-6537-4431-b165-636431346637/-/resize/200x/6955daad06806566940f2075dfd5b234.png", "m": "", "c": "t-shirts"}, {"id": "533064016422", "t": "Футболка «КЛИНОК СМЕРТИ» бордовая", "u": "https://bladnes.com/t-shirts/tproduct/533064016422-futbolka-klinok-smerti-bordovaya", "p": 3299, "po": 0, "img": "https://thb.tildacdn.com/stor3231-3864-4635-b134-383665636635/-/resize/200x/7e5bdf38548abc58cb6b9c2b1e32938c.png", "m": "", "c": "t-shirts"}, {"id": "531722203022", "t": "Зип-худи «СМАЙЛ» / дистресс / черный", "u": "https://bladnes.com/hoodie/tproduct/531722203022-zip-hudi-smail-distress-chernii", "p": 5299, "po": 0, "img": "https://thb.tildacdn.com/stor3838-6533-4035-a638-336366353330/-/resize/200x/4ff3d7d3d9d450656d389df59dcf1f07.png", "m": "", "c": "hoodie"}, {"id": "336160937852", "t": "Бомбер двусторонний деним/мех", "u": "https://bladnes.com/tproduct/336160937852-bomber-dvustoronnii-denimmeh", "p": 11899, "po": 0, "img": "https://thb.tildacdn.com/stor6463-6265-4032-b766-353438306237/-/resize/200x/55b077094465340712fd4dedafdf998b.png", "m": "", "c": ""}, {"id": "657974434892", "t": "Велюровый лонгслив «ТЕНИ»", "u": "https://bladnes.com/sale/tproduct/657974434892-velyurovii-longsliv-teni", "p": 2899, "po": 0, "img": "https://thb.tildacdn.com/stor6133-3862-4737-b532-313465386332/-/resize/200x/cf1d83ad96ca5f032ab70b29976d358d.jpg", "m": "SALE", "c": "sale"}, {"id": "454654122443", "t": "Футболка «abstraction» бордовая", "u": "https://bladnes.com/tproduct/454654122443-futbolka-abstraction-bordovaya", "p": 3499, "po": 0, "img": "https://thb.tildacdn.com/stor6537-6362-4337-a239-323261313632/-/resize/200x/b19324169c82da70be587f76828ebad1.png", "m": "", "c": ""}, {"id": "769499649333", "t": "Футболка «abstraction» черная", "u": "https://bladnes.com/tproduct/769499649333-futbolka-abstraction-chernaya", "p": 3499, "po": 0, "img": "https://thb.tildacdn.com/stor3161-3132-4631-b461-663836666465/-/resize/200x/a1ecd3014e5b6f9ccc55fa156d506fa8.png", "m": "", "c": ""}, {"id": "519289046583", "t": "Футболка «abstraction» серая", "u": "https://bladnes.com/tproduct/519289046583-futbolka-abstraction-seraya", "p": 3499, "po": 0, "img": "https://thb.tildacdn.com/stor3234-6564-4637-a332-346131623061/-/resize/200x/25f3855cf2e2ab299e139c1230b6170b.png", "m": "", "c": ""}, {"id": "894950057103", "t": "Футболка «social media» серая", "u": "https://bladnes.com/t-shirts/tproduct/894950057103-futbolka-social-media-seraya", "p": 3699, "po": 0, "img": "https://thb.tildacdn.com/stor3432-3164-4131-b563-376462303032/-/resize/200x/60ed035ba90cbabb2f529d8df5364188.png", "m": "", "c": "t-shirts"}, {"id": "657561396513", "t": "Футболка «social media» черная", "u": "https://bladnes.com/t-shirts/tproduct/657561396513-futbolka-social-media-chernaya", "p": 3699, "po": 0, "img": "https://thb.tildacdn.com/stor3533-6665-4933-b438-353336326163/-/resize/200x/51665376a0f700cf7b787e66efba8bec.png", "m": "", "c": "t-shirts"}, {"id": "778119037313", "t": "Футболка «social media» красная", "u": "https://bladnes.com/t-shirts/tproduct/778119037313-futbolka-social-media-krasnaya", "p": 3699, "po": 0, "img": "https://thb.tildacdn.com/stor3164-3635-4566-b162-636230666666/-/resize/200x/e660b93765f454d19f6137952ed10818.png", "m": "", "c": "t-shirts"}, {"id": "991764221833", "t": "Футболка «escape from reality» черная", "u": "https://bladnes.com/t-shirts/tproduct/991764221833-futbolka-escape-from-reality-chernaya", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor3031-3162-4034-a162-653461663663/-/resize/200x/3610983648af3407f8e637eb3795f7a9.png", "m": "NEW", "c": "t-shirts"}, {"id": "935695795293", "t": "Футболка «escape from reality» красная", "u": "https://bladnes.com/t-shirts/tproduct/935695795293-futbolka-escape-from-reality-krasnaya", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor6661-3337-4663-a438-623166613235/-/resize/200x/e9fdaac421653b510835f3be6838e034.png", "m": "NEW", "c": "t-shirts"}, {"id": "177376605423", "t": "Футболка «escape from reality» серая", "u": "https://bladnes.com/t-shirts/tproduct/177376605423-futbolka-escape-from-reality-seraya", "p": 3899, "po": 0, "img": "https://thb.tildacdn.com/stor6235-6237-4335-b932-623530316261/-/resize/200x/75912dbbc804b50d9c58c434fe09415d.png", "m": "NEW", "c": "t-shirts"}, {"id": "271419419853", "t": "Футболка «CAPTCHA» серая", "u": "https://bladnes.com/t-shirts/tproduct/271419419853-futbolka-captcha-seraya", "p": 5299, "po": 0, "img": "https://thb.tildacdn.com/stor6166-3337-4465-b762-386136623836/-/resize/200x/a4eb57904fce98173f0060a22338b8f2.png", "m": "LIMITED", "c": "t-shirts"}, {"id": "393493380593", "t": "Футболка «UNITE» черная", "u": "https://bladnes.com/t-shirts/tproduct/393493380593-futbolka-unite-chernaya", "p": 5499, "po": 0, "img": "https://thb.tildacdn.com/stor3465-6538-4962-b164-653035633533/-/resize/200x/0d7f1444d197acc6bda33fe299edaacd.png", "m": "LIMITED", "c": "t-shirts"}, {"id": "357886017523", "t": "Зип-худи «ХИНАКО» / дистресс / серый", "u": "https://bladnes.com/hoodie/tproduct/357886017523-zip-hudi-hinako-distress-serii", "p": 5599, "po": 0, "img": "https://thb.tildacdn.com/stor3362-3230-4263-a137-336639316630/-/resize/200x/d6e3a53a7a728153f479485d2c4a5a31.png", "m": "LIMITED", "c": "hoodie"}, {"id": "237323648893", "t": "Плюшевая куртка / «YOU'RE NOT REAL»", "u": "https://bladnes.com/jackets/tproduct/237323648893-plyushevaya-kurtka-youre-not-real", "p": 7499, "po": 0, "img": "https://thb.tildacdn.com/stor3965-3730-4535-b564-323230666662/-/resize/200x/d70865c473bb586bfd5216511656c8b4.png", "m": "", "c": "jackets"}];</script>
+<script>
+'use strict';
+/* =====================================================================
+   Бартер bladnes — рабочий интерфейс (сборка 1, 22.09.2026).
+   Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
+   Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
+   Действия уходят в очередь: сеть пропала — отправятся, когда появится.
+   Исходник — прототип-веб/index.html + собрать_barter.py в проекте бартерного отдела.
+   ===================================================================== */
+// на этом компьютере для проверки можно подменить адрес (?api=http://127.0.0.1:…); с любого другого адреса — только боевой скрипт
+const API = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && new URLSearchParams(location.search).get('api')) || 'https://script.google.com/macros/s/AKfycbxhREhl8m_EMkxNgr5aPQClTFEINXc4nAn7AuGp0f2yEpLuhR2Y2YiWSjW0hQ6Wxhwbdw/exec';
+let PRODUCTS = window.PRODUCTS_FALLBACK || [], ORDERS = [];
+const ACQ = 0.05;                       // эквайринг — как в дашборде продаж
+const PEOPLE = [{n:'Матвей', c:'#f2a65a'}, {n:'Степан', c:'#4f9cf9'}];
+const LS = {pin:'bl_barter_pin', cache:'bl_barter_cache_v1', queue:'bl_barter_queue_v1'};
+
+/* ---------- иконки ---------- */
+const IC = {
+  today:'<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
+  box:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.3 3.3 0 0 1 0 6.5"/><path d="M18 14.8c1.9.7 3 2.4 3.5 5.2"/>',
+  play:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/>',
+  chart:'<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+  log:'<path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  plus:'<path d="M12 5v14"/><path d="M5 12h14"/>',
+  close:'<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+  copy:'<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  paste:'<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 11h6"/><path d="M9 15h4"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  truck:'<path d="M3 6h11v10H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  alert:'<path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5"/><path d="M12 18v.5"/>',
+  tag:'<path d="M3 12V3h9l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  cart:'<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.5 12h11L21 7H6"/>',
+  bot:'<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>',
+  merge:'<path d="M6 3v6a6 6 0 0 0 6 6h6"/><path d="M15 12l3 3-3 3"/><path d="M6 21v-6"/>',
+  cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
+  msg:'<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  ext:'<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.2-7 8-7s7 2.5 8 7"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>'
+};
+const icon = (n, cls) => `<svg class="i ${cls||''}" viewBox="0 0 24 24">${IC[n]||''}</svg>`;
+
+/* ---------- утилиты ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Math.round(n || 0).toLocaleString('ru-RU');
+const money = n => (n < -0.5 ? '−' : '') + fmt(Math.abs(n)) + ' ₽';
+const kilo = n => { const a = Math.abs(n), s = n < -0.5 ? '−' : '';
+  return a >= 10000 ? s + (a/1000).toLocaleString('ru-RU', {maximumFractionDigits: a >= 100000 ? 0 : 1}) + ' тыс. ₽' : s + fmt(a) + ' ₽'; };
+const pct = (a, b) => b ? Math.round(a / b * 100) + ' %' : '—';
+const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
+const plural = (n, a, b, c) => { n = Math.abs(n) % 100; const d = n % 10;
+  return n > 10 && n < 20 ? c : d > 1 && d < 5 ? b : d === 1 ? a : c; };
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MON_N = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const dRu = s => !s ? '—' : s.slice(8,10) + '.' + s.slice(5,7) + (s.slice(0,4) !== '2026' ? '.' + s.slice(0,4) : '');
+const dLong = s => !s ? '' : (+s.slice(8,10)) + ' ' + MONTHS[+s.slice(5,7) - 1];
+const addDays = (d, n) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0,10); };  // чистая дата в UTC — сдвига пояса нет
+const diffDays = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5);
+// московское время: и «сегодня», и отметки в журнале (toISOString нельзя — уводит в UTC)
+function mskNow(){
+  const p = {}; new Intl.DateTimeFormat('en-CA', {timeZone:'Europe/Moscow', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hour12:false}).formatToParts(new Date()).forEach(x => p[x.type] = x.value);
+  return `${p.year}-${p.month}-${p.day} ${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
+}
+const TODAY = (() => { const t = mskNow().slice(0,10); return t < '2026-09-22' ? '2026-09-22' : t; })();
+const core = h => String(h || '').replace(/^@/, '').toLowerCase().replace(/[^a-z0-9а-яё]/g, '');
+const latin = h => String(h || '').replace(/^@/, '').toLowerCase().replace(/[.\-]/g, '_').replace(/[^a-z0-9_]/g, '');
+
+/* ---------- товары: фото из каталога Тильды, себестоимость из справочника ---------- */
+let P_BY_ID = Object.fromEntries(PRODUCTS.map(p => [p.id, p]));
+const SKU_PID = {'widejeans totalblack':'878156394552','widejeans v.1':'587658289212','denim bomber archive':'336160937852',
+  't-shirt escape from reality black':'991764221833','t-shirt escape from reality red':'935695795293','t-shirt social media gray':'894950057103',
+  't-shirt social media black':'657561396513','screem longsleeve v2 white':'224601815552','jersey-anorlondo-rd':'788903536872',
+  'zip hoodie smile bl':'531722203022','cursed watch silver':'476176254503','клинок смерти белый':'805941896812','t-shirt unite':'393493380593',
+  'zip hoodie hinako gray':'357886017523','darksouls longsleeve v2 black':'734877044382'};
+const UNIT_COGS = {'878156394552':1680.1,'587658289212':1703.54,'336160937852':4539,'991764221833':1270,'935695795293':1270,'177376605423':1270,
+  '894950057103':1658,'657561396513':1658,'778119037313':1658,'224601815552':1477,'401674150202':1477,'760113576742':1477,'788903536872':1550,
+  '807721664142':1550,'522302426462':1550,'531722203022':2834,'476176254503':4950,'607590395233':6900,'805941896812':1050.8,'835546653212':1050.8,
+  '533064016422':1050.8,'393493380593':2140,'357886017523':2834,'734877044382':1244,'826964456222':1244,'546619649632':1244,'167788360302':2531,
+  '237323648893':3417,'634875826052':600,'209570555412':2357};
+const pCost = pid => (P_BY_ID[pid] && P_BY_ID[pid].cost) || (UNIT_COGS[pid] != null ? UNIT_COGS[pid] : Math.round((P_BY_ID[pid] ? P_BY_ID[pid].p : 0) * 0.422));
+const pCostExact = pid => !!((P_BY_ID[pid] && P_BY_ID[pid].cost) || UNIT_COGS[pid] != null);
+const pImg = pid => P_BY_ID[pid] ? P_BY_ID[pid].img : '';
+const noSize = pid => { const p = P_BY_ID[pid]; return p && (p.c === 'limited' || p.c === 'scarves'); };
+
+/* ---------- состояние: база из скрипта ---------- */
+let S = null, M, ME = '', EXT = null, SYNC = {busy:0, off:false, at:''};
+let CUR = {exp:{}, page:'today', shipF:'all', blF:'all', blSort:'rev', period:'all', logF:'all', q:'', bq:''};
+const lsGet = k => { try { return localStorage.getItem(k); } catch(e) { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e) {} };
+let PIN = lsGet(LS.pin) || '';
+let QUEUE = (() => { try { return JSON.parse(lsGet(LS.queue) || '[]'); } catch(e) { return []; } })();
+const saveQueue = () => lsSet(LS.queue, JSON.stringify(QUEUE));
+const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+// JSONP без куки Google: при двух аккаунтах в браузере запрос с куки уходит на /macros/u/1/… и падает с 503
+function jsonp(params, ms){
+  return new Promise((ok, bad) => {
+    const cb = 'bt_' + rid(), s = document.createElement('script');
+    s.crossOrigin = 'anonymous';
+    const done = () => { clearTimeout(tm); try { delete window[cb]; } catch(e) { window[cb] = undefined; } s.remove(); };
+    const tm = setTimeout(() => { done(); bad(new Error('timeout')); }, ms || 45000);
+    window[cb] = r => { done(); ok(r); };
+    s.onerror = () => { done(); bad(new Error('network')); };
+    const q = Object.entries(Object.assign({}, params, {callback:cb, _:Date.now()})).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+    s.src = API + '?' + q; document.head.appendChild(s);
+  });
+}
+// Google иногда отвечает 503 или думает полминуты — три попытки с паузой
+async function api(params, tries){
+  tries = tries || 3; let last;
+  for (let i = 0; i < tries; i++){
+    try { return await jsonp(params); } catch(e) { last = e; await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
+  }
+  throw last;
+}
+function fromServer(d){
+  const items = {};
+  (d.it || []).forEach(i => (items[i.s] = items[i.s] || []).push(i));
+  return {
+    bl: d.bl.map(b => Object.assign({}, b, {raw: b.note || '', fol: b.fol || 0})),
+    sh: d.sh.map(s => Object.assign({}, s, {items: items[s.id] || [], promised: s.promised || [], ship: s.ship || 0, cogs: s.cogs || 0, extra: s.extra || 0})),
+    po: d.po, ms: d.ms, found: d.found || [], log: d.log || [], cfg: d.cfg || {},
+    links: Object.fromEntries((d.links || []).map(l => [l.code, {b: l.b || null, st: l.st === 'no' ? 'no' : 'ok', how: l.how}])),
+    done: Object.fromEntries((d.done || []).map(x => [x, 1]))
+  };
+}
+function applyExt(){
+  if (!EXT) return;
+  if (EXT.products && EXT.products.length){ PRODUCTS = EXT.products; P_BY_ID = Object.fromEntries(PRODUCTS.map(p => [p.id, p])); }
+  if (EXT.orders) ORDERS = EXT.orders.filter(o => o.promo);
+}
+function saveCache(raw){ lsSet(LS.cache, JSON.stringify({raw, ext:EXT, me:ME, at:mskNow()})); }
+let RAW = null;
+async function loadAll(){
+  SYNC.busy++; renderSync();
+  try {
+    const r = await api({action:'all', key:PIN});
+    if (!r.ok){ if (/pin|PIN/.test(r.error || '')) return logout(r.error === 'pin' ? 'Неверный PIN' : r.error); throw new Error(r.error); }
+    ME = r.who; RAW = r.data; S = fromServer(RAW); SYNC.off = false; SYNC.at = mskNow(); saveCache(RAW);
+    $('#login').hidden = true; refresh(); return true;
+  } catch(e) { SYNC.off = true; if (!S) showLoginError('Нет связи с базой. Проверьте интернет и попробуйте ещё раз.'); return false; }
+  finally { SYNC.busy--; renderSync(); }
+}
+async function loadExt(fresh){
+  try { const r = await api({action:'ext', key:PIN, fresh: fresh ? '1' : ''}, 2); if (r && r.ok){ EXT = r; applyExt(); if (RAW) saveCache(RAW); if (S) refresh(); } } catch(e) {}
+}
+// Действие: запись в очередь, отправка по одному; повтор с тем же opId безопасен — скрипт помнит его 6 часов
+function enqueue(op){ op.opId = op.opId || rid(); QUEUE.push(op); saveQueue(); flush(); return op.opId; }
+let FLUSHING = false;
+async function flush(){
+  if (FLUSHING || !QUEUE.length) return;
+  FLUSHING = true; SYNC.busy++; renderSync();
+  let changed = false;
+  try {
+    while (QUEUE.length){
+      const op = QUEUE[0];
+      let r;
+      try { r = await api({action:'op', key:PIN, op:JSON.stringify(op)}); }
+      catch(e) { SYNC.off = true; setTimeout(flush, 20000); break; }             // нет связи — попробуем позже
+      SYNC.off = false; QUEUE.shift(); saveQueue(); changed = true;
+      if (!r.ok) toast('Не сохранилось: ' + esc(r.error || 'ошибка'));
+      if (op._resolve) op._resolve(r);
+    }
+  } finally { FLUSHING = false; SYNC.busy--; renderSync(); }
+  if (changed && !QUEUE.length) await loadAll();
+}
+// дождаться ответа скрипта (нужно, когда скрипт выдаёт номер: блогер, отправка, публикация)
+function sendWait(op){
+  return new Promise(res => {
+    op.opId = rid(); op._resolve = res;
+    QUEUE.push(op); saveQueue(); flush();
+  });
+}
+// обычное действие: сразу показываем на экране, в базу уходит в фоне
+function send(op, local){ if (local) try { local(); } catch(e) {} if (S) refresh(); enqueue(op); }
+function renderSync(){
+  const el = $('#sync'); if (!el) return;
+  const n = QUEUE.length;
+  el.className = 'sync' + (SYNC.busy ? ' busy' : SYNC.off ? ' off' : '');
+  el.querySelector('span').textContent = SYNC.busy ? (n ? 'сохраняю ' + n + '…' : 'обновляю…') : SYNC.off ? (n ? 'нет связи · в очереди ' + n : 'нет связи') : (SYNC.at ? 'сохранено ' + SYNC.at.slice(11, 16) : '');
+  el.title = el.querySelector('span').textContent;
+}
+function showLoginError(m){ $('#login').hidden = false; $('#pinErr').textContent = m || ''; }
+function logout(msg){ PIN = ''; lsSet(LS.pin, null); lsSet(LS.cache, null); S = null; $('#login').hidden = false; $('#pinErr').textContent = msg || ''; $('#pinIn').value = ''; return false; }
+
+/* ---------- расчёт модели ---------- */
+const validSent = s => !!(s.sent && s.sent >= '2026-01-01');
+function derive(){
+  const m = {};
+  m.b = Object.fromEntries(S.bl.map(b => [b.id, b]));
+  m.s = Object.fromEntries(S.sh.map(s => [s.id, s]));
+  m.p = Object.fromEntries(S.po.map(p => [p.id, p]));
+  const shipsOf = {}, postsOf = {}, msOf = {};
+  S.sh.forEach(s => (shipsOf[s.b] = shipsOf[s.b] || []).push(s));
+  S.po.forEach(p => (postsOf[p.s] = postsOf[p.s] || []).push(p));
+  S.ms.forEach(x => (msOf[x.p] = msOf[x.p] || []).push(x));
+  m.shipsOf = shipsOf;
+  S.po.forEach(p => {
+    const arr = (msOf[p.id] || []).slice().sort((a, b) => a.d < b.d ? -1 : 1);
+    p._ms = arr; p._views = arr.length ? +arr[arr.length-1].v || 0 : 0; p._measured = arr.length > 0;
+    p._age = p.d ? diffDays(p.d, TODAY) : null;
+  });
+  const cfg = S.cfg;
+  S.sh.forEach(s => {
+    const b = m.b[s.b];
+    s._sentOk = validSent(s);
+    s._sent = s._sentOk ? s.sent : (s.deal || (b && b.first) || null);   // фолбэк, пока дата не исправлена
+    s._posts = (postsOf[s.id] || []).slice().sort((a, b) => a.d < b.d ? -1 : 1);
+    s._cost = s.refused ? 0 : (s.cogs || 0) + (s.ship || 0) + (s.extra || 0);
+    s._views = sum(s._posts, p => p._views);
+    s._shipWait = s.svc === 'СДЭК' && !s.ship && !s.refused;   // стоимость придёт из API СДЭК
+    const base = s.dlv || (s._sentOk ? addDays(s.sent, cfg.transit) : null);
+    s._deadline = base ? addDays(base, cfg.pubDays) : null;
+    s._firstPost = s._posts.length ? s._posts[0].d : null;
+    s._days = s._firstPost && s._sent ? diffDays(s._sent, s._firstPost) : null;
+    if (s.refused) s._st = 'refused';
+    else if (s._posts.length) s._st = 'posted';
+    else if (!s._sentOk && !s.dlv) s._st = 'agreed';
+    else if (s._deadline && TODAY > s._deadline) s._st = 'overdue';
+    else if (s.dlv) s._st = 'delivered';
+    else s._st = 'transit';
+    s._orders = []; s._rev = 0; s._margin = 0;
+  });
+  // дата под вопросом: опечатка в годе или отправка раньше договорённости/первого контакта (пока не подтверждена)
+  const doubt = s => { if (!s._sentOk) return true; if (S.done['bf-' + s.id]) return false;
+    const b = m.b[s.b], ref = [s.deal, b && b.first].filter(Boolean).sort().pop(); return !!(ref && s.sent < ref); };
+  const sentAll = S.sh.filter(s => !s.refused && s.b && s._sentOk).sort((a, b) => a.sent < b.sent ? -1 : 1);
+  m.fotFirst = sentAll.find(s => !doubt(s)) || null;
+  m.fotEarlier = m.fotFirst ? sentAll.filter(s => doubt(s) && s.sent.slice(0,7) < m.fotFirst.sent.slice(0,7)) : [];
+  m.fotFrom = m.fotFirst ? m.fotFirst.sent.slice(0,7) : null;
+  Object.values(shipsOf).forEach(arr => arr.filter(s => !s.refused).sort((a, b) => (a._sent || a.deal || '9') < (b._sent || b.deal || '9') ? -1 : 1)
+    .forEach((s, i) => s._iter = i + 1));
+  // промокоды → блогер: таблица, решения Степана/Матвея, совпадение с ником
+  const L = {};
+  S.bl.forEach(b => { if (b.promo) L[b.promo] = {b:b.id, st:'ok', how:'в карточке блогера'}; });
+  const codes = [...new Set(ORDERS.map(o => o.promo))];
+  codes.forEach(c => {
+    if (S.links[c]) { L[c] = S.links[c]; return; }
+    if (L[c]) return;
+    const lc = c.toLowerCase();
+    const ex = S.bl.find(b => core(b.h) === lc);
+    if (ex) { L[c] = {b:ex.id, st:'auto', how:'совпадает с ником'}; return; }
+    const pt = lc.length >= 3 && S.bl.find(b => core(b.h).includes(lc));
+    if (pt) { L[c] = {b:pt.id, st:'pending', how:'похож на ник'}; return; }
+    L[c] = {b:null, st:'none'};
+  });
+  m.links = L;
+  const use = l => l && l.b && (l.st === 'ok' || l.st === 'auto' || (l.st === 'pending' && cfg.usePending));
+  m.orders = ORDERS.map(o => {
+    const r = Object.assign({}, o, {d:o.dt.slice(0,10), rev:o.goods - o.disc});
+    r.margin = r.rev - o.cogs - o.paid * ACQ;
+    const l = L[o.promo]; r._b = use(l) ? l.b : null; r._pending = l && l.st === 'pending';
+    if (r._b){
+      let pick = null;
+      (shipsOf[r._b] || []).filter(s => !s.refused && s._sent).sort((a, b) => a._sent < b._sent ? -1 : 1)
+        .forEach(s => { if (s._sent <= r.d) pick = s; });
+      if (pick){ r._s = pick.id; pick._orders.push(r); pick._rev += r.rev; pick._margin += r.margin; }
+      else r._pre = true;
+    }
+    return r;
+  });
+  S.bl.forEach(b => {
+    const ss = (shipsOf[b.id] || []).filter(s => !s.refused);
+    b._ships = ss; b._all = shipsOf[b.id] || [];
+    b._posts = [].concat(...ss.map(s => s._posts));
+    b._views = sum(ss, s => s._views); b._cost = sum(ss, s => s._cost);
+    b._orders = m.orders.filter(o => o._b === b.id && !o._pre);
+    b._pre = m.orders.filter(o => o._b === b.id && o._pre);
+    b._rev = sum(b._orders, o => o.rev); b._margin = sum(b._orders, o => o.margin); b._res = b._margin - b._cost;
+    b._codes = Object.entries(L).filter(([c, l]) => l.b === b.id && l.st !== 'no').map(([c, l]) => ({c, st:l.st}));
+    if (!ss.length) b._gr = '';
+    else if (b._rev > 0 && b._margin >= b._cost) b._gr = 'A';
+    else if (b._posts.length || b._rev > 0) b._gr = 'B';
+    else if (ss.some(s => s._st === 'overdue')) b._gr = 'C';
+    else b._gr = 'w';
+  });
+  m.months = [...new Set(S.sh.filter(s => !s.refused && s._sent).map(s => s._sent.slice(0,7)).concat(m.orders.filter(o => o._b).map(o => o.d.slice(0,7))))]
+    .filter(x => x >= '2026-06');
+  if (m.fotFrom) for (let x = m.fotFrom; x <= TODAY.slice(0,7); x = addDays(x + '-01', 32).slice(0,7)) m.months.push(x);
+  m.months = [...new Set(m.months)].sort();
+  return m;
+}
+// ФОТ месяца: 0 до первой отправки и после текущего месяца, иначе исключение месяца или ставка
+const fotFor = mm => !M.fotFrom || mm < M.fotFrom || mm > TODAY.slice(0,7) ? 0 : (S.cfg.fot[mm] != null ? +S.cfg.fot[mm] : +S.cfg.fotRate || 0);
+const monGen = mm => MONTHS[+mm.slice(5) - 1];   // «с августа»
+const GR = {A:'окупился', B:'есть результат', C:'пусто', w:'ждём', '':'—'};
+const ST = {agreed:'Договорились', transit:'В пути', delivered:'Получено', posted:'Вышло', overdue:'Просрочено', refused:'Отказ'};
+const stc = st => `<span class="stc st-${st}">${ST[st]}</span>`;
+const plb = pl => `<span class="pl pl-${esc(pl)}" title="${esc(pl)}">${pl === 'TikTok' ? 'TT' : pl === 'Instagram' ? 'IG' : pl === 'YouTube' ? 'YT' : pl === 'VK' ? 'VK' : 'TG'}</span>`;
+const grc = g => g ? `<span class="gr gr-${g}" title="${GR[g]}">${g === 'w' ? '…' : g}</span>` : '';
+const bh = id => M.b[id] ? M.b[id].h : '(без блогера)';
+
+/* ---------- UTM и тексты блогеру ---------- */
+// схема меток утверждена 22.09.2026: source — ник, medium — blogger, content — площадка_формат, term — номер отправки
+function utmFor(s){
+  const b = M.b[s.b]; if (!b) return '';
+  const it = s.items.find(i => i.pid && P_BY_ID[i.pid]);
+  const base = s.land === 'product' && it ? P_BY_ID[it.pid].u : 'https://bladnes.com/';
+  const pr = s.promised && s.promised[0] ? s.promised[0].f : (b.pl === 'TikTok' ? 'TikTok видео' : 'Reels');
+  const fm = {'TikTok видео':'video','Reels':'reels','Stories':'stories','Пост':'post','YouTube Shorts':'shorts'}[pr] || 'post';
+  const q = `utm_source=${latin(b.h)}&utm_medium=blogger&utm_campaign=barter&utm_content=${(b.pl || '').toLowerCase()}_${fm}&utm_term=${s.id.toLowerCase()}`;
+  return base + (base.includes('?') ? '&' : '?') + q;
+}
+const promoOf = b => b ? (b.promo || (b._codes && b._codes[0] ? b._codes[0].c : '')) : '';
+function promisedText(s){
+  const b = M.b[s.b];
+  const arr = s.promised && s.promised.length ? s.promised : [{f: b && b.pl === 'Instagram' ? 'Reels' : 'TikTok видео', n:1}];
+  return arr.map(x => `${x.n} ${x.f === 'TikTok видео' ? 'TikTok-видео' : x.f}`).join(' + ');
+}
+function briefText(s){
+  const b = M.b[s.b], code = promoOf(b), dl = s._deadline || addDays(TODAY, S.cfg.transit + S.cfg.pubDays);
+  const stories = (s.promised || []).some(x => x.f === 'Stories');
+  return `Привет! Посылка ${s._sentOk ? 'выехала' : 'скоро выедет'}${s.track ? ', трек: ' + s.track : ''}.\n` +
+    `Что нужно от тебя:\n— ${promisedText(s)} до ${dLong(dl)}\n` +
+    (code ? `— назвать промокод ${code} — по нему скидка 5 %\n` : '') +
+    `— ссылка на сайт: ${utmFor(s)}\n— отметить @b1adnes\n` +
+    (stories ? '— после сторис пришли, пожалуйста, скрин статистики (просмотры и переходы)\n' : '') +
+    `Если что-то не подходит по срокам или формату — скажи заранее, подвинем.`;
+}
+function remindText(s){
+  const b = M.b[s.b], code = promoOf(b);
+  return `Привет! Как тебе вещи? Напоминаю про публикацию — договаривались до ${dLong(s._deadline)}.` +
+    (code ? ` Промокод ${code}, ` : ' ') + `ссылка: ${utmFor(s)}\nЕсли что-то мешает — напиши, подвинем сроки.`;
+}
+function suggestCode(h){ return core(h).replace(/[^a-z0-9]/g, '').toUpperCase().slice(0, 15) || 'BLOGGER'; }
+
+/* ---------- разбор ссылок ---------- */
+function parseProfile(u){
+  u = String(u || '').trim();
+  let m = u.match(/tiktok\.com\/@([A-Za-z0-9_.]+)/i); if (m) return {pl:'TikTok', h:'@' + m[1].replace(/\.$/, ''), url:'https://www.tiktok.com/@' + m[1]};
+  m = u.match(/instagram\.com\/([A-Za-z0-9_.]+)/i);
+  if (m && !/^(reel|p|stories|explore)$/i.test(m[1])) return {pl:'Instagram', h:'@' + m[1].replace(/\.$/, ''), url:'https://www.instagram.com/' + m[1]};
+  m = u.match(/youtube\.com\/@([A-Za-z0-9_.\-]+)/i); if (m) return {pl:'YouTube', h:'@' + m[1], url:'https://www.youtube.com/@' + m[1]};
+  m = u.match(/vk\.com\/([A-Za-z0-9_.]+)/i); if (m) return {pl:'VK', h:'@' + m[1], url:'https://vk.com/' + m[1]};
+  m = u.match(/t\.me\/([A-Za-z0-9_]+)/i); if (m) return {pl:'Telegram', h:'@' + m[1], url:'https://t.me/' + m[1]};
+  if (/^@?[A-Za-z0-9_.]{2,}$/.test(u)) return {pl:'', h:'@' + u.replace(/^@/, ''), url:''};
+  return null;
+}
+function parsePost(u){
+  u = String(u || '').trim(); if (!/^https?:\/\//i.test(u)) return null;
+  let m = u.match(/tiktok\.com\/@([A-Za-z0-9_.]+)\/video\/\d+/i); if (m) return {pl:'TikTok', fmt:'TikTok видео', h:'@' + m[1]};
+  if (/vt\.tiktok\.com|vm\.tiktok\.com/i.test(u)) return {pl:'TikTok', fmt:'TikTok видео', h:''};
+  if (/instagram\.com\/reels?\//i.test(u)) return {pl:'Instagram', fmt:'Reels', h:''};
+  m = u.match(/instagram\.com\/stories\/([A-Za-z0-9_.]+)/i); if (m) return {pl:'Instagram', fmt:'Stories', h:'@' + m[1]};
+  if (/instagram\.com\/p\//i.test(u)) return {pl:'Instagram', fmt:'Пост', h:''};
+  if (/youtube\.com\/shorts|youtu\.be/i.test(u)) return {pl:'YouTube', fmt:'YouTube Shorts', h:''};
+  return {pl:'', fmt:'', h:''};
+}
+const findByHandle = h => S.bl.find(b => core(b.h) === core(h));
+
+/* ---------- копирование, вставка, тосты ---------- */
+function toast(t){ const el = $('#toast'); el.innerHTML = t; el.style.display = 'block'; clearTimeout(toast._t); toast._t = setTimeout(() => el.style.display = 'none', 2600); }
+async function copyText(t, msg){
+  try { await navigator.clipboard.writeText(t); }
+  catch(e){ const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch(_) {} a.remove(); }
+  toast(msg || 'Скопировано');
+}
+async function pasteInto(inp){
+  try { const t = await navigator.clipboard.readText(); if (t){ inp.value = t.trim(); inp.dispatchEvent(new Event('input')); return; } } catch(e) {}
+  inp.focus(); toast('Вставьте долгим нажатием в поле');
+}
+
+/* ---------- шторки ---------- */
+function sheet({title, sub, body, foot, wide, onClose}){
+  const w = document.createElement('div'); w.className = 'sw';
+  w.innerHTML = `<div class="shx ${wide ? 'wide' : ''}" role="dialog" aria-modal="true"><div class="grab"></div>
+    <div class="sh-h"><div class="g"><h3>${title}</h3>${sub ? `<div class="s">${sub}</div>` : ''}</div>
+    <button class="x" data-close aria-label="Закрыть">${icon('close')}</button></div>
+    <div class="sh-b">${body || ''}</div>${foot ? `<div class="sh-f">${foot}</div>` : ''}</div>`;
+  $('#sheets').appendChild(w); document.body.classList.add('lock');
+  const close = () => { w.remove(); if (!$('#sheets').children.length) document.body.classList.remove('lock'); if (onClose) onClose(); };
+  w.addEventListener('click', e => { if (e.target === w || e.target.closest('[data-close]')) close(); });
+  w._close = close;
+  return {el:w, b:$('.sh-b', w), f:$('.sh-f', w), close};
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ const all = $$('#sheets .sw'); if (all.length) all[all.length-1]._close(); } });
+const closeAll = () => $$('#sheets .sw').forEach(w => w._close());
+
+/* ---------- навигация ---------- */
+const PAGES = [
+  {id:'today', t:'Сегодня', ic:'today', tab:true},
+  {id:'ships', t:'Отправки', ic:'box', tab:true},
+  {id:'bloggers', t:'Блогеры', ic:'users', tab:true},
+  {id:'posts', t:'Публикации', ic:'play', tab:true},
+  {id:'stats', t:'Итоги', ic:'chart', tab:true},
+  {id:'log', t:'Журнал', ic:'log'},
+  {id:'how', t:'Как устроено', ic:'info'}
+];
+function renderNav(){
+  const nTasks = taskCount();
+  $('#side').innerHTML = `<div class="logo">bladnes · бартер<span>${esc(ME)}</span></div>` +
+    PAGES.map(p => `${p.id === 'log' ? '<div class="sep"></div>' : ''}<a href="#${p.id}" class="${CUR.page === p.id ? 'on' : ''}">${icon(p.ic)}${p.t}${p.id === 'today' && nTasks ? `<span class="bd">${nTasks}</span>` : ''}</a>`).join('') +
+    `<a href="#" class="add" data-a="addMenu">${icon('plus')}Добавить</a>
+     <div class="foot">${SYNC.at ? 'Обновлено ' + SYNC.at.slice(11, 16) + '. ' : ''}${EXT ? 'Заказы из архива на ' + esc(EXT.at.slice(11, 16)) + '.' : 'Заказы загружаются…'}</div>`;
+  $('#tabs').innerHTML = PAGES.filter(p => p.tab).map(p => `<a href="#${p.id}" class="${CUR.page === p.id ? 'on' : ''}">${icon(p.ic)}<span>${p.t}</span>${p.id === 'today' && nTasks ? `<span class="bd">${nTasks}</span>` : ''}</a>`).join('');
+  const who = PEOPLE.find(p => p.n === ME) || {n:ME || '…', c:'#9aa7b4'};
+  $('#who').innerHTML = `<span class="ava" style="background:${who.c}">${who.n[0]}</span>${who.n}`;
+  $('#gear').innerHTML = icon('gear'); $('#gear').style.display = ME === 'Степан' ? '' : 'none';
+  $('#fab').innerHTML = icon('plus');
+  const pg = PAGES.find(p => p.id === CUR.page);
+  $('#ttl').textContent = pg ? pg.t : '';
+}
+function go(){
+  const h = (location.hash || '#today').slice(1);
+  CUR.page = PAGES.some(p => p.id === h) ? h : 'today';
+  refresh(); window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', () => { if (S) go(); });
+function refresh(){ if (!S) return; M = derive(); renderNav(); ({today:rToday, ships:rShips, bloggers:rBloggers, posts:rPosts, stats:rStats, log:rLog, how:rHow})[CUR.page](); }
+
+/* =====================================================================
+   ЗАДАЧИ НА СЕГОДНЯ — всё, что система не может решить сама
+   ===================================================================== */
+function tasks(){
+  const T = [], done = S.done;
+  const add = t => { if (!done[t.id]) T.push(t); };
+  // 1. просрочки
+  const od = S.sh.filter(s => s._st === 'overdue').sort((a, b) => a._deadline < b._deadline ? -1 : 1);
+  if (od.length) add({id:'od', g:'Просрочено', cls:'red', ic:'alert', tt:`${od.length} ${plural(od.length,'посылка','посылки','посылок')} без публикации после дедлайна`,
+    tx:`В них лежит <b>${money(sum(od, s => s._cost))}</b> товара и доставки. Напоминание копируется готовым текстом — со ссылкой и промокодом.`,
+    list: od.map(s => ({h:`<b>${esc(bh(s.b))}</b><div class="s">${s.id} · дедлайн ${dLong(s._deadline)} · ${money(s._cost)}${M.b[s.b] && M.b[s.b].last && diffDays(M.b[s.b].last, TODAY) > 30 ? ` · <span class="warn">последний пост в профиле — ${dLong(M.b[s.b].last)}</span>` : ''}</div>`,
+      a:[['Напомнить', 'remind', s.id, 'pri'], ['Вышла', 'addPostFor', s.id], ['Отказ', 'refuse', s.id]]}))});
+  // 2. договорились, но не отправили
+  S.sh.filter(s => s._st === 'agreed' && s.b && !s._sentOk && s.sent == null && s.deal && diffDays(s.deal, TODAY) >= 3).forEach(s => add({id:'ag-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+    tt:`${esc(bh(s.b))} — договорились ${dLong(s.deal)}, не отправлено`, tx:`${s.id}. Если посылка уже ушла — укажите трек, даты и стоимость подтянутся сами.`,
+    acts:[['Указать трек', 'track', s.id, 'pri'], ['Отказ', 'refuse', s.id]]}));
+  S.sh.filter(s => s._sentOk && s.svc && s.svc !== 'СДЭК' && !s.ship && !s.refused).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+    tt:`${esc(bh(s.b))} — не СДЭК и нет стоимости доставки`, tx:`${s.id} · ${esc(s.svc)}. Без стоимости доставки расходы отдела занижены.`, acts:[['Внести стоимость', 'track', s.id, 'pri']]}));
+  // 3. промокоды из заказов
+  Object.entries(M.links).filter(([c, l]) => l.st === 'pending').forEach(([c, l]) => {
+    const os = M.orders.filter(o => o.promo === c); const b = M.b[l.b];
+    add({id:'pl-' + c, g:'Подтвердить', cls:'blu', ic:'tag', tt:`Промокод ${esc(c)} — это ${esc(b.h)}?`,
+      tx:`В архиве заказов <b>${os.length} ${plural(os.length,'заказ','заказа','заказов')} на ${money(sum(os, o => o.rev))}</b> с этим кодом. Код ${l.how}, поэтому спрашиваю.`,
+      acts:[['Да, это он', 'linkYes', c, 'pri'], ['Нет', 'linkNo', c]]});
+  });
+  const free = Object.entries(M.links).filter(([c, l]) => l.st === 'none');
+  if (free.length) add({id:'free', g:'Подтвердить', cls:'blu', ic:'tag', tt:`${free.length} ${plural(free.length,'промокод','промокода','промокодов')} в заказах без владельца`,
+    tx:`Покупатели вводят эти коды, но в базе бартера они никому не принадлежат. Если это блогеры из бартера — привяжите, и их продажи попадут в итоги.`,
+    list: free.map(([c]) => { const os = M.orders.filter(o => o.promo === c);
+      return {h:`<b>${esc(c)}</b><div class="s">${os.length} ${plural(os.length,'заказ','заказа','заказов')} · ${money(sum(os, o => o.rev))} · с ${dRu(os.map(o => o.d).sort()[0])}</div>`,
+        a:[['Привязать', 'linkPick', c], ['Не бартер', 'linkNo', c]]}; })});
+  // 4. нет промокода у блогера с отправкой
+  const noCode = S.bl.filter(b => !b.stop && b._ships.length && !promoOf(b));
+  if (noCode.length) add({id:'nocode', g:'Промокоды', cls:'amb', ic:'tag', tt:`У ${noCode.length} ${plural(noCode.length,'блогера','блогеров','блогеров')} с отправкой нет промокода`,
+    tx:`Без кода продажи не привяжутся. Коды предложены по нику — Матвей создаёт их в Тильде (Настройки сайта → Промокоды, скидка 5 %) и отмечает здесь.`,
+    list: noCode.map(b => ({h:`${plb(b.pl)} <b>${esc(b.h)}</b><div class="s">предлагаю <b>${suggestCode(b.h)}</b></div>`, a:[['Создан в Тильде', 'codeMade', b.id, 'ok']]})),
+    acts:[['Скопировать список для Тильды', 'copyCodes', '', '']]});
+  const notMade = S.bl.filter(b => b.promo && !b.promoOk);
+  notMade.forEach(b => add({id:'nm-' + b.id, g:'Промокоды', cls:'amb', ic:'tag', tt:`Промокод ${esc(b.promo)} ещё не создан в Тильде`,
+    tx:`${esc(b.h)}: пока кода нет в Тильде, покупатель введёт его и получит ошибку.`, acts:[['Создан в Тильде', 'codeMade', b.id, 'ok']]}));
+  S.bl.filter(b => b.promo && /[А-Яа-яЁё]/.test(b.promo)).forEach(b => add({id:'cyr-' + b.id, g:'Промокоды', cls:'amb', ic:'tag',
+    tt:`Промокод ${esc(b.promo)} набран кириллицей`, tx:`${esc(b.h)}: с английской раскладки его не ввести. Замените в Тильде на <b>${suggestCode(b.h)}</b>.`,
+    acts:[['Заменить на ' + suggestCode(b.h), 'codeFix', b.id, 'pri']]}));
+  // 5. вопросы после переноса из таблицы
+  const seen = {};
+  S.bl.forEach(b => { const k = core(b.h); if (seen[k] && !done['dup-' + k]) add({id:'dup-' + k, g:'После переноса', cls:'amb', ic:'merge',
+    tt:`${esc(b.h)} заведён дважды: ${seen[k].id} и ${b.id}`, tx:`Одна ссылка на профиль. Отправки и публикации соберутся в одной карточке, свежие подписчики — ${fmt(Math.max(b.fol, seen[k].fol))}.`,
+    acts:[[`Объединить в ${seen[k].id}`, 'merge', seen[k].id + '|' + b.id, 'pri']]}); else seen[k] = b; });
+  S.sh.filter(s => !s.b && !s.refused).forEach(s => {
+    // подсказка: первый контакт в день договорённости; блогер без отправок — в приоритете
+    const same = S.bl.filter(b => b.first && b.first === s.deal);
+    const best = same.find(b => !(M.shipsOf[b.id] || []).length) || same[0] || null;
+    add({id:'nob-' + s.id, g:'После переноса', cls:'amb', ic:'user', tt:`${s.id} — отправка без блогера`,
+      tx:`${s.deal ? 'Договорились ' + dLong(s.deal) + '. ' : ''}${best ? `Похоже на <b>${esc(best.h)}</b>: первый контакт в тот же день.` : 'Выберите, кому ушла посылка.'}`,
+      acts:(best ? [[`Это ${best.h}`, 'setB', s.id + '|' + best.id, 'pri']] : []).concat([['Выбрать блогера', 'pickB', s.id], ['Не отправлялась', 'refuse', s.id]])});
+  });
+  // даты отправки: опечатка в годе и отправка раньше договорённости — одной карточкой
+  const dl = [];
+  S.sh.filter(s => s.sent && s.sent < '2026-01-01' && !s.refused).forEach(s => {
+    const fix = '2026' + s.sent.slice(4);
+    dl.push({id:'yr-' + s.id, h:`<b>${s.id} · ${esc(bh(s.b))}</b><div class="s">${dRu(s.sent)} — опечатка в годе, посылка не попадает ни в один месяц</div>`,
+      a:[[`Это ${dRu(fix)}`, 'setSent', s.id + '|' + fix, 'pri'], ['Другая', 'pickSent', s.id]]});
+  });
+  S.sh.filter(s => s._sentOk && !s.refused).forEach(s => {
+    const b = M.b[s.b], ref = [s.deal, b && b.first].filter(Boolean).sort().pop();
+    if (!ref || s.sent >= ref) return;
+    const t = new Date(s.sent + 'T00:00:00Z'); t.setUTCMonth(t.getUTCMonth() + 1); const nx = t.toISOString().slice(0,10);
+    const good = nx >= ref && nx <= TODAY;
+    dl.push({id:'bf-' + s.id, h:`<b>${s.id} · ${esc(bh(s.b))}</b><div class="s">отправка ${dRu(s.sent)}, а ${s.deal ? 'договорились' : 'первый контакт'} ${dRu(ref)}${good ? ' — похоже, месяц перепутан' : ''}</div>`,
+      a:(good ? [[`Это ${dRu(nx)}`, 'setSent', s.id + '|' + nx, 'pri']] : []).concat([['Другая', 'pickSent', s.id], ['Верно', 'dismiss', 'bf-' + s.id]])});
+  });
+  const dlv = dl.filter(x => !done[x.id]);
+  if (dlv.length) T.push({id:'dates', g:'После переноса', cls:'amb', ic:'cal', tt:`${dlv.length} ${plural(dlv.length,'вопрос','вопроса','вопросов')} по датам отправки`,
+    tx:'Так в таблице не бывает: год 2009 или отправка раньше договорённости. Подсказка в каждой строке — это вероятная правильная дата; проверьте по чекам или переписке.', list:dlv});
+  const byUrl = {};
+  S.po.forEach(p => { if (!p.url) return; if (byUrl[p.url]){ const a = byUrl[p.url], keep = a._measured ? a : p._measured ? p : a, drop = keep === a ? p : a;
+    add({id:'dp-' + drop.id, g:'После переноса', cls:'amb', ic:'merge', tt:`Одна публикация записана дважды: ${a.id} и ${p.id}`,
+      tx:`${esc(bh(p.b))}, ссылка совпадает символ в символ. Оставляю ${keep.id}${keep._measured ? ' — по нему есть замер' : ''}.`, acts:[[`Оставить ${keep.id}`, 'dropPost', drop.id, 'pri']]}); }
+    else byUrl[p.url] = p; });
+  // 6. находки парсера (лист «Находки» базы)
+  const have = new Set(S.po.map(p => p.url));
+  const fl = S.found.filter(f => f.st === 'новая' && !have.has(f.url));
+  if (fl.length) add({id:'found', g:'Парсер', cls:'grn', ic:'bot', tt:`Парсер нашёл ${fl.length} ${plural(fl.length,'публикацию','публикации','публикаций')}, которых нет в базе`,
+    tx:`Ролики и посты с отметкой бренда у блогеров, чья отправка ждёт публикации. Подтвердите — публикация встанет к отправке, просмотры пойдут в итоги.`,
+    list: fl.map(f => { const b = findByHandle(f.h), s = b && b._ships.filter(x => !x.refused).sort((a, c) => (c._sent || '') < (a._sent || '') ? -1 : 1)[0];
+      return {h:`${plb(f.pl)} <b>${esc(f.h)}</b> · ${esc(f.fmt)} · ${dRu(f.d)}${f.views ? ' · <b>' + fmt(f.views) + '</b> просм.' : ' · ' + fmt(f.likes) + ' лайков'}<div class="s">«${esc(String(f.text || '').slice(0, 90))}»</div>`,
+        a:(s ? [[`Это ${s.id}`, 'foundYes', f.n + '|' + s.id, 'pri']] : [['Выбрать отправку', 'foundPick', f.n, 'pri']]).concat([['Открыть', 'openUrl', f.url], ['Не наше', 'foundNo', f.n]])}; })});
+  S.found.filter(f => f.code && f.st !== 'отклонена').forEach(f => {
+    const b = findByHandle(f.h), code = String(f.code).toUpperCase(), l = M.links[code];
+    if (!b || promoOf(b) === code || (l && l.b === b.id)) return;
+    add({id:'pc-' + code, g:'Парсер', cls:'red', ic:'tag', tt:`${esc(f.h)} называет в ролике промокод ${esc(code)} — его нет в базе`,
+      tx:`Ролик от ${dLong(f.d)}, ${fmt(f.views || 0)} просмотров. Если такого кода нет и в Тильде, покупатели получают ошибку — проверьте срочно.${ORDERS.some(o => o.promo === code) ? '' : ' В заказах этот код пока не встречался.'}`,
+      acts:[[`Записать ${code} блогеру`, 'codeFromPost', b.id + '|' + code, 'pri']]});
+  });
+  S.bl.filter(b => b.missing && !b.stop).forEach(b => add({id:'miss-' + b.id, g:'Парсер', cls:'amb', ic:'alert', tt:`Профиль ${esc(b.h)} не найден`,
+    tx:`${esc(b.pl)} отвечает, что такого аккаунта нет — ссылка неверная или блогер сменил ник. Пока ссылка не исправлена, парсер не увидит его публикации.`,
+    acts:[['Открыть карточку', 'openBlogger', b.id, 'pri']]}));
+  return T;
+}
+function taskCount(){ try { return tasks().filter(t => !t.ex).length; } catch(e){ return 0; } }
+
+function rToday(){
+  const T = tasks(), ss = S.sh.filter(s => !s.refused);
+  const cnt = (st) => ss.filter(s => s._st === st).length;
+  const ORDER = ['Парсер', 'После переноса', 'Подтвердить', 'Просрочено', 'Отправить', 'Промокоды'];
+  const groups = [...new Set(T.map(t => t.g))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+  const NOTE = {'После переноса':'Разовые вопросы по данным из таблицы. Сначала даты — от них зависят просрочки и итоги.'};
+  const tHtml = T.length ? groups.map(g => `<div class="sec"><h2>${g}</h2><span class="r dim">${T.filter(t => t.g === g).length}</span></div>
+    ${NOTE[g] ? `<div class="dim" style="font-size:12.5px;margin:-4px 0 8px">${NOTE[g]}</div>` : ''}<div class="list">${T.filter(t => t.g === g).map(taskHtml).join('')}</div>`).join('')
+    : `<div class="card empty">${icon('check')} Всё сделано. Новые задачи появятся сами.</div>`;
+  $('#view').innerHTML = `
+    ${QUEUE.length ? `<div class="draft"><b>Не отправлено: ${QUEUE.length}.</b> ${SYNC.off ? 'Нет связи с базой — всё сохранено на телефоне и отправится само, как только появится интернет.' : 'Отправляю…'}</div>` : ''}
+    ${!EXT ? '<div class="draft">Загружаю заказы из архива — продажи по промокодам появятся через несколько секунд.</div>' : ''}
+    <div class="cnts">
+      <div class="cnt" data-a="goShips" data-v="overdue"><div class="v ${cnt('overdue') ? 'bad' : ''}">${cnt('overdue')}</div><div class="l">просрочено</div></div>
+      <div class="cnt" data-a="goShips" data-v="transit"><div class="v">${cnt('transit') + cnt('agreed')}</div><div class="l">в пути и не ушли</div></div>
+      <div class="cnt" data-a="goShips" data-v="delivered"><div class="v">${cnt('delivered')}</div><div class="l">получили, ждём пост</div></div>
+      <div class="cnt" data-a="goShips" data-v="posted"><div class="v ok">${cnt('posted')}</div><div class="l">вышло</div></div>
+    </div>
+    <div class="cols">
+      <div>${tHtml}</div>
+      <div><div class="sec"><h2>Последние действия</h2><a class="r" href="#log">весь журнал →</a></div>
+        <div class="log">${logItems(12)}</div></div>
+    </div>`;
+}
+function taskHtml(t){
+  const btn = a => `<button class="btn sm ${a[3] || ''}" data-a="${a[1]}" data-v="${esc(a[2])}">${esc(a[0])}</button>`;
+  return `<div class="tk ${t.cls}"><div class="ic">${icon(t.ic)}</div><div class="bd">
+    <div class="tt">${t.tt} ${t.ex ? '<span class="tag ex">пример</span>' : ''}</div><div class="tx">${t.tx}</div>
+    ${t.list ? `<div class="sub">${t.list.slice(0, CUR.exp[t.id] ? 999 : 5).map(l => `<div class="li"><div class="g">${l.h}</div><div class="row">${l.a.map(btn).join('')}</div></div>`).join('')}
+      ${t.list.length > 5 ? `<button class="btn link" data-a="exp" data-v="${t.id}" style="margin-top:4px">${CUR.exp[t.id] ? 'Свернуть' : `Показать ещё ${t.list.length - 5}`}</button>` : ''}</div>` : ''}
+    ${t.acts && t.acts.length ? `<div class="row">${t.acts.map(btn).join('')}</div>` : ''}</div></div>`;
+}
+
+/* ---------- журнал ---------- */
+function history(){
+  const L = S.log.map(x => ({id:x.id, ts:x.ts, who:x.who, type:x.type === 'history' ? 'm' : x.type === 'system' ? 'a' : x.type, text:x.text,
+    ref:x.ref ? String(x.ref).split('|') : null, undo:x.undo, mine:x.who === ME && !!x.undo}));
+  M.orders.filter(o => o._b).forEach(o => L.push({ts:o.dt, who:'Заказы', type:'o', text:`заказ с промокодом <b>${esc(o.promo)}</b> · ${money(o.rev)} · ${esc(bh(o._b))}`, ref:['b', o._b], sub:esc(o.items)}));
+  L.forEach(x => x.k = String(x.ts || '').length > 10 ? x.ts : (x.ts || '') + ' 00:00');
+  return L.sort((a, b) => a.k < b.k ? 1 : a.k > b.k ? -1 : 0);
+}
+function logItems(n, filter){
+  let L = history();
+  if (filter && filter !== 'all') L = L.filter(x => filter === 'o' ? x.type === 'o' : filter === 'a' ? (x.type === 'o' || x.type === 'a') : x.who === filter);
+  if (n) L = L.slice(0, n);
+  if (!L.length) return '<div class="empty">Пока пусто</div>';
+  let out = '', lastDay = '';
+  const now = mskNow();
+  L.forEach((x, i) => {
+    const day = x.k.slice(0,10);
+    if (day !== lastDay){ lastDay = day; out += `<div class="day">${day === TODAY ? 'Сегодня' : day === addDays(TODAY, -1) ? 'Вчера' : dLong(day)}</div>`; }
+    const cls = x.type === 'o' ? 'o' : x.type === 'a' ? 'a' : x.who === 'Степан' ? 's' : 'm';
+    const ic = x.type === 'o' ? 'cart' : x.type === 'a' ? 'bot' : 'user';
+    const time = x.ts ? x.ts.slice(11,16) : '';
+    const canUndo = x.mine && x.undo && diffMin(x.ts, now) <= 10;
+    out += `<div class="lg ${x.mine && diffMin(x.ts, now) < 1 && i === 0 ? 'new' : ''}"><div class="ic ${cls}">${icon(ic)}</div>
+      <div class="t"><b>${esc(x.who)}</b> ${x.text}${x.sub ? `<div class="w">${x.sub}</div>` : ''}<div class="w">${time ? time + ' · ' : ''}${x.ref ? `<a href="#" data-a="openRef" data-v="${x.ref.join('|')}">открыть</a>` : ''}</div></div>
+      ${canUndo ? `<button class="btn link undo" data-a="undo" data-v="${x.id}">Отменить</button>` : ''}</div>`;
+  });
+  return out;
+}
+const diffMin = (a, b) => a && b ? (Date.parse(b.replace(' ', 'T') + ':00Z') - Date.parse(a.replace(' ', 'T') + ':00Z')) / 60000 : 999;
+function rLog(){
+  const f = CUR.logF;
+  const ch = [['all','Все'], ['Матвей','Матвей'], ['Степан','Степан'], ['o','Заказы']];
+  $('#view').innerHTML = `<div class="chips">${ch.map(c => `<button class="chip ${f === c[0] ? 'on' : ''}" data-a="logF" data-v="${c[0]}">${c[1]}</button>`).join('')}</div>
+    <div class="dim" style="font-size:12.5px;margin:6px 0 10px">Журнал пишет сама система: кто, что и когда сделал. Удалить запись нельзя, своё действие можно отменить в течение 10 минут. Сюда же пишут парсер и заказы.</div>
+    <div class="log">${logItems(250, f)}</div>`;
+}
+
+/* =====================================================================
+   ОТПРАВКИ
+   ===================================================================== */
+function shipItem(s){
+  const b = M.b[s.b];
+  const th = s.items.map(i => i.pid ? `<div class="th" style="background-image:url('${pImg(i.pid)}')"></div>` : `<div class="th none">?</div>`).join('');
+  let dl = '';
+  if (s._st === 'transit' || s._st === 'delivered'){ const d = diffDays(TODAY, s._deadline); dl = `ждём публикацию до ${dLong(s._deadline)} · ${d} ${plural(d,'день','дня','дней')}`; }
+  if (s._st === 'overdue') dl = `<span class="bad">дедлайн был ${dLong(s._deadline)}</span>`;
+  if (s._st === 'agreed') dl = s.deal ? `договорились ${dLong(s.deal)}, трек не указан` : 'трек не указан';
+  if (s._st === 'posted') dl = `вышло через ${s._days != null ? s._days + ' ' + plural(s._days,'день','дня','дней') : '—'} после отправки`;
+  return `<a class="it" data-a="openShip" data-v="${s.id}">
+    <div class="l1">${b ? plb(b.pl) : ''}<span class="nm">${esc(bh(s.b))}</span><div class="r">${stc(s._st)}</div></div>
+    <div class="l2"><div class="thumbs">${th}</div><div class="muted" style="font-size:13px">${s.id}${s._iter > 1 ? ` · ${s._iter}-я отправка` : ''}<br>${s._sentOk ? 'отправлено ' + dRu(s.sent) : s.deal ? 'договорились ' + dRu(s.deal) : ''}</div></div>
+    <div class="l3"><span>затраты <b>${money(s._cost)}</b>${s._shipWait ? ' <span class="warn">+ доставка из СДЭК</span>' : ''}</span><span>просмотры <b>${s._views ? fmt(s._views) : '—'}</b></span>
+      <span>заказы <b>${s._orders.length}</b>${s._rev ? ` · <b>${money(s._rev)}</b>` : ''}</span></div>
+    ${dl ? `<div class="dl">${dl}</div>` : ''}</a>`;
+}
+function rShips(){
+  const all = S.sh.filter(s => s.b || !s.refused);
+  const F = [['all','Все'], ['agreed','Договорились'], ['transit','В пути'], ['delivered','Получено'], ['posted','Вышло'], ['overdue','Просрочено'], ['refused','Отказ']];
+  const q = CUR.q.trim().toLowerCase();
+  let list = all.filter(s => CUR.shipF === 'all' ? s._st !== 'refused' : s._st === CUR.shipF);
+  if (q) list = list.filter(s => (bh(s.b) + ' ' + s.id + ' ' + s.items.map(i => (P_BY_ID[i.pid] || {}).t || i.sku).join(' ')).toLowerCase().includes(q));
+  list.sort((a, b) => (b._sent || b.deal || '') < (a._sent || a.deal || '') ? -1 : 1);
+  $('#view').innerHTML = `
+    <div class="search" style="margin-bottom:10px">${icon('search')}<input class="in" id="q" placeholder="Ник, номер или товар" value="${esc(CUR.q)}" autocomplete="off"></div>
+    <div class="chips">${F.map(f => `<button class="chip ${CUR.shipF === f[0] ? 'on' : ''}" data-a="shipF" data-v="${f[0]}">${f[1]} <span class="n">${f[0] === 'all' ? all.filter(s => s._st !== 'refused').length : all.filter(s => s._st === f[0]).length}</span></button>`).join('')}</div>
+    <div class="list g2" style="margin-top:10px">${list.map(shipItem).join('') || '<div class="empty">Ничего не нашлось</div>'}</div>`;
+  const inp = $('#q'); inp.addEventListener('input', () => { CUR.q = inp.value; const pos = inp.selectionStart; rShips(); const n = $('#q'); n.focus(); n.setSelectionRange(pos, pos); });
+}
+function openShip(id){
+  const s = M.s[id]; if (!s) return;
+  const b = M.b[s.b];
+  const step = (on, x, l, d) => `<div class="st ${on ? 'd' : ''} ${x ? 'x' : ''}">${l}<b>${d || '—'}</b></div>`;
+  const items = s.items.map(i => { const p = P_BY_ID[i.pid];
+    return `<div class="pi">${i.pid ? `<div class="th" style="background-image:url('${pImg(i.pid)}')"></div>` : '<div class="th none">?</div>'}<div class="g"><div class="n">${esc(p ? p.t : (i.t || i.sku))}${i.q > 1 ? ' × ' + i.q : ''}</div>
+      <div class="c">${i.size ? 'размер ' + esc(i.size) + ' · ' : ''}себестоимость ${money((i.pid ? pCost(i.pid) : 0) * i.q)}${i.pid && !pCostExact(i.pid) ? ' ≈' : ''}</div></div></div>`; }).join('');
+  const posts = s._posts.map(p => postRow(p)).join('');
+  const orders = s._orders.map(o => `<tr><td>${dRu(o.d)} · ${esc(o.items)}</td><td class="num">${money(o.rev)}</td></tr>`).join('');
+  const code = promoOf(b);
+  const sh = sheet({title:`${esc(bh(s.b))} · ${s.id}`, sub:`${stc(s._st)} ${s._iter ? `&nbsp;${s._iter}-я отправка этому блогеру` : ''}`, wide:true,
+    body:`
+      <div class="tl">${step(true, false, 'Договорились', dRu(s.deal))}${step(s._sentOk, false, 'Отправлено', s._sentOk ? dRu(s.sent) : '')}
+        ${step(!!s.dlv || s._posts.length, false, 'Получено', dRu(s.dlv))}${step(s._posts.length, s._st === 'overdue', s._st === 'overdue' ? 'Просрочено' : 'Публикация', s._posts.length ? dRu(s._firstPost) : s._deadline ? 'до ' + dRu(s._deadline) : '')}</div>
+      <div class="row" style="margin:14px 0 4px">
+        ${!s._sentOk && !s.refused ? `<button class="btn sm pri" data-a="track" data-v="${s.id}">${icon('truck')}Указать трек</button>` : ''}
+        ${s._sentOk && !s.dlv && !s._posts.length && !s.refused ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}Блогер получил</button>` : ''}
+        ${!s.refused ? `<button class="btn sm" data-a="addPostFor" data-v="${s.id}">${icon('play')}Добавить публикацию</button>` : ''}
+        ${!s.refused && !s._posts.length ? `<button class="btn sm danger" data-a="refuse" data-v="${s.id}">Отказ или потеря</button>` : ''}
+      </div>
+      <div class="lab" style="margin-top:14px">Что отправили</div>${items || '<div class="dim">Товары не указаны</div>'}
+      <div class="lab" style="margin-top:16px">Деньги</div>
+      <div class="kv"><div><div class="l">Товар</div><div class="v sm">${money(s.cogs)}</div></div><div><div class="l">Доставка${s.svc ? ' · ' + esc(s.svc) : ''}</div><div class="v sm">${s._shipWait ? '<span class="warn">ждём СДЭК</span>' : money(s.ship)}</div></div>
+        <div><div class="l">Итого</div><div class="v sm">${money(s._cost)}</div></div>
+        <div><div class="l">Заказов</div><div class="v sm">${s._orders.length}</div></div><div><div class="l">Выручка</div><div class="v sm">${money(s._rev)}</div></div>
+        <div><div class="l">Результат</div><div class="v sm ${s._margin - s._cost >= 0 ? 'ok' : 'bad'}">${money(s._margin - s._cost)}</div></div></div>
+      <div class="dim" style="font-size:12px;margin-top:6px">Результат = маржа с заказов по промокоду (выручка − себестоимость − эквайринг 5 %) − товар − доставка. Без ФОТ.</div>
+      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? '<br>Стоимость, дата отправки и дата вручения подтянутся из API СДЭК при утреннем обновлении.' : '<br>Не СДЭК — стоимость внесена вручную, «получено» — кнопкой.'}</div></div>` : ''}
+      <div class="lab" style="margin-top:16px">Публикации</div>${posts || `<div class="dim" style="font-size:13.5px">Пока нет. ${s._deadline ? 'Дедлайн — ' + dLong(s._deadline) + '.' : ''} Парсер проверяет профиль каждое утро.</div>`}
+      ${orders ? `<div class="lab" style="margin-top:16px">Заказы по промокоду ${esc(code)}</div><div class="tw"><table class="t"><tbody>${orders}</tbody></table></div>` : ''}
+      <div class="lab" style="margin-top:16px">Для блогера</div>
+      <div class="fld"><div class="copy"><div class="v">${esc(utmFor(s))}</div><button class="ib" data-a="copyUtm" data-v="${s.id}" title="Скопировать ссылку">${icon('copy')}</button></div>
+        <div class="hint">Ссылка по утверждённой схеме меток; номер отправки — в utm_term. В рабочей версии попадёт и в журнал UTM, и в дашборд блогеров.</div></div>
+      <div class="row"><button class="btn sm" data-a="copyBrief" data-v="${s.id}">${icon('msg')}Скопировать сообщение блогеру</button>
+        ${s._st === 'overdue' ? `<button class="btn sm" data-a="remind" data-v="${s.id}">${icon('msg')}Напоминание</button>` : ''}
+        ${b ? `<button class="btn sm" data-a="openBlogger" data-v="${b.id}">${icon('user')}Карточка блогера</button>` : ''}</div>`});
+  return sh;
+}
+function postRow(p){
+  const b = M.b[p.b];
+  const d7 = p.d ? addDays(p.d, 7) : null, d30 = p.d ? addDays(p.d, 30) : null;
+  const v = p._measured ? `<b>${fmt(p._views)}</b> просм.` : (p.fmt === 'Stories' ? '<span class="warn">нужен скрин</span>' : '<span class="dim">нет замера</span>');
+  return `<div class="res" data-a="openPost" data-v="${p.id}"><div class="bava" style="width:34px;height:34px;font-size:12px">${icon('play')}</div>
+    <div class="g"><div class="a">${esc(p.fmt || 'Публикация')} · ${dRu(p.d)}</div><div class="b">${p.id} · ${esc(b ? b.h : '')} · D+7 ${dRu(d7)}, D+30 ${dRu(d30)}</div></div><div class="num" style="font-size:13.5px">${v}</div></div>`;
+}
+
+/* ---------- доставка: правило «блогерам — только СДЭК» ---------- */
+const OTHER_SVC = ['Почта','Яндекс','Курьер','Другое'];
+const cdekOk = t => /^\d{10,12}$/.test(String(t || '').replace(/\s/g, ''));
+function deliveryFields(st){
+  const cdek = st.svc === 'СДЭК';
+  return `<div class="lab">Служба</div>
+    <div class="chips wrap"><button class="chip ${cdek ? 'on' : ''}" data-svc="СДЭК">СДЭК</button><button class="chip ${!cdek ? 'on' : ''}" data-svc="other">Не СДЭК</button></div>
+    ${cdek ? '' : `<div class="chips wrap" style="margin-top:8px">${OTHER_SVC.map(x => `<button class="chip ${st.svc === x ? 'on' : ''}" data-svc="${x}">${x}</button>`).join('')}</div>`}
+    <div class="hint">${cdek ? 'Правило: блогерам отправляем СДЭКом. Стоимость доставки, дата отправки и дата вручения подтянутся по треку из API СДЭК — вводить не нужно.'
+      : '<span class="warn">Только в крайнем случае.</span> Автоматики нет: укажите стоимость доставки до блогера, а когда он получит — нажмите «Блогер получил».'}</div>
+    <div class="fld" style="margin-top:12px"><label>Трек-номер${cdek ? '' : ' <span class="dim">— если есть</span>'}</label>
+      <div class="inb"><input class="in" id="trk" ${cdek ? 'inputmode="numeric"' : 'autocapitalize="characters"'} placeholder="${cdek ? '10 цифр из накладной СДЭК' : 'номер отправления'}" value="${esc(st.track)}"><button class="ib" id="trkP" title="Вставить">${icon('paste')}</button></div>
+      <div class="hint warn" id="trkW" style="${cdek && st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10 цифр — проверьте, не вставилось ли лишнее.</div></div>
+    ${cdek ? '' : `<div class="fld"><label>Стоимость доставки до блогера, ₽</label><input class="in" id="cst" inputmode="numeric" placeholder="например, 780" value="${esc(st.cost)}"></div>`}
+    <div class="lab">Когда отправили</div><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
+      <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div>
+    ${cdek ? '<div class="hint">Для СДЭК дату тоже уточнит API — здесь на случай, если трек ещё не зарегистрирован.</div>' : ''}`;
+}
+// СДЭК — нужен корректный трек; другая служба — нужна стоимость
+const deliveryValid = st => st.svc === 'СДЭК' ? cdekOk(st.track) : +st.cost > 0;
+function bindDelivery(root, st, draw, onChange){
+  $$('[data-svc]', root).forEach(el => el.onclick = () => { const v = el.dataset.svc;
+    st.svc = v === 'other' ? (OTHER_SVC.includes(st.svc) ? st.svc : OTHER_SVC[0]) : v; draw(); });
+  $$('[data-dt]', root).forEach(el => el.onclick = () => { st.date = el.dataset.dt; draw(); });
+  const dtx = $('#dtx', root); if (dtx) dtx.onchange = () => { if (dtx.value){ st.date = dtx.value > TODAY ? TODAY : dtx.value; draw(); } };
+  const trk = $('#trk', root), w = $('#trkW', root);
+  if (trk){ trk.oninput = () => { st.track = trk.value.trim(); if (w) w.style.display = st.svc === 'СДЭК' && st.track && !cdekOk(st.track) ? '' : 'none'; onChange(); };
+    $('#trkP', root).onclick = () => pasteInto(trk); }
+  const cst = $('#cst', root); if (cst) cst.oninput = () => { st.cost = cst.value.replace(/[^\d]/g, ''); onChange(); };
+}
+
+/* ---------- форма: новая отправка ---------- */
+function shipForm(pre){
+  const st = {b:pre || null, items:[], promised:[], sentNow:false, svc:'СДЭК', track:'', cost:'', date:TODAY, land:'product', pick:false, pq:''};
+  const sh = sheet({title:'Новая отправка', sub:'Номер, дата, себестоимость, промокод и ссылка — сами', body:'', foot:`<button class="btn pri" id="saveShip" disabled>Сохранить отправку</button>`});
+  const draw = () => {
+    const b = st.b ? M.b[st.b] : null;
+    let who = '';
+    if (!b){
+      who = `<div class="search">${icon('search')}<input class="in" id="bq" placeholder="Ник или ссылка на профиль" autocomplete="off" autocapitalize="off" value="${esc(st.q || '')}"></div>
+        <div id="bres"></div>`;
+    } else {
+      const open = b._ships.filter(s => s._st !== 'posted' && s._st !== 'refused');
+      who = `<div class="sel">${plb(b.pl)}<div class="g"><b>${esc(b.h)}</b><div class="muted" style="font-size:12.5px">${b.fol ? fmt(b.fol) + ' подписчиков' : 'подписчиков подтянет парсер'} · ${b._ships.length ? b._ships.length + ' ' + plural(b._ships.length,'отправка','отправки','отправок') + ' раньше' : 'первая отправка'}</div></div>
+        <button class="btn link" id="chB">Сменить</button></div>
+        ${b.stop ? `<div class="box bad" style="margin-top:8px"><div class="t">${icon('alert')} Блогер в стоп-листе</div><div class="d">Отправка этому блогеру запрещена. Если это ошибка — снимите стоп в карточке блогера.</div></div>` : ''}
+        ${!b.stop && open.length ? `<div class="box warn" style="margin-top:8px"><div class="t">${icon('alert')} Уже есть отправка без публикации</div><div class="d">${open.map(s => `${s.id} — ${ST[s._st].toLowerCase()}${s._deadline ? ', дедлайн ' + dLong(s._deadline) : ''}`).join('; ')}. Новая будет ${b._ships.length + 1}-й отправкой этому блогеру.</div></div>` : ''}
+        ${!b.stop && !promoOf(b) ? `<div class="box info" style="margin-top:8px"><div class="d" style="margin:0">Промокода у блогера нет — предложу <b>${suggestCode(b.h)}</b> после сохранения.</div></div>` : ''}
+        ${!b.stop && b.promo && !b.promoOk ? `<div class="box warn" style="margin-top:8px"><div class="d" style="margin:0">Промокод <b>${esc(b.promo)}</b> ещё не создан в Тильде — напомню после сохранения.</div></div>` : ''}`;
+    }
+    const cost = sum(st.items, i => pCost(i.pid) * i.q);
+    const items = st.items.map((i, k) => { const p = P_BY_ID[i.pid];
+      return `<div class="pi"><div class="th" style="background-image:url('${pImg(i.pid)}')"></div><div class="g"><div class="n">${esc(p.t)}</div>
+        <div class="c">себестоимость ${money(pCost(i.pid))}${pCostExact(i.pid) ? '' : ' ≈'} · из справочника</div>
+        ${noSize(i.pid) ? '' : `<div class="chips">${['S','M','L','XL','XXL'].map(z => `<button class="chip ${i.size === z ? 'on' : ''}" data-sz="${k}|${z}">${z}</button>`).join('')}</div>`}
+        <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
+        <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
+    const q = st.pq.trim().toLowerCase();
+    const plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 48);
+    const picker = st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
+      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">СС ${fmt(pCost(p.id))} ₽</div></button>`).join('')}</div>` : '';
+    const PF = ['TikTok видео', 'Reels', 'Stories', 'Пост', 'YouTube Shorts'];
+    const prom = PF.map(f => { const x = st.promised.find(y => y.f === f);
+      return `<button class="chip ${x ? 'on' : ''}" data-pf="${f}">${f}${x ? ` <span class="n">×${x.n}</span>` : ''}</button>`; }).join('');
+    const sv = st.sentNow ? deliveryFields(st) : '';
+    sh.b.innerHTML = `
+      <div class="fld"><label>1. Кому</label>${who}</div>
+      <div class="fld"><label>2. Что отправляем</label>${items}
+        <button class="btn sm ${st.items.length ? '' : 'pri'}" id="pick" style="margin-top:8px">${icon(st.pick ? 'close' : 'plus')}${st.pick ? 'Скрыть каталог' : st.items.length ? 'Ещё товар' : 'Выбрать из каталога'}</button>${picker}
+        ${st.items.length ? `<div class="hint">Себестоимость посылки: <b style="color:var(--tx)">${money(cost)}</b></div>` : ''}</div>
+      <div class="fld"><label>3. Что обещал <span class="dim">— по желанию</span></label><div class="chips wrap">${prom}</div>
+        <div class="hint">Нажмите ещё раз, чтобы увеличить количество; долгое нажатие убирает.</div></div>
+      <div class="fld"><label>4. Посылка уже ушла?</label>
+        <div class="toggle ${st.sentNow ? 'on' : ''}" id="tgSent"><div class="g"><b>${st.sentNow ? 'Да, указываю трек' : 'Нет, трек добавлю позже'}</b><div class="dim" style="font-size:12.5px">${st.sentNow ? 'Для СДЭК достаточно трека' : 'Задача «указать трек» появится сама'}</div></div><div class="sw2"></div></div>
+        <div style="margin-top:12px">${sv}</div></div>`;
+    const canSave = () => { $('#saveShip', sh.f).disabled = !(b && !b.stop && st.items.length && (!st.sentNow || deliveryValid(st))); };
+    canSave();
+    // обработчики
+    const bq = $('#bq', sh.b);
+    if (bq){ bq.addEventListener('input', () => { st.q = bq.value; drawRes(); }); drawRes(); }
+    const chB = $('#chB', sh.b); if (chB) chB.onclick = () => { st.b = null; draw(); setTimeout(() => { const i = $('#bq', sh.b); if (i) i.focus(); }, 30); };
+    $('#pick', sh.b).onclick = () => { st.pick = !st.pick; draw(); };
+    const pq = $('#pq', sh.b); if (pq) pq.addEventListener('input', () => { st.pq = pq.value; const pos = pq.selectionStart; draw(); const n = $('#pq', sh.b); n.focus(); n.setSelectionRange(pos, pos); });
+    $$('[data-pp]', sh.b).forEach(el => el.onclick = () => { const id = el.dataset.pp, ex = st.items.find(i => i.pid === id);
+      if (ex) ex.q++; else st.items.push({pid:id, q:1, size:''}); st.pick = false; draw(); });
+    $$('[data-sz]', sh.b).forEach(el => el.onclick = () => { const [k, z] = el.dataset.sz.split('|'); st.items[k].size = z; draw(); });
+    $$('[data-qm]', sh.b).forEach(el => el.onclick = () => { const i = st.items[el.dataset.qm]; if (i.q > 1) i.q--; draw(); });
+    $$('[data-qp]', sh.b).forEach(el => el.onclick = () => { st.items[el.dataset.qp].q++; draw(); });
+    $$('[data-rm]', sh.b).forEach(el => el.onclick = () => { st.items.splice(+el.dataset.rm, 1); draw(); });
+    $$('[data-pf]', sh.b).forEach(el => {
+      let t; el.onpointerdown = () => { t = setTimeout(() => { st.promised = st.promised.filter(y => y.f !== el.dataset.pf); t = 'long'; draw(); }, 550); };
+      el.onpointerup = el.onpointerleave = () => { if (t !== 'long') clearTimeout(t); };
+      el.onclick = () => { if (t === 'long'){ t = null; return; } const x = st.promised.find(y => y.f === el.dataset.pf); if (x) x.n = x.n >= 5 ? 1 : x.n + 1; else st.promised.push({f:el.dataset.pf, n:1}); draw(); };
+    });
+    $('#tgSent', sh.b).onclick = () => { st.sentNow = !st.sentNow; draw(); };
+    bindDelivery(sh.b, st, draw, canSave);
+  };
+  const drawRes = () => {
+    const box = $('#bres', sh.b); if (!box) return;
+    const q = (st.q || '').trim();
+    if (!q){ const rec = S.bl.filter(b => !b.stop).slice().sort((a, b) => (b.first || '') < (a.first || '') ? -1 : 1).slice(0, 4);
+      box.innerHTML = `<div class="dim" style="font-size:12.5px;margin-top:8px">Недавние</div>` + rec.map(resB).join(''); bindRes(); return; }
+    const pr = parseProfile(q);
+    const qq = core(q.replace(/^https?:\/\/[^@]*@?/i, ''));
+    let hits = [];
+    if (pr && pr.url){ const ex = findByHandle(pr.h); hits = ex ? [ex] : []; }
+    else hits = S.bl.filter(b => core(b.h).includes(core(q)) || core(b.raw).includes(core(q))).slice(0, 6);
+    if (hits.length){ box.innerHTML = hits.map(resB).join(''); bindRes(); return; }
+    box.innerHTML = `<div class="box warn" style="margin-top:8px"><div class="t">${icon('alert')} Такого блогера нет в базе</div>
+      <div class="d">Сначала добавьте блогера — это одна ссылка на профиль. После сохранения вернётесь сюда, он будет уже выбран.</div>
+      <div class="row"><button class="btn sm pri" id="addB">${icon('plus')}Добавить ${pr && pr.h ? esc(pr.h) : 'блогера'}</button></div></div>`;
+    $('#addB', box).onclick = () => bloggerForm(pr && pr.url ? pr.url : (pr ? pr.h : q), id => { st.b = id; st.q = ''; draw(); });
+    void qq;
+  };
+  const resB = b => `<div class="res" tabindex="0" data-pb="${b.id}">${plb(b.pl)}<div class="g"><div class="a">${esc(b.h)} ${b.stop ? '<span class="tag" style="color:#ff7b72">стоп-лист</span>' : ''}</div>
+    <div class="b">${fmt(b.fol)} подписчиков · ${b._ships.length} ${plural(b._ships.length,'отправка','отправки','отправок')}${promoOf(b) ? ' · ' + esc(promoOf(b)) : ''}</div></div>${grc(b._gr)}</div>`;
+  const bindRes = () => $$('[data-pb]', sh.b).forEach(el => el.onclick = () => { st.b = el.dataset.pb; draw(); });
+  draw();
+  $('#saveShip', sh.f).onclick = async () => {
+    const b = M.b[st.b]; if (!b || !st.items.length) return;
+    const btn = $('#saveShip', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
+    const r = await sendWait({type:'addShip', b:b.id, items:st.items.map(i => ({pid:i.pid, t:(P_BY_ID[i.pid] || {}).t || '', sku:(P_BY_ID[i.pid] || {}).sku || '', size:i.size, q:i.q, cost:pCost(i.pid)})),
+      promised:st.promised, sentNow:st.sentNow, svc:st.svc, track:st.track.replace(/\s/g, ''), ship:+st.cost || 0, date:st.date, land:'product', promo:promoOf(b) ? '' : suggestCode(b.h)});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить отправку'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    sh.close(); await loadAll(); shipDone(r.id);
+  };
+}
+function shipDone(id){
+  const s = M.s[id]; if (!s) return toast('Отправка сохранена');
+  const b = M.b[s.b], code = promoOf(b);
+  const sh = sheet({title:`Отправка ${id} создана`, sub:`${esc(b.h)} · ${s._iter}-я отправка`, body:`
+    <div class="box ok"><div class="t">${icon('check')} Сохранено и записано в журнал</div><div class="d">Себестоимость ${money(s.cogs)}${s.svc ? ` · ${esc(s.svc)}${s.track ? ' ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? ' — стоимость доставки придёт из СДЭК утренним обновлением' : ' · доставка ' + money(s.ship)}` : ' · трек добавите, когда отправите'}.</div></div>
+    ${code && !b.promoOk ? `<div class="box warn" style="margin-top:10px"><div class="t">${icon('tag')} Создайте промокод ${esc(code)} в Тильде</div><div class="d">Настройки сайта → Промокоды, скидка 5 %. Пока кода нет в Тильде, покупатель получит ошибку.</div>
+      <div class="row"><button class="btn sm ok" data-a="codeMade" data-v="${b.id}">Создан в Тильде</button><button class="btn sm" data-a="copyOne" data-v="${esc(code)}">${icon('copy')}Скопировать код</button></div></div>` : ''}
+    <div class="lab" style="margin-top:14px">Сообщение блогеру</div><div class="pre">${esc(briefText(s))}</div>`,
+    foot:`<button class="btn" data-close>Готово</button><button class="btn pri" id="shareB">${icon('msg')}Скопировать сообщение</button>`});
+  $('#shareB', sh.f).onclick = async () => {
+    const t = briefText(M.s[id]);
+    if (navigator.share && matchMedia('(max-width: 899px)').matches){ try { await navigator.share({text:t}); return; } catch(e) {} }
+    copyText(t, 'Сообщение скопировано — вставьте в чат с блогером');
+  };
+}
+/* ---------- трек ---------- */
+function trackForm(id){
+  const s = M.s[id]; const st = {svc:'СДЭК', track:'', cost:'', date:TODAY};
+  const sh = sheet({title:`Трек · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svT" disabled>Сохранить</button>`});
+  const canSave = () => { $('#svT', sh.f).disabled = !deliveryValid(st); };
+  const draw = () => { sh.b.innerHTML = deliveryFields(st); bindDelivery(sh.b, st, draw, canSave); canSave(); };
+  draw();
+  $('#svT', sh.f).onclick = () => {
+    const track = st.track.replace(/\s/g, '');
+    send({type:'setTrack', id:s.id, svc:st.svc, track, ship:+st.cost || 0, date:st.date},
+      () => { s.sent = st.date; s.svc = st.svc; s.track = track; s.ship = st.svc === 'СДЭК' ? 0 : +st.cost; });
+    sh.close(); toast(st.svc === 'СДЭК' ? 'Трек сохранён. Стоимость придёт из СДЭК утренним обновлением' : 'Трек и стоимость сохранены'); };
+}
+
+/* =====================================================================
+   БЛОГЕРЫ
+   ===================================================================== */
+function rBloggers(){
+  const F = [['all','Все'], ['sales','С продажами'], ['nocode','Без промокода'], ['wait','Ждём результат'], ['stop','Стоп-лист']];
+  const q = CUR.bq.trim().toLowerCase();
+  const fl = b => CUR.blF === 'all' ? !b.stop : CUR.blF === 'sales' ? b._rev > 0 : CUR.blF === 'nocode' ? !promoOf(b) && !b.stop : CUR.blF === 'wait' ? b._gr === 'w' : b.stop;
+  let list = S.bl.filter(fl);
+  if (q) list = list.filter(b => (b.h + ' ' + b.raw + ' ' + promoOf(b)).toLowerCase().includes(q));
+  const srt = {rev:(a, b) => b._rev - a._rev || b._views - a._views, new:(a, b) => (b.first || '') < (a.first || '') ? -1 : 1, fol:(a, b) => b.fol - a.fol}[CUR.blSort];
+  list.sort(srt);
+  $('#view').innerHTML = `
+    <div class="row" style="margin-bottom:10px;flex-wrap:nowrap"><div class="search" style="flex:1">${icon('search')}<input class="in" id="bq2" placeholder="Ник или промокод" value="${esc(CUR.bq)}" autocomplete="off"></div>
+      <button class="btn" data-a="addBlogger" style="min-height:48px">${icon('plus')}<span>Блогер</span></button></div>
+    <div class="chips">${F.map(f => `<button class="chip ${CUR.blF === f[0] ? 'on' : ''}" data-a="blF" data-v="${f[0]}">${f[1]} <span class="n">${S.bl.filter(b => { const o = CUR.blF; CUR.blF = f[0]; const r = fl(b); CUR.blF = o; return r; }).length}</span></button>`).join('')}</div>
+    <div class="row" style="margin:6px 0 10px;font-size:13px"><span class="dim">Сортировка:</span>${[['rev','по выручке'], ['new','новые'], ['fol','по подписчикам']].map(s => `<button class="btn link" data-a="blSort" data-v="${s[0]}" style="${CUR.blSort === s[0] ? 'color:var(--tx);font-weight:600' : ''}">${s[1]}</button>`).join('')}</div>
+    <div class="list g2">${list.map(b => `<a class="it" data-a="openBlogger" data-v="${b.id}">
+      <div class="l1"><div class="bava">${esc(core(b.h).slice(0,1).toUpperCase())}</div><div style="min-width:0"><div class="nm">${esc(b.h)}</div>
+        <div class="muted" style="font-size:12.5px;display:flex;gap:6px;align-items:center">${plb(b.pl)} ${fmt(b.fol)} · ${esc(promoOf(b) || 'без промокода')}</div></div>
+        <div class="r">${grc(b._gr)}</div></div>
+      <div class="l3"><span>отправок <b>${b._ships.length}</b></span><span>просмотры <b>${b._views ? fmt(b._views) : '—'}</b></span><span>заказы <b>${b._orders.length}</b></span>
+        <span>выручка <b>${b._rev ? money(b._rev) : '—'}</b></span></div></a>`).join('') || '<div class="empty">Никого</div>'}</div>
+    <div class="dim" style="font-size:12.5px;margin-top:12px">Оценка: <span class="gr gr-A">A</span> окупился · <span class="gr gr-B">B</span> есть публикация или продажи · <span class="gr gr-C">C</span> дедлайн прошёл, пусто · <span class="gr gr-w">…</span> ждём.</div>`;
+  const inp = $('#bq2'); inp.addEventListener('input', () => { CUR.bq = inp.value; const pos = inp.selectionStart; rBloggers(); const n = $('#bq2'); n.focus(); n.setSelectionRange(pos, pos); });
+}
+function openBlogger(id){
+  const b = M.b[id]; if (!b) return;
+  const ships = b._all.slice().sort((x, y) => (y._sent || '') < (x._sent || '') ? -1 : 1).map(shipItem).join('');
+  const ord = b._orders.concat(b._pre).sort((x, y) => x.d < y.d ? 1 : -1).map(o => `<tr><td>${dRu(o.d)} · ${esc(o.items)}${o._pre ? ' <span class="tag">до отправки</span>' : ''}</td><td class="num">${money(o.rev)}</td></tr>`).join('');
+  const codes = b._codes.length ? b._codes.map(c => `<b>${esc(c.c)}</b>${c.st === 'pending' ? ' <span class="tag">ждёт подтверждения</span>' : c.st === 'auto' ? ' <span class="tag">найден в заказах</span>' : ''}`).join(', ') : '<span class="warn">нет</span>';
+  sheet({title:esc(b.h), sub:`${plb(b.pl)} ${esc(b.pl || '')} · ${fmt(b.fol)} подписчиков · ${b.id}${b.stop ? ' · <span class="bad">стоп-лист</span>' : ''}`, wide:true, body:`
+    <div class="kv"><div><div class="l">Отправок</div><div class="v">${b._ships.length}</div></div><div><div class="l">Публикаций</div><div class="v">${b._posts.length}</div></div>
+      <div><div class="l">Просмотров</div><div class="v">${b._views ? fmt(b._views) : '—'}</div></div><div><div class="l">Затраты</div><div class="v sm">${money(b._cost)}</div></div>
+      <div><div class="l">Выручка</div><div class="v sm">${money(b._rev)}</div></div><div><div class="l">Результат</div><div class="v sm ${b._res >= 0 ? 'ok' : 'bad'}">${money(b._res)}</div></div></div>
+    <div class="box" style="margin-top:12px"><div class="d" style="margin:0">Промокод: ${codes}${b.promo && !b.promoOk ? ' — <span class="warn">не создан в Тильде</span>' : ''}<br>
+      Профиль: ${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.url.replace(/^https?:\/\/(www\.)?/, ''))}</a>` : '—'}<br>
+      Оценка: ${grc(b._gr)} ${GR[b._gr]}${b.src ? ' · нашли: ' + esc(b.src) : ''}${b.first ? ' · первый контакт ' + dLong(b.first) : ''}</div></div>
+    ${b._pre.length ? `<div class="box warn" style="margin-top:10px"><div class="t">${icon('alert')} ${b._pre.length} ${plural(b._pre.length,'заказ пришёл','заказа пришли','заказов пришли')} до первой отправки в базе</div><div class="d">На ${money(sum(b._pre, o => o.rev))}. Похоже, сотрудничество было раньше, чем появилась таблица. Чтобы учесть — добавьте прошлую отправку с её датой. Пока в итоги не входят.</div></div>` : ''}
+    <div class="row" style="margin-top:12px">${!b.stop ? `<button class="btn sm pri" data-a="newShipFor" data-v="${b.id}">${icon('plus')}Новая отправка</button>` : ''}
+      ${b.url ? `<a class="btn sm" href="${esc(b.url)}" target="_blank" rel="noopener">${icon('ext')}Открыть профиль</a>` : ''}
+      <button class="btn sm ${b.stop ? '' : 'danger'}" data-a="toggleStop" data-v="${b.id}">${b.stop ? 'Снять стоп' : 'В стоп-лист'}</button></div>
+    <div class="lab" style="margin-top:16px">Отправки</div><div class="list">${ships || '<div class="dim">Пока нет</div>'}</div>
+    ${ord ? `<div class="lab" style="margin-top:16px">Заказы по промокоду</div><div class="tw"><table class="t"><tbody>${ord}</tbody></table></div>` : ''}`});
+}
+/* ---------- форма: новый блогер ---------- */
+function bloggerForm(prefill, onDone){
+  const st = {url:prefill || '', src:'', contact:'', code:'', codeTouched:false, made:false};
+  const sh = sheet({title:'Новый блогер', sub:'Достаточно ссылки на профиль', body:'', foot:`<button class="btn pri" id="svB" disabled>Сохранить блогера</button>`});
+  const draw = () => {
+    const pr = parseProfile(st.url);
+    const ex = pr ? findByHandle(pr.h) : null;
+    if (pr && !st.codeTouched) st.code = suggestCode(pr.h);
+    const codeBad = st.code && !/^[A-Z0-9]{3,20}$/.test(st.code);
+    const codeTaken = st.code && (S.bl.some(b => b.promo === st.code) || (M.links[st.code] && M.links[st.code].b));
+    let prev = '';
+    if (st.url && !pr) prev = `<div class="box warn"><div class="d" style="margin:0">Не узнаю ссылку. Подойдёт ссылка на профиль TikTok, Instagram, YouTube, VK или Telegram — или просто ник.</div></div>`;
+    else if (ex) prev = `<div class="box bad"><div class="t">${icon('alert')} ${esc(ex.h)} уже есть в базе</div><div class="d">${ex.id} · ${ex._ships.length} ${plural(ex._ships.length,'отправка','отправки','отправок')}. Второй раз заводить не нужно — иначе результаты блогера разъедутся на две карточки.</div>
+      <div class="row">${onDone ? `<button class="btn sm pri" id="useEx">Выбрать ${esc(ex.h)}</button>` : ''}<button class="btn sm" data-a="openBlogger" data-v="${ex.id}">Открыть карточку</button></div></div>`;
+    else if (pr) prev = `<div class="sel">${pr.pl ? plb(pr.pl) : ''}<div class="g"><b>${esc(pr.h)}</b><div class="muted" style="font-size:12.5px">${pr.pl || 'площадка — уточните ссылкой'} · подписчиков подтянет парсер</div></div>${icon('check')}</div>`;
+    sh.b.innerHTML = `
+      <div class="fld"><label>Ссылка на профиль</label><div class="inb"><input class="in" id="u" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="tiktok.com/@ник или instagram.com/ник" value="${esc(st.url)}">
+        <button class="ib" id="uP" title="Вставить">${icon('paste')}</button></div><div class="hint">Ник, площадку и id система возьмёт из ссылки. Подписчиков и аватар — парсер.</div></div>
+      <div style="margin:-6px 0 16px">${prev}</div>
+      ${pr && !ex ? `
+      <div class="fld"><label>Промокод</label><input class="in" id="code" autocapitalize="characters" value="${esc(st.code)}">
+        ${codeBad ? '<div class="hint bad">Только латиница и цифры, 3–20 знаков — кириллицу с английской раскладки не ввести.</div>' : codeTaken ? '<div class="hint bad">Такой код уже занят.</div>' : '<div class="hint">Предложен по нику. Скидка 5 %, как у остальных.</div>'}
+        <div class="toggle ${st.made ? 'on' : ''}" id="made" style="margin-top:8px"><div class="g"><b>Уже создан в Тильде</b><div class="dim" style="font-size:12.5px">Если нет — появится задача-напоминание</div></div><div class="sw2"></div></div></div>
+      <div class="fld"><label>Как нашли <span class="dim">— по желанию</span></label><div class="chips wrap">${['Сам нашёл','Рекомендация','Написал сам','Биржа'].map(x => `<button class="chip ${st.src === x ? 'on' : ''}" data-src="${x}">${x}</button>`).join('')}</div></div>
+      <div class="fld"><label>Контакт <span class="dim">— по желанию</span></label><input class="in" id="ct" placeholder="@ник в Telegram" value="${esc(st.contact)}"></div>` : ''}`;
+    $('#svB', sh.f).disabled = !(pr && !ex && !codeBad && !codeTaken);
+    const u = $('#u', sh.b); u.addEventListener('input', () => { st.url = u.value; const pos = u.selectionStart; draw(); const n = $('#u', sh.b); n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} });
+    $('#uP', sh.b).onclick = () => pasteInto(u);
+    const useEx = $('#useEx', sh.b); if (useEx) useEx.onclick = () => { sh.close(); onDone(ex.id); };
+    const code = $('#code', sh.b); if (code) code.addEventListener('change', () => { st.code = code.value.toUpperCase().trim(); st.codeTouched = true; draw(); });
+    const made = $('#made', sh.b); if (made) made.onclick = () => { st.made = !st.made; draw(); };
+    $$('[data-src]', sh.b).forEach(el => el.onclick = () => { st.src = st.src === el.dataset.src ? '' : el.dataset.src; draw(); });
+    const ct = $('#ct', sh.b); if (ct) ct.oninput = () => st.contact = ct.value;
+  };
+  draw();
+  if (!prefill) setTimeout(() => { const u = $('#u', sh.b); if (u && matchMedia('(min-width: 900px)').matches) u.focus(); }, 60);
+  $('#svB', sh.f).onclick = async () => {
+    const c = $('#code', sh.b); if (c){ st.code = c.value.toUpperCase().trim(); }
+    const pr = parseProfile(st.url); if (!pr || findByHandle(pr.h)) return;
+    const btn = $('#svB', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
+    const r = await sendWait({type:'addBlogger', h:pr.h, pl:pr.pl || 'Instagram', url:pr.url, promo:st.code, promoOk:st.made, src:st.src.toLowerCase(), contact:st.contact});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить блогера'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    sh.close(); await loadAll(); toast(`${esc(pr.h)} в базе`);
+    if (onDone) onDone(r.id);
+  };
+}
+
+/* =====================================================================
+   ПУБЛИКАЦИИ
+   ===================================================================== */
+function rPosts(){
+  const list = S.po.slice().sort((a, b) => (b.d || '') < (a.d || '') ? -1 : 1);
+  const measured = list.filter(p => p._measured).length;
+  $('#view').innerHTML = `
+    <div class="row" style="margin-bottom:12px"><button class="btn pri" data-a="addPost">${icon('plus')}Публикация по ссылке</button></div>
+    <div class="box info" style="margin-bottom:12px"><div class="t">${icon('bot')} Замеры снимает парсер</div><div class="d">Просмотры снимает парсер: в отчёт идут D+7 и D+30 — ближайший замер к этим дням. Замер есть у <b>${measured} из ${list.length}</b> публикаций. Руками — только сторис и закрытые аккаунты: одна цифра со скрина.</div></div>
+    <div class="list g2">${list.map(p => { const b = M.b[p.b], s = M.s[p.s];
+      const w7 = p._age != null && p._age >= 7, w30 = p._age != null && p._age >= 30;
+      return `<a class="it" data-a="openPost" data-v="${p.id}">
+        <div class="l1">${b ? plb(b.pl) : ''}<span class="nm">${esc(b ? b.h : '')}</span><div class="r"><span class="tag">${esc(p.fmt)}</span></div></div>
+        <div class="l3"><span>${p.id} · ${dRu(p.d)} · ${s ? s.id : '—'}</span><span>просмотры <b>${p._measured ? fmt(p._views) : '—'}</b></span></div>
+        <div class="dl">D+7 (${dRu(addDays(p.d, 7))}): ${w7 ? (p._measured ? '<span class="ok">снят</span>' : '<span class="bad">не снят</span>') : 'ещё рано'} · D+30 (${dRu(addDays(p.d, 30))}): ${w30 ? '—' : 'снимет парсер'}</div>
+        <div class="dl">${p.link ? '<span class="ok">✓</span>' : '<span class="dim">✕</span>'} ссылка · ${p.code ? '<span class="ok">✓</span>' : '<span class="dim">✕</span>'} промокод · ${p.tag ? '<span class="ok">✓</span>' : '<span class="dim">✕</span>'} отметка @b1adnes</div></a>`; }).join('')}</div>`;
+}
+function openPost(id){
+  const p = M.p[id]; if (!p) return; const b = M.b[p.b], s = M.s[p.s];
+  const rows = p._ms.map(x => `<tr><td>${dRu(x.d)} · день ${diffDays(p.d, x.d)}</td><td class="num">${fmt(x.v)}</td><td class="num">${x.l != null ? fmt(x.l) : '—'}</td><td class="num">${x.c != null ? fmt(x.c) : '—'}</td></tr>`).join('');
+  sheet({title:`${esc(p.fmt)} · ${esc(b ? b.h : '')}`, sub:`${p.id} · вышло ${dLong(p.d)} · отправка ${s ? s.id : '—'}`, body:`
+    <div class="copy"><div class="v">${esc(p.url)}</div><a class="ib" href="${esc(p.url)}" target="_blank" rel="noopener" title="Открыть">${icon('ext')}</a></div>
+    <div class="lab" style="margin-top:14px">Замеры</div>
+    ${rows ? `<div class="tw"><table class="t"><thead><tr><th>Когда</th><th>Просмотры</th><th>Лайки</th><th>Комм.</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="dim" style="font-size:13.5px">Замеров нет.</div>'}
+    <div class="box info" style="margin-top:10px"><div class="d" style="margin:0">D+7 — ${dLong(addDays(p.d, 7))}, D+30 — ${dLong(addDays(p.d, 30))}. В рабочей версии парсер снимает цифры каждый день сам, и здесь будет кривая просмотров.</div></div>
+    <div class="lab" style="margin-top:14px">Проверки</div>
+    <div class="dim" style="font-size:13.5px">${p.link ? '✓' : '✕'} ссылка на сайт · ${p.code ? '✓' : '✕'} промокод назван · ${p.tag ? '✓' : '✕'} отметка @b1adnes<br>Парсер проверит описание ролика сам: промокод и @b1adnes видно в тексте.</div>
+    <div class="row" style="margin-top:14px"><button class="btn sm" data-a="measure" data-v="${p.id}">${icon('eye')}Внести просмотры вручную</button>
+      ${s ? `<button class="btn sm" data-a="openShip" data-v="${s.id}">${icon('box')}Отправка ${s.id}</button>` : ''}</div>`});
+}
+function postForm(shipId){
+  const st = {url:'', s:shipId || '', fmt:'', date:TODAY, views:''};
+  const sh = sheet({title:'Новая публикация', sub:'Вставьте ссылку — остальное определится', body:'', foot:`<button class="btn pri" id="svP" disabled>Сохранить</button>`});
+  const draw = () => {
+    const pp = parsePost(st.url);
+    let hb = null;
+    if (pp && pp.h) hb = findByHandle(pp.h);
+    if (hb && !st.s){ const c = hb._ships.filter(x => x._st !== 'refused').sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1)[0]; if (c) st.s = c.id; }
+    if (pp && pp.fmt && !st.fmtT) st.fmt = pp.fmt;
+    const dup = st.url && S.po.find(p => p.url && st.url.split('?')[0] === p.url);
+    const cand = S.sh.filter(s => !s.refused && s.b).sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1);
+    const sel = st.s ? M.s[st.s] : null;
+    sh.b.innerHTML = `
+      <div class="fld"><label>Ссылка на публикацию</label><div class="inb"><input class="in" id="u" inputmode="url" autocapitalize="off" placeholder="https://www.tiktok.com/@ник/video/…" value="${esc(st.url)}"><button class="ib" id="uP">${icon('paste')}</button></div>
+        ${dup ? `<div class="box bad" style="margin-top:8px"><div class="t">${icon('alert')} Уже есть: ${dup.id}</div><div class="d">Эта ссылка записана ${dLong(dup.d)}. Второй раз добавлять не нужно.</div></div>` : ''}
+        ${pp && pp.h && !hb ? `<div class="box warn" style="margin-top:8px"><div class="d" style="margin:0">${esc(pp.h)} нет в базе — сначала добавьте блогера и отправку.</div></div>` : ''}</div>
+      <div class="fld"><label>По какой отправке</label>
+        ${sel ? `<div class="sel">${M.b[sel.b] ? plb(M.b[sel.b].pl) : ''}<div class="g"><b>${esc(bh(sel.b))} · ${sel.id}</b><div class="muted" style="font-size:12.5px">${ST[sel._st]} · ${sel.items.map(i => (P_BY_ID[i.pid] || {}).t || i.sku).join(', ')}</div></div><button class="btn link" id="chS">Сменить</button></div>`
+          : `<select class="in" id="ss"><option value="">Выберите отправку</option>${cand.map(s => `<option value="${s.id}">${esc(bh(s.b))} · ${s.id} · ${ST[s._st]}</option>`).join('')}</select>`}</div>
+      <div class="fld"><label>Формат</label><div class="chips wrap">${['TikTok видео','Reels','Stories','Пост','YouTube Shorts'].map(x => `<button class="chip ${st.fmt === x ? 'on' : ''}" data-f="${x}">${x}</button>`).join('')}</div></div>
+      <div class="fld"><label>Когда вышла</label><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
+        <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div><div class="hint">Для TikTok и Reels парсер уточнит дату сам.</div></div>
+      ${st.fmt === 'Stories' ? `<div class="fld"><label>Просмотры со скрина статистики</label><input class="in" id="vw" inputmode="numeric" placeholder="например, 1 450" value="${esc(st.views)}"><div class="hint">Сторис парсер не видит: они исчезают через сутки, а просмотры видит только автор.</div>
+        <label class="btn sm" style="margin-top:8px">${icon('paste')}Прикрепить скрин<input type="file" accept="image/*" hidden></label></div>` : ''}`;
+    $('#svP', sh.f).disabled = !(st.url && st.s && st.fmt && !dup);
+    const u = $('#u', sh.b); u.addEventListener('input', () => { st.url = u.value.trim(); const pos = u.selectionStart; draw(); const n = $('#u', sh.b); n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} });
+    $('#uP', sh.b).onclick = () => pasteInto(u);
+    const ss = $('#ss', sh.b); if (ss) ss.onchange = () => { st.s = ss.value; draw(); };
+    const chS = $('#chS', sh.b); if (chS) chS.onclick = () => { st.s = ''; draw(); };
+    $$('[data-f]', sh.b).forEach(el => el.onclick = () => { st.fmt = el.dataset.f; st.fmtT = true; draw(); });
+    $$('[data-dt]', sh.b).forEach(el => el.onclick = () => { st.date = el.dataset.dt; draw(); });
+    $('#dtx', sh.b).onchange = e => { if (e.target.value){ st.date = e.target.value > TODAY ? TODAY : e.target.value; draw(); } };
+    const vw = $('#vw', sh.b); if (vw) vw.oninput = () => st.views = vw.value.replace(/[^\d]/g, '');
+  };
+  draw();
+  $('#svP', sh.f).onclick = async () => {
+    const s = M.s[st.s], b = M.b[s.b];
+    const btn = $('#svP', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
+    const r = await sendWait({type:'addPost', s:s.id, url:st.url.split('?')[0], fmt:st.fmt, d:st.date, pl:b.pl, views:st.fmt === 'Stories' ? +st.views || 0 : 0});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    sh.close(); await loadAll(); toast('Публикация добавлена, отправка → «Вышло»');
+  };
+}
+function measureForm(pid){
+  const p = M.p[pid]; const st = {v:''};
+  const sh = sheet({title:`Просмотры · ${p.id}`, sub:`${esc(bh(p.b))} · ${esc(p.fmt)} · день ${diffDays(p.d, TODAY)}`, body:`
+    <div class="fld"><label>Просмотры</label><input class="in" id="v" inputmode="numeric" placeholder="со скрина статистики"></div>
+    <label class="btn sm">${icon('paste')}Прикрепить скрин<input type="file" accept="image/*" hidden></label>
+    <div class="hint" style="margin-top:10px">Для TikTok и Reels вводить не нужно — это на случай закрытого аккаунта или сторис.</div>`,
+    foot:`<button class="btn pri" id="svM">Сохранить</button>`});
+  $('#v', sh.b).oninput = e => st.v = e.target.value.replace(/[^\d]/g, '');
+  $('#svM', sh.f).onclick = () => { if (!st.v) return;
+    send({type:'addMeasure', p:p.id, v:+st.v}, () => S.ms.push({p:p.id, d:TODAY, v:+st.v, src:'вручную'})); sh.close(); toast('Замер сохранён'); };
+}
+
+/* =====================================================================
+   ИТОГИ
+   ===================================================================== */
+function stats(period){
+  const inP = d => d && (period === 'all' || d.startsWith(period));
+  const ss = S.sh.filter(s => !s.refused && s.b && inP(s._sent));
+  const direct = sum(ss, s => s._cost);
+  const months = period === 'all' ? M.months : [period];
+  const fot = sum(months, fotFor);
+  const cost = direct + fot;
+  const posts = S.po.filter(p => inP(p.d));
+  const views = sum(posts, p => p._views);
+  const ords = M.orders.filter(o => o._b && !o._pre && inP(o.d));
+  const rev = sum(ords, o => o.rev), margin = sum(ords, o => o.margin), disc = sum(ords, o => o.disc);
+  const posted = ss.filter(s => s._posts.length);
+  const withSales = ss.filter(s => s._orders.length);
+  const stuck = ss.filter(s => s._st === 'overdue');
+  const days = posted.filter(s => s._days != null && s._days >= 0);
+  return {ss, direct, fot, cost, posts, views, ords, rev, margin, disc, posted, withSales, stuck, months,
+    res:margin - cost, resDirect:margin - direct, romi:cost ? (margin - cost) / cost : null, cpm:views ? cost / views * 1000 : null,
+    media:views / 1000 * S.cfg.cpm, postRate:ss.length ? posted.length / ss.length : null, avgDays:days.length ? sum(days, s => s._days) / days.length : null,
+    measured:posts.filter(p => p._measured).length};
+}
+function rStats(){
+  const P = CUR.period, st = stats(P);
+  const pch = [['all','Всё время']].concat(M.months.slice().reverse().map(m => [m, MON_N[+m.slice(5) - 1]]));
+  const pend = Object.entries(M.links).filter(([c, l]) => l.st === 'pending');
+  const pendRev = sum(M.orders.filter(o => o._pending && !o._pre && (P === 'all' || o.d.startsWith(P))), o => o.rev);
+  const bl = S.bl.filter(b => b._ships.length).map(b => {
+    const sp = b._ships.filter(s => P === 'all' || (s._sent || '').startsWith(P));
+    return {b, n:sp.length, posts:sum(sp, s => s._posts.length), views:sum(sp, s => s._views), cost:sum(sp, s => s._cost),
+      ords:b._orders.filter(o => P === 'all' || o.d.startsWith(P)), };
+  }).map(x => Object.assign(x, {rev:sum(x.ords, o => o.rev), margin:sum(x.ords, o => o.margin)})).filter(x => x.n || x.ords.length)
+    .sort((a, b) => b.rev - a.rev || b.views - a.views || b.cost - a.cost);
+  const plats = ['TikTok','Instagram'].map(pl => { const ss = st.ss.filter(s => M.b[s.b] && M.b[s.b].pl === pl);
+    const o = st.ords.filter(x => M.b[x._b] && M.b[x._b].pl === pl);
+    return {pl, n:ss.length, posted:ss.filter(s => s._posts.length).length, views:sum(ss, s => s._views), cost:sum(ss, s => s._cost), rev:sum(o, x => x.rev), margin:sum(o, x => x.margin)}; });
+  const heroCls = st.res >= 0 ? 'ok' : 'bad';
+  $('#view').innerHTML = `
+    <div class="chips">${pch.map(c => `<button class="chip ${P === c[0] ? 'on' : ''}" data-a="period" data-v="${c[0]}">${c[1]}</button>`).join('')}</div>
+    <div class="hero" style="margin-top:12px"><div class="l">Результат отдела ${P === 'all' ? 'за всё время' : 'за ' + MON_N[+P.slice(5) - 1].toLowerCase()}</div>
+      <div class="v ${heroCls}">${money(st.res)}</div>
+      <div class="d">Маржа с заказов по промокодам блогеров <b style="color:var(--tx)">${money(st.margin)}</b> минус все расходы отдела <b style="color:var(--tx)">${money(st.cost)}</b> (товар и доставка ${money(st.direct)}, ФОТ ${money(st.fot)}).
+        Без ФОТ: <b class="${st.resDirect >= 0 ? 'ok' : 'bad'}">${money(st.resDirect)}</b>.${EXT ? '' : ' <span class="warn">Заказы ещё загружаются.</span>'}</div></div>
+    <div class="kpis" style="margin-top:12px">
+      <div class="kpi"><div class="l">Выручка по промокодам</div><div class="v">${kilo(st.rev)}</div><div class="d">${st.ords.length} ${plural(st.ords.length,'заказ','заказа','заказов')}, скидок ${money(st.disc)}</div></div>
+      <div class="kpi"><div class="l">ROMI</div><div class="v ${st.romi != null && st.romi >= 0 ? 'ok' : 'bad'}">${st.romi == null ? '—' : Math.round(st.romi * 100) + ' %'}</div><div class="d">(маржа − расходы) ÷ расходы</div></div>
+      <div class="kpi"><div class="l">Отправок</div><div class="v">${st.ss.length}</div><div class="d">вышло ${st.posted.length} · post rate ${st.postRate == null ? '—' : Math.round(st.postRate * 100) + ' %'}</div></div>
+      <div class="kpi"><div class="l">Срок до публикации</div><div class="v">${st.avgDays == null ? '—' : Math.round(st.avgDays) + ' дн.'}</div><div class="d">от отправки до первого поста</div></div>
+      <div class="kpi"><div class="l">Просмотров</div><div class="v">${st.views ? fmt(st.views) : '—'}</div><div class="d">замер есть у ${st.measured} из ${st.posts.length} публикаций</div></div>
+      <div class="kpi"><div class="l">CPM бартера</div><div class="v">${st.cpm == null ? '—' : fmt(st.cpm) + ' ₽'}</div><div class="d">эталон закупки — ${fmt(S.cfg.cpm)} ₽</div></div>
+      <div class="kpi"><div class="l">Медийная ценность</div><div class="v">${money(st.media)}</div><div class="d">столько стоил бы этот охват за деньги</div></div>
+      <div class="kpi"><div class="l">Зависло в посылках</div><div class="v ${st.stuck.length ? 'bad' : ''}">${money(sum(st.stuck, s => s._cost))}</div><div class="d">${st.stuck.length} ${plural(st.stuck.length,'просрочка','просрочки','просрочек')} без публикации</div></div>
+    </div>
+    <div class="cols" style="margin-top:4px">
+      <div>
+        <div class="sec"><h2>По месяцам</h2></div>
+        <div class="card chart"><div class="legend"><span><i style="background:var(--s2)"></i>Расходы отдела</span><span><i style="background:var(--s1)"></i>Маржа с продаж</span></div><div id="chM"></div>
+          <div class="dim" style="font-size:12px;margin-top:6px">Расходы — по дате отправки (товар, доставка) плюс ФОТ месяца; маржа — по дате заказа.</div></div>
+        <div class="sec"><h2>Блогеры</h2><span class="r dim">${bl.length}</span></div>
+        <div class="card"><div class="tw"><table class="t"><thead><tr><th>Блогер</th><th class="hm">Отпр.</th><th class="hm">Просм.</th><th class="hm">Затраты</th><th class="hm">Заказы</th><th>Выручка</th><th>Результат</th></tr></thead>
+          <tbody>${bl.map(x => { const r = x.margin - x.cost; return `<tr class="clk" data-a="openBlogger" data-v="${x.b.id}"><td style="overflow-wrap:anywhere">${plb(x.b.pl)} ${esc(x.b.h)} ${grc(x.b._gr)}</td><td class="num hm">${x.n}</td><td class="num hm">${x.views ? fmt(x.views) : '—'}</td>
+            <td class="num hm">${fmt(x.cost)}</td><td class="num hm">${x.ords.length || '—'}</td><td class="num">${x.rev ? fmt(x.rev) : '—'}</td><td class="num ${r >= 0 ? 'ok' : 'bad'}">${money(r)}</td></tr>`; }).join('')}</tbody></table></div>
+          <div class="dim" style="font-size:12px;margin-top:8px">Результат блогера — без ФОТ: маржа с его заказов минус товар и доставка его посылок. Нажмите на строку — карточка блогера.</div></div>
+      </div>
+      <div>
+        <div class="sec"><h2>Воронка</h2></div>
+        <div class="card"><div class="fun" id="fun"></div></div>
+        <div class="sec"><h2>Площадки</h2></div>
+        <div class="card"><div class="tw"><table class="t"><thead><tr><th>Площадка</th><th class="hm">Отпр.</th><th class="hm">Вышло</th><th>Затраты</th><th>Выручка</th><th>Результат</th></tr></thead>
+          <tbody>${plats.map(x => `<tr><td>${plb(x.pl)} ${x.pl}</td><td class="num hm">${x.n}</td><td class="num hm">${x.posted}</td><td class="num">${fmt(x.cost)}</td><td class="num">${x.rev ? fmt(x.rev) : '—'}</td><td class="num ${x.margin - x.cost >= 0 ? 'ok' : 'bad'}">${money(x.margin - x.cost)}</td></tr>`).join('')}</tbody></table></div></div>
+        <div class="sec"><h2>Можно ли верить цифрам</h2></div>
+        <div class="card">
+          <div class="q"><span class="m">${st.measured === st.posts.length ? '✓' : '<span class="bad">!</span>'}</span><div>Замер просмотров есть у <b>${st.measured} из ${st.posts.length}</b> публикаций — CPM и медийная ценность занижены. Парсер закроет это полностью.</div></div>
+          <div class="q"><span class="m">${M.fotEarlier.length ? '<span class="warn">?</span>' : '✓'}</span><div>${M.fotFrom ? `ФОТ ${money(S.cfg.fotRate)} в месяц считается с <b>${monGen(M.fotFrom)}</b> — месяца первой отправки (${M.fotFirst.id}, ${dLong(M.fotFirst.sent)}).` : 'ФОТ начнёт считаться с первой отправки.'}
+            ${M.fotEarlier.length ? `Раньше стоят отправки с датой под вопросом (${M.fotEarlier.map(s => s.id + ' — ' + dRu(s.sent)).join(', ')}): если подтвердить их даты, учёт начнётся с ${monGen(M.fotEarlier[0].sent.slice(0,7))}. <a href="#today">Проверить даты</a>` : ''}</div></div>
+          <div class="q"><span class="m">${pend.length ? '<span class="warn">?</span>' : '✓'}</span><div>${pend.length ? `${pend.map(x => x[0]).join(', ')} — промокоды ждут подтверждения, в итогах ${S.cfg.usePending ? 'учтены' : 'не учтены'} (${money(pendRev)}). <a href="#today">Подтвердить</a>` : 'Все промокоды подтверждены.'}</div></div>
+          <div class="q"><span class="m">${st.ss.some(s => s._st === 'transit' || s._st === 'delivered' || s._st === 'agreed') ? '<span class="warn">…</span>' : '✓'}</span><div>${st.ss.filter(s => ['transit','delivered','agreed'].includes(s._st)).length} отправок ещё в работе: их публикации и продажи впереди. Месяц можно считать закрытым примерно через 45 дней после его конца.</div></div>
+          <div class="q"><span class="m">i</span><div>Продажи — заказы на сайте с персональным промокодом блогера после даты отправки. Заказы по UTM-ссылке (номер отправки в utm_term) добавятся, как только блогеры начнут давать новые ссылки.</div></div>
+        </div>
+      </div>
+    </div>`;
+  drawMonths(); drawFunnel(st);
+}
+function drawMonths(){
+  const mm = M.months.filter(m => m >= '2026-07');
+  const data = mm.map(m => { const s = stats(m); return {m, cost:s.cost, margin:s.margin, direct:s.direct, fot:s.fot, rev:s.rev, n:s.ords.length}; });
+  const W = Math.max(280, Math.min(640, $('#chM').clientWidth || 560)), H = 220, pl = 40, pr = 6, pt = 12, pb = 26;
+  const mx = Math.max(1, ...data.map(d => Math.max(d.cost, d.margin)));
+  const step = mx > 100000 ? 50000 : mx > 40000 ? 20000 : 10000;
+  const top = Math.ceil(mx / step) * step;
+  const y = v => pt + (H - pt - pb) * (1 - v / top);
+  const bw = 24, gw = (W - pl - pr) / data.length;
+  let g = '';
+  for (let v = 0; v <= top; v += step) g += `<line class="gl" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v ? (v / 1000) + 'k' : 0}</text>`;
+  const bar = (x, v, c) => { const h = Math.max(0, y(0) - y(v)), r = Math.min(4, h); if (h <= 0) return '';
+    return `<path d="M${x},${y(0)} v${-(h - r)} q0,${-r} ${r},${-r} h${bw - 2 * r} q${r},0 ${r},${r} v${h - r} z" fill="${c}"/>`; };
+  data.forEach((d, i) => {
+    const cx = pl + gw * i + gw / 2;
+    g += bar(cx - bw - 1, d.cost, 'var(--s2)') + bar(cx + 1, d.margin, 'var(--s1)');
+    g += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${MON_N[+d.m.slice(5) - 1]}</text>`;
+    g += `<rect class="hit" x="${cx - gw / 2}" y="${pt}" width="${gw}" height="${H - pt - pb}" data-tip="${esc(`<b>${MON_N[+d.m.slice(5) - 1]}</b><br>Расходы: ${money(d.cost)}<br>&nbsp;товар и доставка ${money(d.direct)}<br>&nbsp;ФОТ ${money(d.fot)}<br>Маржа с продаж: ${money(d.margin)}<br>Выручка: ${money(d.rev)} · ${d.n} зак.`)}"/>`;
+  });
+  $('#chM').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Расходы и маржа по месяцам">${g}</svg>`;
+  bindTips($('#chM'));
+}
+function drawFunnel(st){
+  const steps = [['Отправлено', st.ss.length], ['Вышла публикация', st.posted.length], ['Принесли заказы', st.withSales.length]];
+  const mx = Math.max(1, steps[0][1]);
+  $('#fun').innerHTML = steps.map((s, i) => `<div class="fr"><div class="lb"><span>${s[0]}</span><b class="num">${s[1]}${i ? ` <span class="dim" style="font-weight:400">· ${pct(s[1], steps[0][1])}</span>` : ''}</b></div>
+    <div class="trk"><div class="bar" style="width:${s[1] / mx * 100}%"></div></div></div>`).join('') +
+    `<div class="dim" style="font-size:12px">${st.ss.length - st.posted.length} посылок без публикации, из них просрочено ${st.stuck.length}.</div>`;
+}
+function bindTips(root){
+  const tip = $('#tip');
+  $$('[data-tip]', root).forEach(el => {
+    const show = e => { tip.innerHTML = el.dataset.tip; tip.style.display = 'block';
+      const x = (e.touches ? e.touches[0].clientX : e.clientX), yy = (e.touches ? e.touches[0].clientY : e.clientY);
+      const w = tip.offsetWidth; tip.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x + 12)) + 'px'; tip.style.top = (yy - tip.offsetHeight - 12) + 'px'; };
+    el.addEventListener('mousemove', show); el.addEventListener('mouseleave', () => tip.style.display = 'none');
+    el.addEventListener('touchstart', show, {passive:true}); el.addEventListener('touchend', () => setTimeout(() => tip.style.display = 'none', 1800));
+  });
+}
+
+/* =====================================================================
+   КАК УСТРОЕНО — план для Степана
+   ===================================================================== */
+function rHow(){
+  $('#view').innerHTML = `<div class="doc">
+    <div class="draft"><b>Как это работает.</b> Схема, что вводит Матвей и что делает система, откуда берутся цифры.</div>
+    <h3>Схема</h3>
+    <div class="flow">
+      <div class="fcol">
+        <div class="fb"><b>Каталог Тильды</b>товары с фото — Матвей выбирает, а не пишет артикул</div>
+        <div class="fb"><b>Справочник себестоимости</b>тот же, что у дашборда продаж (102 артикула)</div>
+        <div class="fb"><b>Архив заказов</b>промокоды и UTM каждого заказа — продажи блогеров считаются сами</div>
+        <div class="fb"><b>API СДЭК</b>по треку: дата отправки, вручения, стоимость, статус</div>
+        <div class="fb"><b>Apify</b>TikTok и Reels: новые ролики у блогеров, просмотры каждый день</div>
+      </div>
+      <div class="farr"><span class="v">↓</span><span class="h">→</span></div>
+      <div class="fcol">
+        <div class="fb core"><b>Скрипт на stepan.wb</b>Google Apps Script: принимает действия из интерфейса, проверяет их, пишет в базу. Каждое утро в 09:00 — парсер, СДЭК, новые заказы</div>
+        <div class="fb core"><b>Закрытая база</b>Google-таблица «Бартер — база». Пишет только скрипт, ссылки ни у кого нет — сломать некому. Ежедневная копия</div>
+      </div>
+      <div class="farr"><span class="v">↓</span><span class="h">→</span></div>
+      <div class="fcol">
+        <div class="fb ui"><b>Этот интерфейс</b>на GitHub Pages рядом с дашбордами: телефон Матвея и компьютер Степана</div>
+        <div class="fb"><b>Журнал UTM</b>ссылка для блогера пишется туда же, где ссылки генератора</div>
+        <div class="fb"><b>Дашборд блогеров</b>видит эти ссылки и промокоды без правок</div>
+      </div>
+    </div>
+
+    <h3>Что вводит Матвей — и что больше не нужно</h3>
+    <div class="card"><div class="tw"><table class="t cmp"><thead><tr><th>Действие</th><th>Было в таблице</th><th>Стало</th></tr></thead><tbody>
+      <tr><td>Новый блогер</td><td class="was">13 колонок: id, ник, площадка, ссылка, подписчики, тематика, аудитория, источник, промокод, контакт, статус, дата, комментарий</td><td>Вставить ссылку на профиль. Ник, площадка, id, дата, подписчики, промокод — сами. Дубль не даст завести</td></tr>
+      <tr><td>Отправка</td><td class="was">16 колонок: id, blogger_id, даты, SKU ×2, количество, себестоимость, доставка, доплата, промокод, UTM…</td><td>Выбрать блогера (нет в базе — сначала добавить) и товар по фото, размер. Остальное — само, плюс готовое сообщение блогеру</td></tr>
+      <tr><td>Трек и доставка</td><td class="was">дата отправки, дата доставки, стоимость, статус — руками</td><td>Вставить трек СДЭК — стоимость доставки, даты и статус придут из API. Не СДЭК (крайний случай) — способ, стоимость и кнопка «Блогер получил»</td></tr>
+      <tr><td>Публикация</td><td class="was">10 колонок и три галочки</td><td>Парсер находит сам — подтвердить. Вручную — вставить ссылку, блогер и отправка определятся</td></tr>
+      <tr><td>Замеры</td><td class="was">по 2 строки на публикацию, окна 5–14 и 25–45 дней, 11 колонок</td><td>Парсер каждый день. Руками — только сторис: одна цифра со скрина</td></tr>
+      <tr><td>Продажи</td><td class="was">выгрузка из Тильды раз в неделю (не делалась ни разу)</td><td>Из архива заказов автоматически, по промокоду и UTM</td></tr>
+      <tr><td>Статусы</td><td class="was">выбирать из списка в каждой строке</td><td>Сами: по треку, публикации и дедлайну. Руками — только «отказ»</td></tr>
+      <tr><td>Расходы</td><td class="was">каждый месяц: ФОТ, сервисы, выручка компании</td><td>ФОТ — одна ставка (70 000 ₽), считается сама помесячно с месяца первой отправки. Меняется, только если меняется зарплата. Выручка компании — из архива</td></tr>
+    </tbody></table></div>
+    <p style="margin:10px 0 0">Итог: вместо ~60 полей на 7 листах — три действия с телефона. Добавить блогера, добавить отправку, вставить трек. Всё остальное — подтвердить одним нажатием.</p></div>
+
+    <h3>Парсер (Apify)</h3>
+    <ul>
+      <li><b>Поиск публикаций.</b> Каждое утро парсер смотрит профили блогеров, у которых есть отправка без публикации, и берёт ролики за последние двое суток. Если в описании есть @b1adnes, «bladnes» или промокод блогера — на странице «Сегодня» появляется «Похоже, вышла публикация — это по S0030?».</li>
+      <li><b>Замеры.</b> Все публикации младше 45 дней — ежедневно: просмотры, лайки, комментарии, сохранения. В отчёт идут D+7 и D+30 — ближайший замер к этим дням. Окно «опоздал — потерял навсегда» исчезает.</li>
+      <li><b>Проверки.</b> Промокод и отметку @b1adnes видно в описании — галочки ставит парсер. Кликабельная ссылка в сторис — только со скрина.</li>
+      <li><b>Подписчики</b> обновляются раз в неделю — видно рост блогера.</li>
+      <li><b>Что не парсится:</b> сторис (живут сутки, просмотры видит только автор) и закрытые аккаунты. Для них — ручной ввод одной цифры и скрин.</li>
+      <li><b>Подключение — API-ключом, а не MCP-коннектором.</b> Утренний прогон делает сам скрипт на серверах Google, без Claude: не тратит лимиты и не зависит от того, открыт ли чат. Ключ лежит в свойствах скрипта, в публичную страницу не попадает. MCP-коннектор можно добавить позже — для разовых задач вроде «найди похожих блогеров».</li>
+      <li><b>Тестовый прогон 22.09.</b> Замеры 6 роликов из таблицы — 73 297 просмотров вместо 7 985 в таблице. Поиск в профилях 21 блогера — 5 публикаций, которых в таблице нет, в том числе ролик @falling_head_down на 22 300 просмотров с неизвестным промокодом SHAKATAKA. Плюс: P0004 и P0007 — один и тот же ролик, профиль @pufasan не существует, @koshkaxjena не публикуется с 15 июня. Списано $0,40.</li>
+      <li><b>Стоимость:</b> около $0,003 за ролик. Чтобы уложиться в бесплатные $5 в месяц: профили с активной отправкой проверяем раз в два дня по 3 последних ролика, замеры — на 1, 3, 7, 14 и 30-й день. Ориентир — $3–4 в месяц при 20 активных отправках. Если отправок станет вдвое больше — либо реже проверки, либо платный тариф.</li>
+    </ul>
+
+    <h3>Доставка до блогера</h3>
+    <ul>
+      <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
+      <li><b>Правило: блогерам — только СДЭК.</b> Матвей вставляет трек из накладной (10 цифр), больше ничего. Скрипт раз в день спрашивает СДЭК по договору магазина (IM-SPB1177-1157, ключи уже есть в проекте автопримерки): <code>GET /v2/orders?cdek_number=…</code> → стоимость доставки, дата приёма (= «отправлено»), дата вручения (= «получено»), статус.</li>
+      <li>Если СДЭК за сутки не нашёл трек — например, посылку оформили не по договору магазина, — на «Сегодня» появится задача: проверить номер или внести стоимость вручную.</li>
+      <li><b>Не СДЭК — крайний случай:</b> Матвей выбирает способ (Почта, Яндекс, курьер, другое) и вписывает стоимость доставки до блогера; «получено» — одна кнопка. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
+    </ul>
+
+    <h3>Продажи и промокоды</h3>
+    <ul>
+      <li>Заказы берутся из архива заказов — того же, что у дашборда продаж. Заказ засчитывается блогеру по его промокоду, отправке — ближайшей предыдущей по дате.</li>
+      <li>Если в заказах встречается код, похожий на ник блогера (SKELETON → @skeleton888.2), система спрашивает, а не решает сама. Коды без владельца (RAARI — 17 заказов на 143 тыс. ₽) видны списком.</li>
+      <li>Промокод предлагается по нику. Создаёт его в Тильде Матвей — API для промокодов у Тильды нет, — поэтому до отметки «создан» у него висит напоминание.</li>
+      <li>Ссылка блогеру — по схеме меток от 22.09: <code>utm_source=ник, utm_medium=blogger, utm_campaign=barter, utm_content=tiktok_video, utm_term=s0030</code>. Сейчас в бартере старая схема <code>blogger/seeding</code>, с утверждённой она не совпадает.</li>
+    </ul>
+
+    <h3>Телефон</h3>
+    <ul>
+      <li>Всё рассчитано на одну руку: нижнее меню, кнопка «+», шторки снизу, большие кнопки, выбор вместо набора текста, кнопка «Вставить» у каждой ссылки.</li>
+      <li>Страницу можно «Добавить на экран Домой» — откроется как приложение, без адресной строки.</li>
+      <li>Google отвечает 5–30 секунд, поэтому интерфейс не ждёт: действие сразу видно на экране и уходит в базу в фоне. Нет сети — встаёт в очередь и отправится, когда появится.</li>
+    </ul>
+
+    <h3>Доступ и защита</h3>
+    <ul>
+      <li>Вход по личному PIN (Матвей, Степан), телефон его запоминает. Скрипт проверяет PIN при каждой записи и пишет в журнал, кто что сделал.</li>
+      <li>Удалить нельзя ничего — только отменить своё действие в течение 10 минут. Всё остальное видно в журнале.</li>
+      <li>Итоги видят все, включая ФОТ — так решил Степан.</li>
+      <li>Никаких телефонов и адресов покупателей: из архива берутся только дата, промокод, UTM и суммы.</li>
+    </ul>
+
+    <h3>Порядок работ</h3>
+    <ul>
+      <li><b>1. Фундамент.</b> База и скрипт на stepan.wb, перенос 29 блогеров, 29 отправок и 8 публикаций с исправлением ошибок (те, что на «Сегодня» в группе «После переноса»). Страницы «Сегодня», «Отправки», «Блогеры», «Журнал». Продажи из архива, себестоимость из справочника. После этого Матвей работает здесь, а таблица становится архивом «только чтение».</li>
+      <li><b>2. Автоматика.</b> Apify: поиск публикаций и ежедневные замеры. СДЭК по треку. Утренний прогон в 09:00.</li>
+      <li><b>3. Итоги.</b> Страница «Итоги», связка с журналом UTM и дашбордом блогеров.</li>
+    </ul>
+
+    <h3>Что нужно от вас</h3>
+    <ul>
+      <li>Аккаунт Apify на stepan.wb и API-ключ. Ключ вы вставляете сами в свойства скрипта, код его оттуда читает.</li>
+      <li>Доступ Матвея к промокодам в Тильде, если его ещё нет.</li>
+      <li>Ответы Матвея на вопросы после переноса — даты S0001–S0006, S0028–S0029 и кому ушла S0008. От даты S0006 зависит, с июля или с августа считается ФОТ.</li>
+    </ul>
+  </div>`;
+}
+
+/* ---------- настройки ---------- */
+function settings(){
+  const c = S.cfg;
+  const months = M.months;
+  const sh = sheet({title:'Настройки', sub:'Меняет Степан, всё пишется в журнал', body:`
+    <div class="fld"><label>Эталон CPM закупки рекламы, ₽</label><input class="in" id="c_cpm" inputmode="numeric" value="${c.cpm}"><div class="hint">С ним сравнивается CPM бартера и считается медийная ценность.</div></div>
+    <div class="fld"><label>Срок на публикацию после получения, дней</label><input class="in" id="c_pub" inputmode="numeric" value="${c.pubDays}"></div>
+    <div class="fld"><label>Если дата получения неизвестна — дней в пути</label><input class="in" id="c_tr" inputmode="numeric" value="${c.transit}"></div>
+    <div class="fld"><label>ФОТ отдела, ₽ в месяц</label><input class="in" id="c_fot" inputmode="numeric" value="${c.fotRate}">
+      <div class="hint">Зарплата Матвея. Считается помесячно с месяца первой отправки${M.fotFrom ? ` — сейчас с ${monGen(M.fotFrom)} (${M.fotFirst.id}, ${dLong(M.fotFirst.sent)})` : ''}. Месяцы до первой отправки в итоги не входят.</div></div>
+    ${M.fotFrom ? `<div class="lab">Если в каком-то месяце сумма другая</div>
+    ${months.filter(m => fotFor(m) || c.fot[m] != null).map(m => `<div class="row" style="margin-bottom:8px;flex-wrap:nowrap"><span style="width:100px">${MON_N[+m.slice(5) - 1]}</span><input class="in" data-fot="${m}" inputmode="numeric" placeholder="${fmt(c.fotRate)} — как обычно" value="${c.fot[m] != null ? c.fot[m] : ''}"></div>`).join('')}` : ''}
+    <div class="toggle ${c.usePending ? 'on' : ''}" id="c_pend" style="margin-top:14px"><div class="g"><b>Учитывать неподтверждённые промокоды</b><div class="dim" style="font-size:12.5px">SKELETON, BOOM — пока их не подтвердили</div></div><div class="sw2"></div></div>
+    `,
+    foot:`<button class="btn pri" id="svC">Сохранить</button>`});
+  $('#c_pend', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
+  $('#svC', sh.f).onclick = () => {
+    const nx = {cpm: +$('#c_cpm', sh.b).value || 250, pubDays: +$('#c_pub', sh.b).value || 14, transit: +$('#c_tr', sh.b).value || 7,
+      fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot)};
+    $$('[data-fot]', sh.b).forEach(i => { const s = i.value.replace(/[^\d]/g, ''); if (s !== '') nx.fot[i.dataset.fot] = +s; else delete nx.fot[i.dataset.fot]; });
+    Object.keys(nx).forEach(k => { if (JSON.stringify(nx[k]) !== JSON.stringify(c[k])) send({type:'cfg', k, v:nx[k]}, () => c[k] = nx[k]); });
+    sh.close(); toast('Настройки сохранены');
+  };
+}
+function addMenu(){
+  const sh = sheet({title:'Добавить', body:`<div class="menu">
+    <div class="mi" data-m="ship"><div class="ic p">${icon('box')}</div><div><div class="a">Отправку</div><div class="b">блогер + товар по фото</div></div></div>
+    <div class="mi" data-m="blogger"><div class="ic">${icon('user')}</div><div><div class="a">Блогера</div><div class="b">одна ссылка на профиль</div></div></div>
+    <div class="mi" data-m="track"><div class="ic">${icon('truck')}</div><div><div class="a">Трек к отправке</div><div class="b">посылка ушла</div></div></div>
+    <div class="mi" data-m="post"><div class="ic">${icon('play')}</div><div><div class="a">Публикацию</div><div class="b">если парсер не нашёл сам</div></div></div>
+    <div class="mi" data-m="stories"><div class="ic">${icon('eye')}</div><div><div class="a">Просмотры сторис</div><div class="b">цифра со скрина</div></div></div></div>`});
+  $$('[data-m]', sh.b).forEach(el => el.onclick = () => { sh.close(); const m = el.dataset.m;
+    if (m === 'ship') shipForm(); else if (m === 'blogger') bloggerForm(); else if (m === 'post') postForm();
+    else if (m === 'track') pickShip('Какая посылка ушла?', s => s._st === 'agreed' && s.b, id => trackForm(id));
+    else if (m === 'stories') { postForm(); } });
+}
+function pickShip(title, filter, cb){
+  const list = S.sh.filter(filter);
+  const sh = sheet({title, body: list.length ? list.map(s => `<div class="res" data-s="${s.id}">${M.b[s.b] ? plb(M.b[s.b].pl) : ''}<div class="g"><div class="a">${esc(bh(s.b))} · ${s.id}</div><div class="b">${s.deal ? 'договорились ' + dLong(s.deal) : ''}</div></div></div>`).join('') : '<div class="empty">Все посылки уже с треком</div>'});
+  $$('[data-s]', sh.b).forEach(el => el.onclick = () => { sh.close(); cb(el.dataset.s); });
+}
+function pickBlogger(title, cb){
+  const sh = sheet({title, body:`<div class="search">${icon('search')}<input class="in" id="pq" placeholder="Ник" autocomplete="off"></div><div id="pr"></div>`});
+  const draw = q => { const l = S.bl.filter(b => !q || core(b.h).includes(core(q))).slice(0, 30);
+    $('#pr', sh.b).innerHTML = l.map(b => `<div class="res" data-b="${b.id}">${plb(b.pl)}<div class="g"><div class="a">${esc(b.h)}</div><div class="b">${b.id} · ${b._ships.length} отпр.</div></div></div>`).join('');
+    $$('[data-b]', sh.b).forEach(el => el.onclick = () => { sh.close(); cb(el.dataset.b); }); };
+  $('#pq', sh.b).oninput = e => draw(e.target.value); draw('');
+}
+function pickDate(title, cb){
+  const sh = sheet({title, body:`<input type="date" class="in" id="d" max="${TODAY}" value="${TODAY}">`, foot:`<button class="btn pri" id="ok">Сохранить</button>`});
+  $('#ok', sh.f).onclick = () => { const v = $('#d', sh.b).value; if (v){ sh.close(); cb(v); } };
+}
+
+/* =====================================================================
+   ДЕЙСТВИЯ (делегирование кликов)
+   ===================================================================== */
+const A = {
+  addMenu, settings, addBlogger:() => bloggerForm(), addPost:() => postForm(),
+  openUrl:v => window.open(v, '_blank', 'noopener'),
+  foundYes:v => { const [n, sid] = v.split('|'); const f = S.found.find(x => x.n === n), s = M.s[sid], b = M.b[s.b];
+    const code = f.code && String(f.code).toUpperCase(), l = code && M.links[code];
+    send({type:'addPost', s:sid, url:f.url, fmt:f.fmt, d:f.d, pl:f.pl, src:'парсер', tag:true, code:!!f.code, views:f.views || 0, likes:f.likes, comm:f.comm, foundN:n,
+      confirmCode: code && l && l.st === 'pending' && l.b === b.id ? code : ''},
+      () => { f.st = 'принята'; S.po.push({id:'…', s:sid, b:b.id, d:f.d, pl:f.pl, fmt:f.fmt, url:f.url, tag:true, code:!!f.code, src:'парсер'}); });
+    toast('Публикация добавлена'); },
+  foundPick:v => pickShip('К какой отправке?', s => !s.refused && s.b, sid => A.foundYes(v + '|' + sid)),
+  foundNo:v => send({type:'foundNo', n:v}, () => { const f = S.found.find(x => x.n === v); if (f) f.st = 'отклонена'; }),
+  codeFromPost:v => { const [bid, code] = v.split('|'); send({type:'setPromo', b:bid, code, made:false}, () => { const b = S.bl.find(x => x.id === bid); b.promo = code; b.promoOk = false; }); },
+  exp:v => { CUR.exp[v] = !CUR.exp[v]; rToday(); },
+  goShips:v => { CUR.shipF = v; location.hash = '#ships'; },
+  shipF:v => { CUR.shipF = v; rShips(); }, blF:v => { CUR.blF = v; rBloggers(); }, blSort:v => { CUR.blSort = v; rBloggers(); },
+  period:v => { CUR.period = v; rStats(); }, logF:v => { CUR.logF = v; rLog(); },
+  openShip, openBlogger, openPost, track:trackForm, measure:measureForm,
+  newShipFor:v => { closeAll(); shipForm(v); },
+  addPostFor:v => { postForm(v); },
+  openRef:v => { const [k, id] = v.split('|'); if (k === 's') openShip(id); else if (k === 'b') openBlogger(id); else if (k === 'p') openPost(id); },
+  remind:v => { copyText(remindText(M.s[v]), 'Напоминание скопировано — вставьте в чат с блогером'); send({type:'remind', id:v}); },
+  copyUtm:v => copyText(utmFor(M.s[v]), 'Ссылка скопирована'),
+  copyBrief:v => copyText(briefText(M.s[v]), 'Сообщение скопировано'),
+  copyOne:v => copyText(v),
+  delivered:v => { send({type:'delivered', id:v}, () => { M.s[v].dlv = TODAY; }); closeAll(); toast('Отмечено: получено'); },
+  refuse:v => { if (!confirm(`${v}: отметить отказ или потерю? Затраты уйдут из расчёта, запись останется в журнале.`)) return;
+    send({type:'refuse', id:v}, () => { M.s[v].refused = true; }); closeAll(); },
+  linkYes:v => { const l = M.links[v]; send({type:'link', code:v, b:l.b, how:'подтверждено'}, () => { S.links[v] = {b:l.b, st:'ok', how:'подтверждено'}; }); toast('Продажи попали в итоги'); },
+  linkNo:v => send({type:'link', code:v, b:''}, () => { S.links[v] = {b:null, st:'no'}; }),
+  linkPick:v => pickBlogger(`Чей промокод ${v}?`, id => { send({type:'link', code:v, b:id, how:'привязан вручную'}, () => { S.links[v] = {b:id, st:'ok', how:'привязан вручную'}; }); toast('Продажи попали в итоги'); }),
+  codeMade:v => { const b = M.b[v], code = b.promo || suggestCode(b.h);
+    send({type:'setPromo', b:v, code, made:true}, () => { b.promo = code; b.promoOk = true; });
+    $$('#sheets [data-a="codeMade"][data-v="' + v + '"]').forEach(x => { x.textContent = '✓ Создан'; x.disabled = true; }); },
+  codeFix:v => { const b = M.b[v], code = suggestCode(b.h); send({type:'setPromo', b:v, code, made:false}, () => { b.promo = code; b.promoOk = false; }); },
+  copyCodes:() => { const l = S.bl.filter(b => !b.stop && b._ships.length && !promoOf(b)).map(b => `${suggestCode(b.h)} — ${b.h}`).join('\n'); copyText(l, 'Список кодов скопирован'); },
+  merge:v => { const [keep, drop] = v.split('|'); send({type:'merge', keep, drop}, () => { S.sh.forEach(s => { if (s.b === drop) s.b = keep; }); S.po.forEach(p => { if (p.b === drop) p.b = keep; }); S.bl = S.bl.filter(b => b.id !== drop); }); toast('Объединено'); },
+  setB:v => { const [sid, bid] = v.split('|'); send({type:'setB', id:sid, b:bid}, () => { S.sh.find(s => s.id === sid).b = bid; }); },
+  pickB:v => pickBlogger(`Кому ушла ${v}?`, id => A.setB(v + '|' + id)),
+  setSent:v => { const [sid, d] = v.split('|'); send({type:'setSent', id:sid, date:d}, () => { S.sh.find(s => s.id === sid).sent = d; }); },
+  pickSent:v => pickDate(`Дата отправки ${v}`, d => A.setSent(v + '|' + d)),
+  dropPost:v => send({type:'dropPost', p:v}, () => { S.po = S.po.filter(p => p.id !== v); }),
+  dismiss:v => send({type:'done', task:v, text: /^bf-/.test(v) ? 'подтвердил, что дата отправки ' + v.slice(3) + ' верна' : 'закрыл задачу'}, () => { S.done[v] = 1; }),
+  toggleStop:v => { const b = M.b[v]; send({type:'stop', b:v, on:!b.stop}, () => { b.stop = !b.stop; }); closeAll(); },
+  undo:v => { send({type:'undo', logId:v}, () => { S.log = S.log.filter(x => x.id !== v); }); toast('Отменяю…'); }
+};
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-a]'); if (!el) return;
+  const fn = A[el.dataset.a]; if (!fn) return;
+  e.preventDefault(); fn(el.dataset.v);
+});
+$('#fab').onclick = addMenu;
+$('#gear').onclick = settings;
+$('#who').onclick = () => {
+  const sh = sheet({title:esc(ME), sub:'Вход на этом устройстве', body:`<div class="menu">
+    <div class="mi" data-m="reload"><div class="ic">${icon('log')}</div><div><div class="a">Обновить данные</div><div class="b">база и заказы из архива</div></div></div>
+    <div class="mi" data-m="out"><div class="ic">${icon('user')}</div><div><div class="a">Выйти</div><div class="b">забыть PIN на этом устройстве</div></div></div></div>`});
+  $$('[data-m]', sh.b).forEach(el => el.onclick = () => { sh.close(); if (el.dataset.m === 'reload'){ loadAll(); loadExt(true); } else logout(''); });
+};
+// вход: PIN из поля → проверка скриптом → запоминаем на устройстве
+async function tryPin(){
+  const v = $('#pinIn').value.trim(); if (!v) return;
+  const b = $('#pinGo'); b.classList.add('busy'); b.textContent = 'Проверяю…'; $('#pinErr').textContent = '';
+  PIN = v;
+  const ok = await loadAll();
+  b.classList.remove('busy'); b.textContent = 'Войти';
+  if (ok){ lsSet(LS.pin, v); loadExt(); flush(); }
+}
+$('#pinForm').addEventListener('submit', e => { e.preventDefault(); tryPin(); });
+window.addEventListener('online', flush);
+function boot(){
+  const h = (location.hash || '#today').slice(1);
+  CUR.page = PAGES.some(p => p.id === h) ? h : 'today';
+  // запасной вход по личной ссылке …/barter.html#k=<ключ>
+  const mk = location.hash.match(/k=([A-Za-z0-9]+)/); if (mk){ PIN = mk[1]; lsSet(LS.pin, PIN); window.history.replaceState(null, '', location.pathname + '#today'); }
+  if (!PIN){ $('#login').hidden = false; setTimeout(() => $('#pinIn').focus(), 50); return; }
+  // сначала показываем то, что уже было на этом устройстве, потом обновляем
+  try { const c = JSON.parse(lsGet(LS.cache) || 'null'); if (c && c.raw){ ME = c.me; RAW = c.raw; EXT = c.ext; applyExt(); S = fromServer(RAW); SYNC.at = c.at; refresh(); } } catch(e) {}
+  renderSync();
+  loadAll().then(ok => { if (ok){ loadExt(); flush(); } });
+}
+boot();
+</script>
+</body>
+</html>
