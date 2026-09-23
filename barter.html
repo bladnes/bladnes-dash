@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 1, 22.09.2026).
+   Бартер bladnes — рабочий интерфейс (сборка 2, 23.09.2026: товары в отправке, статус СДЭК).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -883,6 +883,11 @@ function tasks(){
       tx:`Ролик от ${dLong(f.d)}, ${fmt(f.views || 0)} просмотров. Если такого кода нет и в Тильде, покупатели получают ошибку — проверьте срочно.${ORDERS.some(o => o.promo === code) ? '' : ' В заказах этот код пока не встречался.'}`,
       acts:[[`Записать ${code} блогеру`, 'codeFromPost', b.id + '|' + code, 'pri']]});
   });
+  S.sh.filter(s => !s.refused && s.svc === 'СДЭК' && s.cdek === 'не найден').forEach(s => add({id:'cdek-' + s.id + '-' + s.track, g:'Отправить', cls:'amb', ic:'truck',
+    tt:`СДЭК не нашёл трек ${esc(s.track)} — ${s.id}`, tx:`${esc(bh(s.b))}. Проверьте номер. Если посылку отправили не по договору магазина — выберите «Не СДЭК» и укажите стоимость доставки.`,
+    acts:[['Исправить трек', 'track', s.id, 'pri']]}));
+  S.sh.filter(s => !s.refused && s.b && !s.items.length).forEach(s => add({id:'noitems-' + s.id, g:'Отправить', cls:'amb', ic:'box',
+    tt:`${s.id} — не указано, что отправили`, tx:`${esc(bh(s.b))}. Без товара не посчитать себестоимость посылки.`, acts:[['Указать товары', 'editItems', s.id, 'pri']]}));
   S.bl.filter(b => b.missing && !b.stop).forEach(b => add({id:'miss-' + b.id, g:'Парсер', cls:'amb', ic:'alert', tt:`Профиль ${esc(b.h)} не найден`,
     tx:`${esc(b.pl)} отвечает, что такого аккаунта нет — ссылка неверная или блогер сменил ник. Пока ссылка не исправлена, парсер не увидит его публикации.`,
     acts:[['Открыть карточку', 'openBlogger', b.id, 'pri']]}));
@@ -1009,6 +1014,7 @@ function openShip(id){
         ${!s._sentOk && !s.refused ? `<button class="btn sm pri" data-a="track" data-v="${s.id}">${icon('truck')}Указать трек</button>` : ''}
         ${s._sentOk && !s.dlv && !s._posts.length && !s.refused ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}Блогер получил</button>` : ''}
         ${!s.refused ? `<button class="btn sm" data-a="addPostFor" data-v="${s.id}">${icon('play')}Добавить публикацию</button>` : ''}
+        ${!s.refused ? `<button class="btn sm" data-a="editItems" data-v="${s.id}">${icon('box')}Товары</button>` : ''}
         ${!s.refused && !s._posts.length ? `<button class="btn sm danger" data-a="refuse" data-v="${s.id}">Отказ или потеря</button>` : ''}
       </div>
       <div class="lab" style="margin-top:14px">Что отправили</div>${items || '<div class="dim">Товары не указаны</div>'}
@@ -1018,7 +1024,7 @@ function openShip(id){
         <div><div class="l">Заказов</div><div class="v sm">${s._orders.length}</div></div><div><div class="l">Выручка</div><div class="v sm">${money(s._rev)}</div></div>
         <div><div class="l">Результат</div><div class="v sm ${s._margin - s._cost >= 0 ? 'ok' : 'bad'}">${money(s._margin - s._cost)}</div></div></div>
       <div class="dim" style="font-size:12px;margin-top:6px">Результат = маржа с заказов по промокоду (выручка − себестоимость − эквайринг 5 %) − товар − доставка. Без ФОТ.</div>
-      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? '<br>Стоимость, дата отправки и дата вручения подтянутся из API СДЭК при утреннем обновлении.' : '<br>Не СДЭК — стоимость внесена вручную, «получено» — кнопкой.'}</div></div>` : ''}
+      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? (s.cdek === 'не найден' ? '<br><span class="warn">СДЭК не нашёл этот трек по договору магазина — проверьте номер.</span>' : s.cdek ? '<br>СДЭК: <b>' + esc(s.cdek) + '</b>' + (s.cdekAt ? ' · проверено ' + dRu(String(s.cdekAt).slice(0, 10)) + ' ' + esc(String(s.cdekAt).slice(11, 16)) : '') : '<br>Стоимость, дата отправки и дата вручения подтянутся из API СДЭК при утреннем обновлении.') : '<br>Не СДЭК — стоимость внесена вручную, «получено» — кнопкой.'}</div></div>` : ''}
       <div class="lab" style="margin-top:16px">Публикации</div>${posts || `<div class="dim" style="font-size:13.5px">Пока нет. ${s._deadline ? 'Дедлайн — ' + dLong(s._deadline) + '.' : ''} Парсер проверяет профиль каждое утро.</div>`}
       ${orders ? `<div class="lab" style="margin-top:16px">Заказы по промокоду ${esc(code)}</div><div class="tw"><table class="t"><tbody>${orders}</tbody></table></div>` : ''}
       <div class="lab" style="margin-top:16px">Для блогера</div>
@@ -1179,6 +1185,42 @@ function shipDone(id){
     copyText(t, 'Сообщение скопировано — вставьте в чат с блогером');
   };
 }
+/* ---------- товары в уже созданной отправке ---------- */
+function itemsForm(id){
+  const s = M.s[id]; if (!s) return;
+  const costOf = i => i.pid && P_BY_ID[i.pid] ? pCost(i.pid) : (+i.cost || 0);     // позиция без карточки в каталоге — оставляем её себестоимость
+  const st = {items: s.items.map(i => ({pid:i.pid, t:i.t, sku:i.sku, size:i.size || '', q:+i.q || 1, cost:i.cost})), pick: !s.items.length, pq:''};
+  const sh = sheet({title:`Товары · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svI">Сохранить</button>`});
+  const draw = () => {
+    const items = st.items.map((i, k) => { const p = P_BY_ID[i.pid];
+      return `<div class="pi">${p ? `<div class="th" style="background-image:url('${pImg(i.pid)}')"></div>` : '<div class="th none">?</div>'}<div class="g"><div class="n">${esc(p ? p.t : (i.t || i.sku))}</div>
+        <div class="c">себестоимость ${money(costOf(i))}${p && !pCostExact(i.pid) ? ' ≈' : ''}</div>
+        ${noSize(i.pid) ? '' : `<div class="chips">${['S','M','L','XL','XXL'].map(z => `<button class="chip ${i.size === z ? 'on' : ''}" data-sz="${k}|${z}">${z}</button>`).join('')}</div>`}
+        <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
+        <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
+    const q = st.pq.trim().toLowerCase(), plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 48);
+    sh.b.innerHTML = `${items || '<div class="dim">Товаров пока нет — выберите из каталога.</div>'}
+      <button class="btn sm ${st.items.length ? '' : 'pri'}" id="pick" style="margin-top:10px">${icon(st.pick ? 'close' : 'plus')}${st.pick ? 'Скрыть каталог' : 'Добавить товар'}</button>
+      ${st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
+      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">СС ${fmt(pCost(p.id))} ₽</div></button>`).join('')}</div>` : ''}
+      ${st.items.length ? `<div class="hint">Себестоимость посылки: <b style="color:var(--tx)">${money(sum(st.items, i => costOf(i) * i.q))}</b></div>` : ''}`;
+    $('#svI', sh.f).disabled = !st.items.length;
+    $('#pick', sh.b).onclick = () => { st.pick = !st.pick; draw(); };
+    const pq = $('#pq', sh.b); if (pq) pq.addEventListener('input', () => { st.pq = pq.value; const pos = pq.selectionStart; draw(); const n = $('#pq', sh.b); n.focus(); n.setSelectionRange(pos, pos); });
+    $$('[data-pp]', sh.b).forEach(el => el.onclick = () => { const pid = el.dataset.pp, ex = st.items.find(i => i.pid === pid); if (ex) ex.q++; else st.items.push({pid, q:1, size:''}); st.pick = false; draw(); });
+    $$('[data-sz]', sh.b).forEach(el => el.onclick = () => { const [k, z] = el.dataset.sz.split('|'); st.items[k].size = z; draw(); });
+    $$('[data-qm]', sh.b).forEach(el => el.onclick = () => { const i = st.items[el.dataset.qm]; if (i.q > 1) i.q--; draw(); });
+    $$('[data-qp]', sh.b).forEach(el => el.onclick = () => { st.items[el.dataset.qp].q++; draw(); });
+    $$('[data-rm]', sh.b).forEach(el => el.onclick = () => { st.items.splice(+el.dataset.rm, 1); draw(); });
+  };
+  draw();
+  $('#svI', sh.f).onclick = async () => {
+    const btn = $('#svI', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
+    const r = await sendWait({type:'setItems', id:s.id, items:st.items.map(i => ({pid:i.pid, t:(P_BY_ID[i.pid] || {}).t || i.t || '', sku:(P_BY_ID[i.pid] || {}).sku || i.sku || '', size:i.size, q:i.q, cost:costOf(i)}))});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    closeAll(); await loadAll(); toast('Товары сохранены');
+  };
+}
 /* ---------- трек ---------- */
 function trackForm(id){
   const s = M.s[id]; const st = {svc:'СДЭК', track:'', cost:'', date:TODAY};
@@ -1292,7 +1334,7 @@ function rPosts(){
   const measured = list.filter(p => p._measured).length;
   $('#view').innerHTML = `
     <div class="row" style="margin-bottom:12px"><button class="btn pri" data-a="addPost">${icon('plus')}Публикация по ссылке</button></div>
-    <div class="box info" style="margin-bottom:12px"><div class="t">${icon('bot')} Замеры снимает парсер</div><div class="d">Просмотры снимает парсер: в отчёт идут D+7 и D+30 — ближайший замер к этим дням. Замер есть у <b>${measured} из ${list.length}</b> публикаций. Руками — только сторис и закрытые аккаунты: одна цифра со скрина.</div></div>
+    <div class="box info" style="margin-bottom:12px"><div class="t">${icon('bot')} Замеры снимает парсер</div><div class="d">Просмотры снимает парсер: в отчёт идут D+7 и D+30 — ближайший замер к этим дням. Замер есть у <b>${measured} из ${list.length}</b> публикаций.${S.cfg.lastMorning ? ' Последний утренний прогон — ' + dRu(String(S.cfg.lastMorning).slice(0, 10)) + ' ' + esc(String(S.cfg.lastMorning).slice(11, 16)) + '.' : ''} Руками — только сторис и закрытые аккаунты: одна цифра со скрина.</div></div>
     <div class="list g2">${list.map(p => { const b = M.b[p.b], s = M.s[p.s];
       const w7 = p._age != null && p._age >= 7, w30 = p._age != null && p._age >= 30;
       return `<a class="it" data-a="openPost" data-v="${p.id}">
@@ -1666,6 +1708,7 @@ const A = {
   shipF:v => { CUR.shipF = v; rShips(); }, blF:v => { CUR.blF = v; rBloggers(); }, blSort:v => { CUR.blSort = v; rBloggers(); },
   period:v => { CUR.period = v; rStats(); }, logF:v => { CUR.logF = v; rLog(); },
   openShip, openBlogger, openPost, track:trackForm, measure:measureForm,
+  editItems:v => { closeAll(); itemsForm(v); },
   newShipFor:v => { closeAll(); shipForm(v); },
   addPostFor:v => { postForm(v); },
   openRef:v => { const [k, id] = v.split('|'); if (k === 's') openShip(id); else if (k === 'b') openBlogger(id); else if (k === 'p') openPost(id); },
