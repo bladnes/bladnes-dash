@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 5, 25.09.2026: стоимость доставки вводится вручную).
+   Бартер bladnes — рабочий интерфейс (сборка 6, 25.09.2026: отсчёт с 1 августа, таблица-бэкап).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -582,10 +582,14 @@ function derive(){
     p._age = p.d ? diffDays(p.d, TODAY) : null;
   });
   const cfg = S.cfg;
+  const START = /^\d{4}-\d{2}-\d{2}$/.test(cfg.start || '') ? cfg.start : '2026-08-01';   // отсчётная дата: раньше неё итоги, ФОТ, заказы и публикации не считаем
+  m.start = START;
+  const ORD = ORDERS.filter(o => String(o.dt || '').slice(0,10) >= START);
   S.sh.forEach(s => {
     const b = m.b[s.b];
     s._sentOk = validSent(s);
     s._sent = s._sentOk ? s.sent : (s.deal || (b && b.first) || null);   // фолбэк, пока дата не исправлена
+    s._acc = s._sent && s._sent < START ? START : s._sent;   // учётная дата: отправки до отсчёта идут в первый месяц
     s._posts = (postsOf[s.id] || []).slice().sort((a, b) => a.d < b.d ? -1 : 1);
     s._cost = s.refused && !s._sentOk ? 0 : (s.cogs || 0) + (s.ship || 0) + (s.extra || 0);   // отказ или потеря после отправки — товар и доставка уже оплачены
     s._views = sum(s._posts, p => p._views);
@@ -607,14 +611,14 @@ function derive(){
     const b = m.b[s.b], ref = [s.deal, b && b.first].filter(Boolean).sort().pop(); return !!(ref && s.sent < ref); };
   const sentAll = S.sh.filter(s => !s.refused && s.b && s._sentOk).sort((a, b) => a.sent < b.sent ? -1 : 1);
   m.fotFirst = sentAll.find(s => !doubt(s)) || null;
-  m.fotEarlier = m.fotFirst ? sentAll.filter(s => doubt(s) && s.sent.slice(0,7) < m.fotFirst.sent.slice(0,7)) : [];
-  m.fotFrom = m.fotFirst ? m.fotFirst.sent.slice(0,7) : null;
+  m.fotEarlier = m.fotFirst ? sentAll.filter(s => doubt(s) && s.sent >= START && s.sent.slice(0,7) < m.fotFirst.sent.slice(0,7)) : [];
+  m.fotFrom = m.fotFirst ? [m.fotFirst.sent.slice(0,7), START.slice(0,7)].sort().pop() : null;   // не раньше отсчётной даты
   Object.values(shipsOf).forEach(arr => arr.filter(s => !s.refused).sort((a, b) => (a._sent || a.deal || '9') < (b._sent || b.deal || '9') ? -1 : 1)
     .forEach((s, i) => s._iter = i + 1));
   // промокоды → блогер: таблица, решения Степана/Матвея, совпадение с ником
   const L = {};
   S.bl.forEach(b => { if (b.promo) L[b.promo] = {b:b.id, st:'ok', how:'в карточке блогера'}; });
-  const codes = [...new Set(ORDERS.map(o => o.promo).filter(Boolean))];
+  const codes = [...new Set(ORD.map(o => o.promo).filter(Boolean))];
   codes.forEach(c => {
     if (S.links[c]) { L[c] = S.links[c]; return; }
     if (L[c]) return;
@@ -627,7 +631,7 @@ function derive(){
   });
   m.links = L;
   const use = l => l && l.b && (l.st === 'ok' || l.st === 'auto' || (l.st === 'pending' && cfg.usePending));
-  m.orders = ORDERS.map(o => {
+  m.orders = ORD.map(o => {
     const r = Object.assign({}, o, {d:o.dt.slice(0,10), rev:o.goods - o.disc});
     r.margin = r.rev - o.cogs - o.paid * ACQ;
     const l = L[o.promo]; r._b = use(l) ? l.b : null; r._pending = l && l.st === 'pending';
@@ -657,8 +661,8 @@ function derive(){
     else if (ss.some(s => s._st === 'overdue')) b._gr = 'C';
     else b._gr = 'w';
   });
-  m.months = [...new Set(S.sh.filter(s => !s.refused && s._sent).map(s => s._sent.slice(0,7)).concat(m.orders.filter(o => o._b).map(o => o.d.slice(0,7))))]
-    .filter(x => x >= '2026-06');
+  m.months = [...new Set(S.sh.filter(s => !s.refused && s._acc).map(s => s._acc.slice(0,7)).concat(m.orders.filter(o => o._b).map(o => o.d.slice(0,7))))]
+    .filter(x => x >= START.slice(0,7));
   if (m.fotFrom) for (let x = m.fotFrom; x <= TODAY.slice(0,7); x = addDays(x + '-01', 32).slice(0,7)) m.months.push(x);
   m.months = [...new Set(m.months)].sort();
   return m;
@@ -1057,10 +1061,11 @@ function deliveryFields(st){
       <div class="hint warn" id="trkW" style="${cdek && st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10–11 цифр — проверьте, не вставилось ли лишнее.</div></div>
     <div class="fld"><label>Стоимость доставки до блогера, ₽ <span class="dim">— обязательно</span></label><input class="in" id="cst" inputmode="numeric" placeholder="сколько заплатили, например 780" value="${esc(st.cost)}"></div>
     <div class="lab">Когда отправили</div><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
-      <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div>`;
+      <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" min="${M.start}" max="${TODAY}"></div>
+    ${st.date < M.start && st.date !== st.orig ? `<div class="hint warn">Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}: раньше этой даты отправки не вносим.</div>` : ''}`;
 }
 // стоимость доставки обязательна всегда; для СДЭК ещё и корректный трек
-const deliveryValid = st => +st.cost > 0 && (st.svc !== 'СДЭК' || cdekOk(st.track));
+const deliveryValid = st => +st.cost > 0 && (st.svc !== 'СДЭК' || cdekOk(st.track)) && (st.date >= M.start || st.date === st.orig);
 function bindDelivery(root, st, draw, onChange){
   $$('[data-svc]', root).forEach(el => el.onclick = () => { const v = el.dataset.svc;
     st.svc = v === 'other' ? (OTHER_SVC.includes(st.svc) ? st.svc : OTHER_SVC[0]) : v; draw(); });
@@ -1253,7 +1258,7 @@ function itemsForm(id){
 }
 /* ---------- трек ---------- */
 function trackForm(id){
-  const s = M.s[id]; const st = {svc:s.svc || 'СДЭК', track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY};   // правка трека не сбрасывает дату отправки
+  const s = M.s[id]; const st = {svc:s.svc || 'СДЭК', track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY, orig:s._sentOk ? s.sent : null};   // правка трека не сбрасывает дату отправки
   const sh = sheet({title:`Трек и доставка · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svT" disabled>Сохранить</button>`});
   const canSave = () => { $('#svT', sh.f).disabled = !deliveryValid(st); };
   const draw = () => { sh.b.innerHTML = deliveryFields(st); bindDelivery(sh.b, st, draw, canSave); canSave(); };
@@ -1408,7 +1413,7 @@ function postForm(shipId){
           : `<select class="in" id="ss"><option value="">Выберите отправку</option>${cand.map(s => `<option value="${s.id}">${esc(bh(s.b))} · ${s.id} · ${ST[s._st]}</option>`).join('')}</select>`}</div>
       <div class="fld"><label>Формат</label><div class="chips wrap">${['TikTok видео','Reels','Stories','Пост','YouTube Shorts'].map(x => `<button class="chip ${st.fmt === x ? 'on' : ''}" data-f="${x}">${x}</button>`).join('')}</div></div>
       <div class="fld"><label>Когда вышла</label><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
-        <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div><div class="hint">Для TikTok и Reels парсер уточнит дату сам.</div></div>
+        <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" min="${M.start}" max="${TODAY}"></div><div class="hint">Для TikTok и Reels парсер уточнит дату сам.</div></div>
       ${st.fmt === 'Stories' ? `<div class="fld"><label>Просмотры со скрина статистики</label><input class="in" id="vw" inputmode="numeric" placeholder="например, 1 450" value="${esc(st.views)}"><div class="hint">Сторис парсер не видит: они исчезают через сутки, а просмотры видит только автор.</div>
         <label class="btn sm" style="margin-top:8px">${icon('paste')}Прикрепить скрин<input type="file" accept="image/*" hidden></label></div>` : ''}`;
     $('#svP', sh.f).disabled = !(st.url && st.s && st.fmt && !dup);
@@ -1447,12 +1452,12 @@ function measureForm(pid){
    ===================================================================== */
 function stats(period){
   const inP = d => d && (period === 'all' || d.startsWith(period));
-  const ss = S.sh.filter(s => s.b && inP(s._sent) && (!s.refused || s._sentOk));   // ушедшие посылки, в том числе потерянные и отказы после отправки
+  const ss = S.sh.filter(s => s.b && inP(s._acc) && (!s.refused || s._sentOk));   // ушедшие посылки, в том числе потерянные и отказы после отправки
   const direct = sum(ss, s => s._cost);
   const months = period === 'all' ? M.months : [period];
   const fot = sum(months, fotFor);
   const cost = direct + fot;
-  const posts = S.po.filter(p => inP(p.d));
+  const posts = S.po.filter(p => p.d >= M.start && inP(p.d));
   const views = sum(posts, p => p._views);
   const ords = M.orders.filter(o => o._b && !o._pre && inP(o.d));
   const rev = sum(ords, o => o.rev), margin = sum(ords, o => o.margin), disc = sum(ords, o => o.disc);
@@ -1471,7 +1476,7 @@ function rStats(){
   const pend = Object.entries(M.links).filter(([c, l]) => l.st === 'pending');
   const pendRev = sum(M.orders.filter(o => o._pending && !o._pre && (P === 'all' || o.d.startsWith(P))), o => o.rev);
   const bl = S.bl.filter(b => b._ships.length).map(b => {
-    const sp = b._ships.filter(s => P === 'all' || (s._sent || '').startsWith(P));
+    const sp = b._ships.filter(s => P === 'all' || (s._acc || '').startsWith(P));
     return {b, n:sp.length, posts:sum(sp, s => s._posts.length), views:sum(sp, s => s._views), cost:sum(sp, s => s._cost),
       ords:b._orders.filter(o => P === 'all' || o.d.startsWith(P)), };
   }).map(x => Object.assign(x, {rev:sum(x.ords, o => o.rev), margin:sum(x.ords, o => o.margin)})).filter(x => x.n || x.ords.length)
@@ -1516,7 +1521,7 @@ function rStats(){
         <div class="sec"><h2>Можно ли верить цифрам</h2></div>
         <div class="card">
           <div class="q"><span class="m">${st.measured === st.posts.length ? '✓' : '<span class="bad">!</span>'}</span><div>Замер просмотров есть у <b>${st.measured} из ${st.posts.length}</b> публикаций — CPM и медийная ценность занижены. Парсер закроет это полностью.</div></div>
-          <div class="q"><span class="m">${M.fotEarlier.length ? '<span class="warn">?</span>' : '✓'}</span><div>${M.fotFrom ? `ФОТ ${money(S.cfg.fotRate)} в месяц считается с <b>${monGen(M.fotFrom)}</b> — месяца первой отправки (${M.fotFirst.id}, ${dLong(M.fotFirst.sent)}).` : 'ФОТ начнёт считаться с первой отправки.'}
+          <div class="q"><span class="m">${M.fotEarlier.length ? '<span class="warn">?</span>' : '✓'}</span><div>${M.fotFrom ? `ФОТ ${money(S.cfg.fotRate)} в месяц считается с <b>${monGen(M.fotFrom)}</b> ${M.fotFrom > M.fotFirst.sent.slice(0,7) ? `— с отсчётной даты, ${dLong(M.start)} (первая отправка ${M.fotFirst.id} — ${dLong(M.fotFirst.sent)}, она учтена в ${monGen(M.fotFrom)})` : `— месяца первой отправки (${M.fotFirst.id}, ${dLong(M.fotFirst.sent)})`}.` : 'ФОТ начнёт считаться с первой отправки.'}
             ${M.fotEarlier.length ? `Раньше стоят отправки с датой под вопросом (${M.fotEarlier.map(s => s.id + ' — ' + dRu(s.sent)).join(', ')}): если подтвердить их даты, учёт начнётся с ${monGen(M.fotEarlier[0].sent.slice(0,7))}. <a href="#today">Проверить даты</a>` : ''}</div></div>
           <div class="q"><span class="m">${pend.length ? '<span class="warn">?</span>' : '✓'}</span><div>${pend.length ? `${pend.map(x => x[0]).join(', ')} — промокоды ждут подтверждения, в итогах ${S.cfg.usePending ? 'учтены' : 'не учтены'} (${money(pendRev)}). <a href="#today">Подтвердить</a>` : 'Все промокоды подтверждены.'}</div></div>
           <div class="q"><span class="m">${st.ss.some(s => s._st === 'transit' || s._st === 'delivered' || s._st === 'agreed') ? '<span class="warn">…</span>' : '✓'}</span><div>${st.ss.filter(s => ['transit','delivered','agreed'].includes(s._st)).length} отправок ещё в работе: их публикации и продажи впереди. Месяц можно считать закрытым примерно через 45 дней после его конца.</div></div>
@@ -1624,6 +1629,8 @@ function rHow(){
       <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
       <li><b>Правило: блогерам — только СДЭК.</b> При отправке Матвей вставляет трек и стоимость доставки — сумма есть в приложении СДЭК. Без стоимости отправку не сохранить; если её нет у старой отправки, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Почему вручную.</b> Посылки блогерам уходят с личного кабинета СДЭК Матвея. API СДЭК работает только по договору (у магазина — IM-SPB1177-1157), и такие посылки не видит. Утренняя сверка со СДЭК выключена; если отправки переведут на кабинет магазина, её включает одна настройка скрипта (CDEK_SYNC).</li>
+      <li><b>Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}.</b> Раньше этой даты не считаются заказы, публикации и ФОТ; парсер не берёт более ранние ролики; отправку или публикацию раньше неё не внести. Старые бартеры не заводим: заказов по промокодам блогеров до августа в архиве нет. Дату меняет Степан в настройках.</li>
+      <li><b>Таблица-бэкап.</b> Каждое утро скрипт перезаписывает Google-таблицу со всеми данными и итогами по месяцам — в том же виде, что старая таблица. Ссылка и кнопка «Обновить сейчас» — в настройках.</li>
       <li><b>«Получено» — одна кнопка</b> «Блогер получил», для любой службы. Не СДЭК (Почта, Яндекс, курьер) — только в крайнем случае. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
     </ul>
 
@@ -1675,16 +1682,29 @@ function settings(){
     <div class="fld"><label>Срок на публикацию после получения, дней</label><input class="in" id="c_pub" inputmode="numeric" value="${c.pubDays}"></div>
     <div class="fld"><label>Если дата получения неизвестна — дней в пути</label><input class="in" id="c_tr" inputmode="numeric" value="${c.transit}"></div>
     <div class="fld"><label>ФОТ отдела, ₽ в месяц</label><input class="in" id="c_fot" inputmode="numeric" value="${c.fotRate}">
-      <div class="hint">Зарплата Матвея. Считается помесячно с месяца первой отправки${M.fotFrom ? ` — сейчас с ${monGen(M.fotFrom)} (${M.fotFirst.id}, ${dLong(M.fotFirst.sent)})` : ''}. Месяцы до первой отправки в итоги не входят.</div></div>
+      <div class="hint">Зарплата Матвея. Считается помесячно с месяца первой отправки, но не раньше отсчётной даты${M.fotFrom ? ` — сейчас с ${monGen(M.fotFrom)}` : ''}. Более ранние месяцы в итоги не входят.</div></div>
     ${M.fotFrom ? `<div class="lab">Если в каком-то месяце сумма другая</div>
     ${months.filter(m => fotFor(m) || c.fot[m] != null).map(m => `<div class="row" style="margin-bottom:8px;flex-wrap:nowrap"><span style="width:100px">${MON_N[+m.slice(5) - 1]}</span><input class="in" data-fot="${m}" inputmode="numeric" placeholder="${fmt(c.fotRate)} — как обычно" value="${c.fot[m] != null ? c.fot[m] : ''}"></div>`).join('')}` : ''}
+    <div class="fld" style="margin-top:14px"><label>Отсчётная дата</label><input type="date" class="in" id="c_start" style="max-width:190px" value="${M.start}" max="${TODAY}">
+      <div class="hint">С неё считаются итоги, ФОТ, заказы и публикации; парсер не берёт ролики раньше неё. Отправки до этой даты относятся к первому месяцу.</div></div>
     <div class="toggle ${c.usePending ? 'on' : ''}" id="c_pend" style="margin-top:14px"><div class="g"><b>Учитывать неподтверждённые промокоды</b><div class="dim" style="font-size:12.5px">SKELETON, BOOM — пока их не подтвердили</div></div><div class="sw2"></div></div>
+    <div class="fld" style="margin-top:18px"><label>Таблица-бэкап</label>
+    <div class="hint">Google-таблица со всеми данными и итогами по месяцам — как старая таблица Матвея. Скрипт перезаписывает её каждое утро после сбора данных; руками не править.${c.reportAt ? ' Обновлена ' + dRu(String(c.reportAt).slice(0,10)) + ' в ' + esc(String(c.reportAt).slice(11,16)) + '.' : ''}</div>
+    <div class="row" id="c_repBox" style="margin-top:8px">${c.reportUrl ? `<a class="btn sm" href="${esc(c.reportUrl)}" target="_blank" rel="noopener">${icon('ext')}Открыть таблицу</a>` : ''}<button class="btn sm" id="c_rep">Обновить сейчас</button></div></div>
     `,
     foot:`<button class="btn pri" id="svC">Сохранить</button>`});
+  $('#c_rep', sh.b).onclick = async e => {
+    const btn = e.currentTarget; btn.classList.add('busy'); btn.textContent = 'Обновляю… до минуты';
+    const r = await sendWait({type:'report'});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Обновить сейчас'; toast('Не получилось: ' + esc(r.error || '')); return; }
+    S.cfg.reportUrl = r.id; S.cfg.reportAt = mskNow();
+    $('#c_repBox', sh.b).innerHTML = `<a class="btn sm pri" href="${esc(r.id)}" target="_blank" rel="noopener">${icon('ext')}Открыть таблицу</a><span class="hint" style="margin:0 0 0 8px;align-self:center">обновлена только что</span>`;
+  };
   $('#c_pend', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
   $('#svC', sh.f).onclick = () => {
     const nx = {cpm: +$('#c_cpm', sh.b).value || 250, pubDays: +$('#c_pub', sh.b).value || 14, transit: +$('#c_tr', sh.b).value || 7,
-      fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot)};
+      fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot),
+      start: /^\d{4}-\d{2}-\d{2}$/.test($('#c_start', sh.b).value) ? $('#c_start', sh.b).value : M.start};
     $$('[data-fot]', sh.b).forEach(i => { const s = i.value.replace(/[^\d]/g, ''); if (s !== '') nx.fot[i.dataset.fot] = +s; else delete nx.fot[i.dataset.fot]; });
     Object.keys(nx).forEach(k => { if (JSON.stringify(nx[k]) !== JSON.stringify(c[k])) send({type:'cfg', k, v:nx[k]}, () => c[k] = nx[k]); });
     sh.close(); toast('Настройки сохранены');
