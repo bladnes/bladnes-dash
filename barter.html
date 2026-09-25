@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 3, 23.09.2026: ссылка на профиль, вход по личной ссылке).
+   Бартер bladnes — рабочий интерфейс (сборка 5, 25.09.2026: стоимость доставки вводится вручную).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -589,7 +589,7 @@ function derive(){
     s._posts = (postsOf[s.id] || []).slice().sort((a, b) => a.d < b.d ? -1 : 1);
     s._cost = s.refused && !s._sentOk ? 0 : (s.cogs || 0) + (s.ship || 0) + (s.extra || 0);   // отказ или потеря после отправки — товар и доставка уже оплачены
     s._views = sum(s._posts, p => p._views);
-    s._shipWait = s.svc === 'СДЭК' && !s.ship && !s.refused;   // стоимость придёт из API СДЭК
+    s._shipWait = s._sentOk && !s.ship && !s.refused;   // отправлено, а стоимость доставки не внесена
     const base = s.dlv || (s._sentOk ? addDays(s.sent, cfg.transit) : null);
     s._deadline = base ? addDays(base, cfg.pubDays) : null;
     s._firstPost = s._posts.length ? s._posts[0].d : null;
@@ -805,10 +805,10 @@ function tasks(){
       a:[['Напомнить', 'remind', s.id, 'pri'], ['Вышла', 'addPostFor', s.id], ['Отказ', 'refuse', s.id]]}))});
   // 2. договорились, но не отправили
   S.sh.filter(s => s._st === 'agreed' && s.b && !s._sentOk && s.sent == null && s.deal && diffDays(s.deal, TODAY) >= 3).forEach(s => add({id:'ag-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
-    tt:`${esc(bh(s.b))} — договорились ${dLong(s.deal)}, не отправлено`, tx:`${s.id}. Если посылка уже ушла — укажите трек, даты и стоимость подтянутся сами.`,
+    tt:`${esc(bh(s.b))} — договорились ${dLong(s.deal)}, не отправлено`, tx:`${s.id}. Если посылка уже ушла — укажите трек и стоимость доставки.`,
     acts:[['Указать трек', 'track', s.id, 'pri'], ['Отказ', 'refuse', s.id]]}));
-  S.sh.filter(s => s._sentOk && s.b && s.svc !== 'СДЭК' && !s.ship && !s.refused).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
-    tt:`${esc(bh(s.b))} — нет стоимости доставки`, tx:`${s.id}${s.svc ? ' · ' + esc(s.svc) : ''}, отправлена ${dRu(s.sent)}. Без стоимости доставки расходы отдела занижены.${s.svc ? '' : ' Если трека СДЭК нет — выберите «Не СДЭК» и впишите, сколько заплатили.'}`, acts:[['Внести стоимость', 'track', s.id, 'pri']]}));
+  S.sh.filter(s => s._sentOk && s.b && !s.ship && !s.refused).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+    tt:`${esc(bh(s.b))} — нет стоимости доставки`, tx:`${s.id}${s.svc ? ' · ' + esc(s.svc) : ''}${s.track ? ' ' + esc(s.track) : ''}, отправлена ${dRu(s.sent)}. Впишите, сколько заплатили за доставку, — сумма есть в приложении СДЭК. Без неё расходы отдела занижены.`, acts:[['Внести стоимость', 'track', s.id, 'pri']]}));
   // 3. промокоды из заказов
   Object.entries(M.links).filter(([c, l]) => l.st === 'pending').forEach(([c, l]) => {
     const os = M.orders.filter(o => o.promo === c); const b = M.b[l.b];
@@ -885,9 +885,6 @@ function tasks(){
       tx:`Ролик от ${dLong(f.d)}, ${fmt(f.views || 0)} просмотров. Если такого кода нет и в Тильде, покупатели получают ошибку — проверьте срочно.${ORDERS.some(o => o.promo === code) ? '' : ' В заказах этот код пока не встречался.'}`,
       acts:[[`Записать ${code} блогеру`, 'codeFromPost', b.id + '|' + code, 'pri']]});
   });
-  S.sh.filter(s => !s.refused && s.svc === 'СДЭК' && s.cdek === 'не найден').forEach(s => add({id:'cdek-' + s.id + '-' + s.track, g:'Отправить', cls:'amb', ic:'truck',
-    tt:`СДЭК не нашёл трек ${esc(s.track)} — ${s.id}`, tx:`${esc(bh(s.b))}. Проверьте номер. Если посылку отправили не по договору магазина — выберите «Не СДЭК» и укажите стоимость доставки.`,
-    acts:[['Исправить трек', 'track', s.id, 'pri']]}));
   S.sh.filter(s => !s.refused && s.b && !s.items.length).forEach(s => add({id:'noitems-' + s.id, g:'Отправить', cls:'amb', ic:'box',
     tt:`${s.id} — не указано, что отправили`, tx:`${esc(bh(s.b))}. Без товара не посчитать себестоимость посылки.`, acts:[['Указать товары', 'editItems', s.id, 'pri']]}));
   S.bl.filter(b => b.missing && !b.stop).forEach(b => add({id:'miss-' + b.id, g:'Парсер', cls:'amb', ic:'alert', tt:`Профиль ${esc(b.h)} не найден`,
@@ -981,7 +978,7 @@ function shipItem(s){
   return `<a class="it" data-a="openShip" data-v="${s.id}">
     <div class="l1">${b ? plb(b.pl) : ''}<span class="nm">${esc(bh(s.b))}</span><div class="r">${stc(s._st)}</div></div>
     <div class="l2"><div class="thumbs">${th}</div><div class="muted" style="font-size:13px">${s.id}${s._iter > 1 ? ` · ${s._iter}-я отправка` : ''}<br>${s._sentOk ? 'отправлено ' + dRu(s.sent) : s.deal ? 'договорились ' + dRu(s.deal) : ''}</div></div>
-    <div class="l3"><span>затраты <b>${money(s._cost)}</b>${s._shipWait ? ' <span class="warn">+ доставка из СДЭК</span>' : ''}</span><span>просмотры <b>${s._views ? fmt(s._views) : '—'}</b></span>
+    <div class="l3"><span>затраты <b>${money(s._cost)}</b>${s._shipWait ? ' <span class="warn">+ доставка не указана</span>' : ''}</span><span>просмотры <b>${s._views ? fmt(s._views) : '—'}</b></span>
       <span>заказы <b>${s._orders.length}</b>${s._rev ? ` · <b>${money(s._rev)}</b>` : ''}</span></div>
     ${dl ? `<div class="dl">${dl}</div>` : ''}</a>`;
 }
@@ -1021,12 +1018,12 @@ function openShip(id){
       </div>
       <div class="lab" style="margin-top:14px">Что отправили</div>${items || '<div class="dim">Товары не указаны</div>'}
       <div class="lab" style="margin-top:16px">Деньги</div>
-      <div class="kv"><div><div class="l">Товар</div><div class="v sm">${money(s.cogs)}</div></div><div><div class="l">Доставка${s.svc ? ' · ' + esc(s.svc) : ''}</div><div class="v sm">${s._shipWait ? '<span class="warn">ждём СДЭК</span>' : money(s.ship)}</div></div>
+      <div class="kv"><div><div class="l">Товар</div><div class="v sm">${money(s.cogs)}</div></div><div><div class="l">Доставка${s.svc ? ' · ' + esc(s.svc) : ''}</div><div class="v sm">${s._shipWait ? '<span class="warn">не указана</span>' : money(s.ship)}</div></div>
         <div><div class="l">Итого</div><div class="v sm">${money(s._cost)}</div></div>
         <div><div class="l">Заказов</div><div class="v sm">${s._orders.length}</div></div><div><div class="l">Выручка</div><div class="v sm">${money(s._rev)}</div></div>
         <div><div class="l">Результат</div><div class="v sm ${s._margin - s._cost >= 0 ? 'ok' : 'bad'}">${money(s._margin - s._cost)}</div></div></div>
       <div class="dim" style="font-size:12px;margin-top:6px">Результат = маржа с заказов по промокоду (выручка − себестоимость − эквайринг 5 %) − товар − доставка. Без ФОТ.</div>
-      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? (s.cdek === 'не найден' ? '<br><span class="warn">СДЭК не нашёл этот трек по договору магазина — проверьте номер.</span>' : s.cdek ? '<br>СДЭК: <b>' + esc(s.cdek) + '</b>' + (s.cdekAt ? ' · проверено ' + dRu(String(s.cdekAt).slice(0, 10)) + ' ' + esc(String(s.cdekAt).slice(11, 16)) : '') : '<br>Стоимость, дата отправки и дата вручения подтянутся из API СДЭК при утреннем обновлении.') : '<br>Не СДЭК — стоимость внесена вручную, «получено» — кнопкой.'}</div></div>` : ''}
+      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}<br>${s.ship ? 'Стоимость ' + money(s.ship) + ' — внесена вручную.' : '<span class="warn">Стоимость доставки не указана.</span>'} «Получено» — кнопкой «Блогер получил».</div>${s._sentOk && !s.refused ? `<div class="row" style="margin-top:8px"><button class="btn sm" data-a="track" data-v="${s.id}">${icon('truck')}Изменить трек и стоимость</button></div>` : ''}</div>` : ''}
       <div class="lab" style="margin-top:16px">Публикации</div>${posts || `<div class="dim" style="font-size:13.5px">Пока нет. ${s._deadline ? 'Дедлайн — ' + dLong(s._deadline) + '.' : ''} Парсер проверяет профиль каждое утро.</div>`}
       ${orders ? `<div class="lab" style="margin-top:16px">Заказы по промокоду ${esc(code)}</div><div class="tw"><table class="t"><tbody>${orders}</tbody></table></div>` : ''}
       <div class="lab" style="margin-top:16px">Для блогера</div>
@@ -1053,18 +1050,17 @@ function deliveryFields(st){
   return `<div class="lab">Служба</div>
     <div class="chips wrap"><button class="chip ${cdek ? 'on' : ''}" data-svc="СДЭК">СДЭК</button><button class="chip ${!cdek ? 'on' : ''}" data-svc="other">Не СДЭК</button></div>
     ${cdek ? '' : `<div class="chips wrap" style="margin-top:8px">${OTHER_SVC.map(x => `<button class="chip ${st.svc === x ? 'on' : ''}" data-svc="${x}">${x}</button>`).join('')}</div>`}
-    <div class="hint">${cdek ? 'Правило: блогерам отправляем СДЭКом. Стоимость доставки, дата отправки и дата вручения подтянутся по треку из API СДЭК — вводить не нужно.'
-      : '<span class="warn">Только в крайнем случае.</span> Автоматики нет: укажите стоимость доставки до блогера, а когда он получит — нажмите «Блогер получил».'}</div>
+    <div class="hint">${cdek ? 'Правило: блогерам отправляем СДЭКом. Впишите трек и сколько заплатили за доставку — сумма есть в приложении СДЭК. Когда блогер получит посылку — нажмите «Блогер получил».'
+      : '<span class="warn">Только в крайнем случае.</span> Укажите стоимость доставки до блогера, а когда он получит — нажмите «Блогер получил».'}</div>
     <div class="fld" style="margin-top:12px"><label>Трек-номер${cdek ? '' : ' <span class="dim">— если есть</span>'}</label>
-      <div class="inb"><input class="in" id="trk" ${cdek ? 'inputmode="numeric"' : 'autocapitalize="characters"'} placeholder="${cdek ? '10 цифр из накладной СДЭК' : 'номер отправления'}" value="${esc(st.track)}"><button class="ib" id="trkP" title="Вставить">${icon('paste')}</button></div>
-      <div class="hint warn" id="trkW" style="${cdek && st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10 цифр — проверьте, не вставилось ли лишнее.</div></div>
-    ${cdek ? '' : `<div class="fld"><label>Стоимость доставки до блогера, ₽</label><input class="in" id="cst" inputmode="numeric" placeholder="например, 780" value="${esc(st.cost)}"></div>`}
+      <div class="inb"><input class="in" id="trk" ${cdek ? 'inputmode="numeric"' : 'autocapitalize="characters"'} placeholder="${cdek ? 'номер из приложения СДЭК' : 'номер отправления'}" value="${esc(st.track)}"><button class="ib" id="trkP" title="Вставить">${icon('paste')}</button></div>
+      <div class="hint warn" id="trkW" style="${cdek && st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10–11 цифр — проверьте, не вставилось ли лишнее.</div></div>
+    <div class="fld"><label>Стоимость доставки до блогера, ₽ <span class="dim">— обязательно</span></label><input class="in" id="cst" inputmode="numeric" placeholder="сколько заплатили, например 780" value="${esc(st.cost)}"></div>
     <div class="lab">Когда отправили</div><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
-      <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div>
-    ${cdek ? '<div class="hint">Для СДЭК дату тоже уточнит API — здесь на случай, если трек ещё не зарегистрирован.</div>' : ''}`;
+      <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" max="${TODAY}"></div>`;
 }
-// СДЭК — нужен корректный трек; другая служба — нужна стоимость
-const deliveryValid = st => st.svc === 'СДЭК' ? cdekOk(st.track) : +st.cost > 0;
+// стоимость доставки обязательна всегда; для СДЭК ещё и корректный трек
+const deliveryValid = st => +st.cost > 0 && (st.svc !== 'СДЭК' || cdekOk(st.track));
 function bindDelivery(root, st, draw, onChange){
   $$('[data-svc]', root).forEach(el => el.onclick = () => { const v = el.dataset.svc;
     st.svc = v === 'other' ? (OTHER_SVC.includes(st.svc) ? st.svc : OTHER_SVC[0]) : v; draw(); });
@@ -1118,7 +1114,7 @@ function shipForm(pre){
       <div class="fld"><label>3. Что обещал <span class="dim">— по желанию</span></label><div class="chips wrap">${prom}</div>
         <div class="hint">Нажмите ещё раз, чтобы увеличить количество; долгое нажатие убирает.</div></div>
       <div class="fld"><label>4. Посылка уже ушла?</label>
-        <div class="toggle ${st.sentNow ? 'on' : ''}" id="tgSent"><div class="g"><b>${st.sentNow ? 'Да, указываю трек' : 'Нет, трек добавлю позже'}</b><div class="dim" style="font-size:12.5px">${st.sentNow ? 'Для СДЭК достаточно трека' : 'Задача «указать трек» появится сама'}</div></div><div class="sw2"></div></div>
+        <div class="toggle ${st.sentNow ? 'on' : ''}" id="tgSent"><div class="g"><b>${st.sentNow ? 'Да, указываю трек' : 'Нет, трек добавлю позже'}</b><div class="dim" style="font-size:12.5px">${st.sentNow ? 'Трек и стоимость доставки — обязательно' : 'Задача «указать трек» появится сама'}</div></div><div class="sw2"></div></div>
         <div style="margin-top:12px">${sv}</div></div>`;
     const canSave = () => { $('#saveShip', sh.f).disabled = !(b && !b.stop && st.items.length && (!st.sentNow || deliveryValid(st))); };
     canSave();
@@ -1176,7 +1172,7 @@ function shipDone(id){
   const s = M.s[id]; if (!s) return toast('Отправка сохранена');
   const b = M.b[s.b], code = promoOf(b);
   const sh = sheet({title:`Отправка ${id} создана`, sub:`${esc(b.h)} · ${s._iter}-я отправка`, body:`
-    <div class="box ok"><div class="t">${icon('check')} Сохранено и записано в журнал</div><div class="d">Себестоимость ${money(s.cogs)}${s.svc ? ` · ${esc(s.svc)}${s.track ? ' ' + esc(s.track) : ''}${s.svc === 'СДЭК' ? ' — стоимость доставки придёт из СДЭК утренним обновлением' : ' · доставка ' + money(s.ship)}` : ' · трек добавите, когда отправите'}.</div></div>
+    <div class="box ok"><div class="t">${icon('check')} Сохранено и записано в журнал</div><div class="d">Себестоимость ${money(s.cogs)}${s.svc ? ` · ${esc(s.svc)}${s.track ? ' ' + esc(s.track) : ''}${' · доставка ' + money(s.ship)}` : ' · трек добавите, когда отправите'}.</div></div>
     ${code && !b.promoOk ? `<div class="box warn" style="margin-top:10px"><div class="t">${icon('tag')} Создайте промокод ${esc(code)} в Тильде</div><div class="d">Настройки сайта → Промокоды, скидка 5 %. Пока кода нет в Тильде, покупатель получит ошибку.</div>
       <div class="row"><button class="btn sm ok" data-a="codeMade" data-v="${b.id}">Создан в Тильде</button><button class="btn sm" data-a="copyOne" data-v="${esc(code)}">${icon('copy')}Скопировать код</button></div></div>` : ''}
     <div class="lab" style="margin-top:14px">Сообщение блогеру</div><div class="pre">${esc(briefText(s))}</div>`,
@@ -1257,16 +1253,16 @@ function itemsForm(id){
 }
 /* ---------- трек ---------- */
 function trackForm(id){
-  const s = M.s[id]; const st = {svc:s.svc || (s._sentOk && !s.track ? 'Другое' : 'СДЭК'), track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY};   // правка трека не сбрасывает дату отправки
-  const sh = sheet({title:`Трек · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svT" disabled>Сохранить</button>`});
+  const s = M.s[id]; const st = {svc:s.svc || 'СДЭК', track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY};   // правка трека не сбрасывает дату отправки
+  const sh = sheet({title:`Трек и доставка · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svT" disabled>Сохранить</button>`});
   const canSave = () => { $('#svT', sh.f).disabled = !deliveryValid(st); };
   const draw = () => { sh.b.innerHTML = deliveryFields(st); bindDelivery(sh.b, st, draw, canSave); canSave(); };
   draw();
   $('#svT', sh.f).onclick = () => {
     const track = st.track.replace(/\s/g, '');
     send({type:'setTrack', id:s.id, svc:st.svc, track, ship:+st.cost || 0, date:st.date},
-      () => { s.sent = st.date; s.svc = st.svc; s.track = track; s.ship = st.svc === 'СДЭК' ? 0 : +st.cost; });
-    sh.close(); toast(st.svc === 'СДЭК' ? 'Трек сохранён. Стоимость придёт из СДЭК утренним обновлением' : 'Трек и стоимость сохранены'); };
+      () => { s.sent = st.date; s.svc = st.svc; s.track = track; s.ship = +st.cost; });
+    sh.close(); toast('Трек и стоимость доставки сохранены'); };
 }
 
 /* =====================================================================
@@ -1582,12 +1578,12 @@ function rHow(){
         <div class="fb"><b>Каталог Тильды</b>товары с фото — Матвей выбирает, а не пишет артикул</div>
         <div class="fb"><b>Справочник себестоимости</b>тот же, что у дашборда продаж (102 артикула)</div>
         <div class="fb"><b>Архив заказов</b>промокоды и UTM каждого заказа — продажи блогеров считаются сами</div>
-        <div class="fb"><b>API СДЭК</b>по треку: дата отправки, вручения, стоимость, статус</div>
+        <div class="fb"><b>СДЭК</b>трек и стоимость доставки вносятся вручную: посылки уходят с личного кабинета, API его не видит</div>
         <div class="fb"><b>Apify</b>TikTok и Reels: новые ролики у блогеров, просмотры каждый день</div>
       </div>
       <div class="farr"><span class="v">↓</span><span class="h">→</span></div>
       <div class="fcol">
-        <div class="fb core"><b>Скрипт на stepan.wb</b>Google Apps Script: принимает действия из интерфейса, проверяет их, пишет в базу. Каждое утро в 09:00 — парсер, СДЭК, новые заказы</div>
+        <div class="fb core"><b>Скрипт на stepan.wb</b>Google Apps Script: принимает действия из интерфейса, проверяет их, пишет в базу. Каждое утро в 09:00 — парсер и новые заказы</div>
         <div class="fb core"><b>Закрытая база</b>Google-таблица «Бартер — база». Пишет только скрипт, ссылки ни у кого нет — сломать некому. Ежедневная копия</div>
       </div>
       <div class="farr"><span class="v">↓</span><span class="h">→</span></div>
@@ -1602,7 +1598,7 @@ function rHow(){
     <div class="card"><div class="tw"><table class="t cmp"><thead><tr><th>Действие</th><th>Было в таблице</th><th>Стало</th></tr></thead><tbody>
       <tr><td>Новый блогер</td><td class="was">13 колонок: id, ник, площадка, ссылка, подписчики, тематика, аудитория, источник, промокод, контакт, статус, дата, комментарий</td><td>Вставить ссылку на профиль. Ник, площадка, id, дата, подписчики, промокод — сами. Дубль не даст завести</td></tr>
       <tr><td>Отправка</td><td class="was">16 колонок: id, blogger_id, даты, SKU ×2, количество, себестоимость, доставка, доплата, промокод, UTM…</td><td>Выбрать блогера (нет в базе — сначала добавить) и товар по фото, размер. Остальное — само, плюс готовое сообщение блогеру</td></tr>
-      <tr><td>Трек и доставка</td><td class="was">дата отправки, дата доставки, стоимость, статус — руками</td><td>Вставить трек СДЭК — стоимость доставки, даты и статус придут из API. Не СДЭК (крайний случай) — способ, стоимость и кнопка «Блогер получил»</td></tr>
+      <tr><td>Трек и доставка</td><td class="was">дата отправки, дата доставки, стоимость, статус — руками</td><td>Трек и стоимость доставки из приложения СДЭК — при отправке, без стоимости не сохранить. «Получено» — кнопка «Блогер получил»</td></tr>
       <tr><td>Публикация</td><td class="was">10 колонок и три галочки</td><td>Парсер находит сам — подтвердить. Вручную — вставить ссылку, блогер и отправка определятся</td></tr>
       <tr><td>Замеры</td><td class="was">по 2 строки на публикацию, окна 5–14 и 25–45 дней, 11 колонок</td><td>Парсер каждый день. Руками — только сторис: одна цифра со скрина</td></tr>
       <tr><td>Продажи</td><td class="was">выгрузка из Тильды раз в неделю (не делалась ни разу)</td><td>Из архива заказов автоматически, по промокоду и UTM</td></tr>
@@ -1626,9 +1622,9 @@ function rHow(){
     <h3>Доставка до блогера</h3>
     <ul>
       <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
-      <li><b>Правило: блогерам — только СДЭК.</b> Матвей вставляет трек из накладной (10 цифр), больше ничего. Скрипт раз в день спрашивает СДЭК по договору магазина (IM-SPB1177-1157, ключи уже есть в проекте автопримерки): <code>GET /v2/orders?cdek_number=…</code> → стоимость доставки, дата приёма (= «отправлено»), дата вручения (= «получено»), статус.</li>
-      <li>Если СДЭК за сутки не нашёл трек — например, посылку оформили не по договору магазина, — на «Сегодня» появится задача: проверить номер или внести стоимость вручную.</li>
-      <li><b>Не СДЭК — крайний случай:</b> Матвей выбирает способ (Почта, Яндекс, курьер, другое) и вписывает стоимость доставки до блогера; «получено» — одна кнопка. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
+      <li><b>Правило: блогерам — только СДЭК.</b> При отправке Матвей вставляет трек и стоимость доставки — сумма есть в приложении СДЭК. Без стоимости отправку не сохранить; если её нет у старой отправки, на «Сегодня» появится задача «нет стоимости доставки».</li>
+      <li><b>Почему вручную.</b> Посылки блогерам уходят с личного кабинета СДЭК Матвея. API СДЭК работает только по договору (у магазина — IM-SPB1177-1157), и такие посылки не видит. Утренняя сверка со СДЭК выключена; если отправки переведут на кабинет магазина, её включает одна настройка скрипта (CDEK_SYNC).</li>
+      <li><b>«Получено» — одна кнопка</b> «Блогер получил», для любой службы. Не СДЭК (Почта, Яндекс, курьер) — только в крайнем случае. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
     </ul>
 
     <h3>Продажи и промокоды</h3>
@@ -1657,7 +1653,7 @@ function rHow(){
     <h3>Порядок работ</h3>
     <ul>
       <li><b>1. Фундамент.</b> База и скрипт на stepan.wb, перенос 29 блогеров, 29 отправок и 8 публикаций с исправлением ошибок (те, что на «Сегодня» в группе «После переноса»). Страницы «Сегодня», «Отправки», «Блогеры», «Журнал». Продажи из архива, себестоимость из справочника. После этого Матвей работает здесь, а таблица становится архивом «только чтение».</li>
-      <li><b>2. Автоматика.</b> Apify: поиск публикаций и ежедневные замеры. СДЭК по треку. Утренний прогон в 09:00.</li>
+      <li><b>2. Автоматика.</b> Apify: поиск публикаций и ежедневные замеры. Утренний прогон в 09:00.</li>
       <li><b>3. Итоги.</b> Страница «Итоги», связка с журналом UTM и дашбордом блогеров.</li>
     </ul>
 
