@@ -104,7 +104,7 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 11.0</span>
+  <div class="sub" id="meta"><span class="ver">сборка 12.0</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -358,8 +358,27 @@ function onCost(resp){
   Object.entries(COST_MANUAL).forEach(([k,v]) => { COST.set(normKey(k), v); COST_ROWS++; });
 }
 
+/* ---------- возвраты ---------- */
+// Лист «Возвраты» в таблице «Сайт Бладнес»: туда целиком копируют строку заказа,
+// который вернули. Признак возврата — сам факт, что заказ есть на листе (колонка статуса
+// там ненадёжна). Возвращают заказ всегда целиком: частичного выкупа на сайте не было.
+// ⚠️ У листа нет строки заголовков, поэтому headers=0 — иначе первый возврат пропадает.
+const RET_GID = '1309436569';
+let RET = null;                        // Set номеров заказов без префикса; null — лист не загрузился
+let RET_ERR = '';
+function onReturns(resp){
+  RET = new Set();
+  ((resp.table && resp.table.rows) || []).forEach(r => {
+    // номер ищем по виду «22234296:1673537921», а не по букве колонки —
+    // так не сломается, если в лист вставят колонку или строку заголовков
+    const id = (r.c || []).map(c => c && c.v != null ? String(c.v).trim() : '')
+      .find(v => /^\d+:\d+$/.test(v));
+    if (id) RET.add(id.split(':').pop());
+  });
+}
+
 /* ---------- загрузка ---------- */
-function jsonp(sheetId, gid, query, onOk, onErr){
+function jsonp(sheetId, gid, query, onOk, onErr, headers){
   const cb = 'gvizcb_' + Math.random().toString(36).slice(2);
   const timer = setTimeout(() => onErr('таблица не ответила за 20 секунд'), 20000);
   window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
@@ -367,7 +386,7 @@ function jsonp(sheetId, gid, query, onOk, onErr){
   // он заведомо больше числа строк, на данные не влияет, но каждый раз даёт свежий ответ.
   const q = query + ' limit ' + (900000 + Math.floor(Math.random() * 90000));
   const s = document.createElement('script');
-  s.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&headers=1&tqx=out:json;responseHandler:${cb}&tq=${encodeURIComponent(q)}&_=${Date.now()}`;
+  s.src = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?gid=${gid}&headers=${headers === undefined ? 1 : headers}&tqx=out:json;responseHandler:${cb}&tq=${encodeURIComponent(q)}&_=${Date.now()}`;
   s.onerror = () => { clearTimeout(timer); onErr('не удалось загрузить таблицу'); };
   document.head.appendChild(s);
 }
@@ -404,10 +423,18 @@ function load(){
       jsonp(SHEET_ID, GID, QUERY, onData, m2 => fail('Заказы: архив — ' + m + '; таблица — ' + m2));
     });
   };
+  // без листа возвратов дашборд тоже работает — просто без их учёта, с предупреждением
+  const returns = () => {
+    el.textContent = 'Загружаю возвраты…';
+    RET_ERR = '';
+    jsonp(SHEET_ID, RET_GID, 'select *',
+      resp => { onReturns(resp); orders(); },
+      m => { RET = null; RET_ERR = m; orders(); }, 0);
+  };
   // без справочника себестоимости дашборд должен работать — просто без прибыли
   jsonp(COST_SHEET_ID, COST_GID, COST_QUERY,
-    resp => { onCost(resp); orders(); },
-    () => { COST = new Map(); COST_ROWS = 0; orders(); });
+    resp => { onCost(resp); returns(); },
+    () => { COST = new Map(); COST_ROWS = 0; returns(); });
 }
 function fail(msg){
   const el = document.getElementById('loading');
@@ -440,8 +467,12 @@ function onData(resp){
     });
     const delivPrice = num(parseCell(c[8]));
     const shipPaid = price - goods > 1 ? price - goods : 0;
+    // в архиве номер без префикса, в старой таблице (запасной путь) — «22234296:…»
+    const id = String(parseCell(c[0]) || '').split(':').pop().trim();
     RAW.push({
-      id: String(parseCell(c[0]) || ''),
+      id,
+      returned: !!(RET && id && RET.has(id)),
+      retShip: 0,                         // обратная доставка, считается ниже
       date: dt.d, hour: dt.h, dow: (new Date(dt.d + 'T00:00:00').getDay() + 6) % 7,
       email: String(parseCell(c[2]) || '').trim().toLowerCase(),
       price,                              // сумма заказа как в таблице
@@ -463,13 +494,32 @@ function onData(resp){
     });
   });
   RAW.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  // Обратную доставку оплачиваем мы, а её фактической цены нигде нет. Берём стоимость
+  // доставки этого же заказа до покупателя (тот же пункт, та же служба). Если она
+  // не заполнена — среднюю по этой службе, а если и её нет — среднюю по всем заказам.
+  const avg = a => a.length ? a.reduce((s,x) => s + x, 0) / a.length : 0;
+  const bySvc = new Map();
+  RAW.forEach(r => { if (r.delivPrice > 0){
+    if (!bySvc.has(r.delivery)) bySvc.set(r.delivery, []);
+    bySvc.get(r.delivery).push(r.delivPrice); } });
+  const avgAll = avg(RAW.filter(r => r.delivPrice > 0).map(r => r.delivPrice));
+  RAW.forEach(r => { if (r.returned)
+    r.retShip = Math.round(r.delivPrice || avg(bySvc.get(r.delivery) || []) || avgAll); });
+  const retFound = RAW.filter(r => r.returned).length;
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
   const lastDate = RAW.length ? RAW[RAW.length-1].date.split('-').reverse().join('.') : '—';
   document.getElementById('upd').innerHTML = 'обновлено ' + mskNow()
     + (FALLBACK ? ' · <b style="color:#d64545">архив не ответил (' + FALLBACK + '), данные из старой таблицы</b>' : '')
     + ' · заказов: <b>' + RAW.length + '</b> · последний в архиве: <b>' + lastDate + '</b>'
-    + ' · артикулов в справочнике себестоимости: <b>' + COST_ROWS + '</b>';
+    + ' · артикулов в справочнике себестоимости: <b>' + COST_ROWS + '</b>'
+    + (RET ? ' · возвратов: <b>' + retFound + '</b>'
+        // До середины сентября возвраты ВЫРЕЗАЛИ из «Покупок», а не копировали, поэтому
+        // в архив (импорт 17.09) они не попали: в выручке их нет, и вычитать нечего.
+        // На 03.10.2026 таких 32 — все заказы до 11.09.2026.
+        + (RET.size > retFound ? ' <span style="color:var(--tx2)" title="Эти возвраты вырезали из таблицы «Покупки» до запуска архива, поэтому в выручке их и так нет">(ещё '
+          + (RET.size - retFound) + ' старых — в выручке их и так нет)</span>' : '')
+      : ' · <b style="color:#d64545">лист «Возвраты» не загрузился (' + RET_ERR + ') — прибыль без учёта возвратов</b>');
   initFilters();
   render();
 }
@@ -566,11 +616,22 @@ function filtered(){
 // Налог не учитываем. Логистику, которую оплатил покупатель, не считаем расходом.
 // Позиции без себестоимости из расчёта исключаются целиком — и выручкой, и расходами,
 // иначе прибыль по ним оказалась бы завышена на всю их стоимость.
+//
+// Возврат (согласовано со Степаном 03.10.2026). Покупатель возвращает заказ целиком,
+// вещь идёт обратно в продажу, обратную доставку оплачиваем мы:
+//   выручка за товар  — уходит (деньги вернули)
+//   себестоимость     — уходит (вещь снова на складе)
+//   эквайринг         — остаётся (комиссию при возврате не возвращают)
+//   доставка к нам    — остаётся
+//   обратная доставка — добавляется (r.retShip)
+// То есть возвращённый заказ приносит не прибыль, а небольшой минус.
 const acqRate = () => (parseFloat(document.getElementById('acq').value) || 0) / 100;
 const acqOf = r => r.price * acqRate();
-const coveredOf = r => r.goods - r.noCostSum;           // выручка, участвующая в расчёте
-const wOf = r => r.goods ? coveredOf(r) / r.goods : 0;  // её доля в заказе
-const profitOf = r => coveredOf(r) - r.cogs - (acqOf(r) + r.ourLog) * wOf(r);
+const wOf = r => r.goods ? (r.goods - r.noCostSum) / r.goods : 0;  // доля позиций с СС в заказе
+const coveredOf = r => r.returned ? 0 : r.goods - r.noCostSum;    // выручка, участвующая в расчёте
+const cogsOf = r => r.returned ? 0 : r.cogs;
+const retShipOf = r => r.returned ? r.retShip : 0;
+const profitOf = r => coveredOf(r) - cogsOf(r) - (acqOf(r) + r.ourLog + retShipOf(r)) * wOf(r);
 
 /* ---------- агрегации ---------- */
 function group(rows, keyFn){
@@ -578,11 +639,12 @@ function group(rows, keyFn){
   rows.forEach(r => {
     const k = keyFn(r);
     if (!m.has(k)) m.set(k, {k, orders:0, paidOrders:0, units:0, sum:0, goods:0, paidSum:0, received:0,
-      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0});
+      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0, ret:0, retN:0, retShip:0});
     const g = m.get(k);
     g.orders++; g.units += r.units; g.sum += r.price; g.goods += r.goods; g.deliv += r.delivPrice;
-    g.cogs += r.cogs; g.acq += acqOf(r) * wOf(r); g.ourLog += r.ourLog * wOf(r);
+    g.cogs += cogsOf(r); g.acq += acqOf(r) * wOf(r); g.ourLog += r.ourLog * wOf(r);
     g.profit += profitOf(r); g.noCostSum += r.noCostSum; g.covered += coveredOf(r);
+    if (r.returned){ g.ret += r.goods; g.retN++; g.retShip += retShipOf(r) * wOf(r); }
     if (r.paid){ g.paidOrders++; g.paidSum += r.price; g.received += r.received; }
   });
   return [...m.values()].sort((x,y) => x.k < y.k ? -1 : 1);
@@ -594,7 +656,7 @@ function fillDays(rows, a, b){
   while (d <= end && guard++ < 2000){
     const k = ymd(d);
     out.push(g.get(k) || {k, orders:0, paidOrders:0, units:0, sum:0, goods:0, paidSum:0, received:0,
-      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0});
+      deliv:0, cogs:0, acq:0, ourLog:0, profit:0, noCostSum:0, covered:0, ret:0, retN:0, retShip:0});
     d.setDate(d.getDate()+1);
   }
   return out;
@@ -622,6 +684,8 @@ function drawPnl(g){
     {label:'Себестоимость', data:g.map(x=>x.cogs), backgroundColor:'#5b6675'},
     {label:'Эквайринг', data:g.map(x=>x.acq), backgroundColor:'#d29922'},
     {label:'Логистика (наша)', data:g.map(x=>x.ourLog), backgroundColor:'#f85149'},
+    {label:'Обратная доставка', data:g.map(x=>x.retShip), backgroundColor:'#a371f7'},
+    {label:'Возвраты', data:g.map(x=>x.ret), backgroundColor:'#6e2b3a'},
     {label:'Прибыль', data:g.map(x=>x.profit), backgroundColor:'#3fb950'} ]},
     options:{ maintainAspectRatio:false, plugins:{legend:{labels:{color:'#9aa7b4',boxWidth:12}},
       tooltip:{callbacks:{label:c => c.dataset.label + ': ' + money(c.raw)
@@ -867,17 +931,26 @@ function renderKpis(rows, a, b){
   const days = Math.max(1, Math.round((new Date(b) - new Date(a))/864e5) + 1);
   const share = (x,y) => y ? (x/y*100).toFixed(1) + '%' : '—';
 
-  const cogs   = rows.reduce((s,r) => s+r.cogs, 0);
+  const cogs   = rows.reduce((s,r) => s+cogsOf(r), 0);
   const acq    = rows.reduce((s,r) => s+acqOf(r)*wOf(r), 0);
   const ourLog = rows.reduce((s,r) => s+r.ourLog*wOf(r), 0);
   const profit = rows.reduce((s,r) => s+profitOf(r), 0);
   const noCost = rows.reduce((s,r) => s+r.noCostSum, 0);
-  const covered = goods - noCost;
+  const covered = rows.reduce((s,r) => s+coveredOf(r), 0);   // без возвратов и позиций без СС
   const gross  = covered - cogs;
+  const retRows = rows.filter(r => r.returned);
+  const retGoods = retRows.reduce((s,r) => s+r.goods, 0);
+  const retUnits = retRows.reduce((s,r) => s+r.units, 0);
+  const retShip  = retRows.reduce((s,r) => s+retShipOf(r)*wOf(r), 0);
+  // во что обошлись возвраты: на сколько прибыль меньше, чем если бы заказы выкупили.
+  // Эквайринг и доставку к покупателю мы заплатили бы в любом случае, поэтому сюда
+  // входят только упущенная валовая прибыль и обратная доставка.
+  const retLoss  = retRows.reduce((s,r) => s + (r.goods - r.noCostSum - r.cogs) + retShipOf(r)*wOf(r), 0);
 
   const k = [
     ['Заказов', fmt(n), `${a.split('-').reverse().join('.')} → ${b.split('-').reverse().join('.')} · ${days} дн.`, ''],
-    ['Выручка за товар', money(goods), 'без доставки', ''],
+    ['Выручка за товар', money(goods), retGoods
+      ? 'без доставки · за вычетом возвратов ' + money(goods - retGoods) : 'без доставки', ''],
     ['Себестоимость', money(cogs), share(cogs, covered) + ' от выручки в расчёте', ''],
     ['Валовая прибыль', money(gross), 'маржа ' + share(gross, covered), 'good'],
     ['Чистая прибыль', money(profit), 'маржинальность ' + share(profit, covered), profit > 0 ? 'hero' : 'warn'],
@@ -889,6 +962,12 @@ function renderKpis(rows, a, b){
     ['Средний чек', money(n ? goods/n : 0), 'за товар, без доставки', ''],
     ['Многотоварные заказы', fmt(multi), share(multi, n) + ' от всех', ''],
   ];
+  if (RET) k.push(['Возвраты', money(retGoods),
+    retRows.length
+      ? `${fmt(retRows.length)} ${plural(retRows.length,'заказ','заказа','заказов')} · ${fmt(retUnits)} шт · `
+        + `${share(retGoods, goods)} выручки · обратная доставка ${money(retShip)} · `
+        + `стоили прибыли ${money(retLoss)}`
+      : 'за период не было', retRows.length ? 'warn' : '']);
   if (disc > 0) k.push(['Скидки', money(disc), share(disc, goods) + ' от товара', '']);
   if (noCost > 0) k.push(['Без себестоимости', money(noCost),
     share(noCost, goods) + ' выручки не участвует в прибыли', 'warn']);
@@ -935,7 +1014,8 @@ function productAgg(rows){
   const m = new Map();
   rows.forEach(r => r.items.forEach(it => {
     if (!m.has(it.ckey)) m.set(it.ckey, {ckey:it.ckey, name:it.name, art:it.art, cost:it.cost,
-      lastSeen:r.date, qty:0, sum:0, cogs:0, acq:0, ourLog:0, noCostQty:0, ord:new Set()});
+      lastSeen:r.date, qty:0, sum:0, cogs:0, acq:0, ourLog:0, noCostQty:0, ord:new Set(),
+      retQty:0, retSum:0, retShip:0});
     const g = m.get(it.ckey);
     g.qty += it.qty; g.sum += it.sum; g.ord.add(r.id || r.date + r.email);
     // показываем самое свежее название — то, как товар называется на сайте сейчас
@@ -944,14 +1024,19 @@ function productAgg(rows){
     // переменные расходы заказа делим между позициями пропорционально их сумме
     const w = r.goods ? it.sum / r.goods : 0;
     g.acq += acqOf(r) * w; g.ourLog += r.ourLog * w;
-    if (it.cost === null) g.noCostQty += it.qty; else g.cogs += it.cost * it.qty;
+    if (it.cost === null) g.noCostQty += it.qty;
+    // вернули — себестоимость не тратится (вещь снова на складе), выручки нет,
+    // а эквайринг, доставка к покупателю и обратная доставка остаются
+    if (r.returned){ g.retQty += it.qty; g.retSum += it.sum; g.retShip += r.retShip * w; }
+    else if (it.cost !== null) g.cogs += it.cost * it.qty;
   }));
   return [...m.values()].map(g => {
-    const hasCost = g.noCostQty === 0 && g.cogs > 0;
-    const profit = hasCost ? g.sum - g.cogs - g.acq - g.ourLog : 0;
-    return {...g, orders: g.ord.size, hasCost, profit,
-      gross: hasCost ? g.sum - g.cogs : 0,
-      margin: hasCost && g.sum ? profit / g.sum : 0};
+    const hasCost = g.noCostQty === 0 && (g.cogs > 0 || g.retQty === g.qty);
+    const net = g.sum - g.retSum;                  // выручка за вычетом возвратов
+    const profit = hasCost ? net - g.cogs - g.acq - g.ourLog - g.retShip : 0;
+    return {...g, orders: g.ord.size, hasCost, profit, net,
+      gross: hasCost ? net - g.cogs : 0,
+      margin: hasCost && net ? profit / net : 0};
   }).sort((a,b) => b.qty - a.qty);
 }
 function drawProd(p){
@@ -993,6 +1078,8 @@ function tableMonth(g){
     {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
     {t:'Штук', v:r=>r.units, f:r=>fmt(r.units)},
     {t:'Выручка за товар', v:r=>r.goods, f:r=>money(r.goods)},
+    {t:'Возвраты', v:r=>r.ret, f:r=>r.retN
+      ? `<span class="neg">${money(r.ret)}</span> <span style="color:var(--tx2);font-size:11px">${r.retN} · ${(r.ret/r.goods*100).toFixed(1)}%</span>` : '—'},
     {t:'Себестоимость', v:r=>r.cogs, f:r=>money(r.cogs)},
     {t:'Эквайринг', v:r=>r.acq, f:r=>money(r.acq)},
     {t:'Логистика (наша)', v:r=>r.ourLog, f:r=>money(r.ourLog)},
@@ -1002,7 +1089,9 @@ function tableMonth(g){
     {t:'Средний чек', v:r=>r.orders?r.goods/r.orders:0, f:r=>money(r.orders?r.goods/r.orders:0)},
   ];
   const tg = sum(g,x=>x.goods), to = sum(g,x=>x.orders), tp = sum(g,x=>x.profit), tv = sum(g,x=>x.covered);
+  const tr = sum(g,x=>x.ret), trn = sum(g,x=>x.retN);
   tbl('tMonth', cols, g, ['Итого', fmt(to), fmt(sum(g,x=>x.units)), money(tg),
+    trn ? money(tr) + ' · ' + trn + ' · ' + (tr/tg*100).toFixed(1) + '%' : '—',
     money(sum(g,x=>x.cogs)), money(sum(g,x=>x.acq)), money(sum(g,x=>x.ourLog)),
     money(tp), tv ? (tp/tv*100).toFixed(1)+'%' : '—', money(to?tg/to:0)]);
 }
@@ -1066,17 +1155,20 @@ function dayDetail(rows){
   const m = new Map();
   rows.forEach(r => r.items.forEach(it => {
     const k = it.ckey + '|' + it.size;
-    if (!m.has(k)) m.set(k, {name:it.name, art:it.art, size:it.size, cost:it.cost, qty:0, sum:0, ord:new Set()});
+    if (!m.has(k)) m.set(k, {name:it.name, art:it.art, size:it.size, cost:it.cost, qty:0, sum:0, ord:new Set(),
+      retQty:0, retSum:0});
     const g = m.get(k);
     g.qty += it.qty; g.sum += it.sum; g.ord.add(r.id || r.date + r.email);
+    if (r.returned){ g.retQty += it.qty; g.retSum += it.sum; }
     if (g.cost === null && it.cost !== null) g.cost = it.cost;
   }));
   const list = [...m.values()].sort((a,b) => b.sum - a.sum || b.qty - a.qty);
   const units = list.reduce((s,x) => s + x.qty, 0);
   const goods = list.reduce((s,x) => s + x.sum, 0);
   const dProfit = rows.reduce((s,r) => s + profitOf(r), 0);
-  const dCogs = rows.reduce((s,r) => s + r.cogs, 0);
+  const dCogs = rows.reduce((s,r) => s + cogsOf(r), 0);
   const dNoCost = rows.some(r => r.noCostQty > 0);
+  const dRet = rows.filter(r => r.returned);
   const chans = [...new Set(rows.map(r => r.utm))].filter(x => x && x !== '(нет)');
   // самопроверка: разбор строки товаров должен сходиться с колонкой subtotal
   const ref = rows.reduce((s,r) => s + r.goods, 0);
@@ -1090,15 +1182,16 @@ function dayDetail(rows){
       выручка ${money(goods)} · себестоимость ${money(dCogs)} ·
       прибыль <b class="${dProfit>=0?'pos':'neg'}">${money(dProfit)}</b>
       ${goods ? '(' + (dProfit/goods*100).toFixed(1) + '%)' : ''}${dNoCost ? ' · есть позиции без СС' : ''}
+      ${dRet.length ? ' · <span class="neg">возвраты: ' + dRet.length + ' на ' + money(dRet.reduce((s,r)=>s+r.goods,0)) + '</span>' : ''}
       ${chans.length ? ' · метки: ' + chans.join(', ') : ''}</div>${gap}
     <table class="det-table">
       <thead><tr><th>Товар</th><th>Артикул</th><th>Размер</th><th>Штук</th><th>Выручка</th><th>Себест.</th><th>Прибыль</th><th>Маржа</th></tr></thead>
       <tbody>${list.map(x => {
         const has = x.cost !== null && x.cost !== undefined;
-        const cg = has ? x.cost * x.qty : 0;
-        const pr = has ? x.sum - cg : 0;
+        const cg = has ? x.cost * (x.qty - x.retQty) : 0;     // вернувшиеся вещи снова на складе
+        const pr = has ? (x.sum - x.retSum) - cg : 0;
         return `<tr>
-        <td>${x.name}</td><td class="mono">${x.art}</td><td><b>${x.size}</b></td>
+        <td>${x.name}${x.retQty ? ' <span class="tag" style="background:#3a2226;color:#ffb3ae">возврат' + (x.retQty < x.qty ? ' ' + x.retQty + ' из ' + x.qty : '') + '</span>' : ''}</td><td class="mono">${x.art}</td><td><b>${x.size}</b></td>
         <td>${fmt(x.qty)}</td><td>${money(x.sum)}</td>
         <td>${has ? money(cg) : '—'}</td>
         <td class="${pr>=0?'pos':'neg'}">${has ? money(pr) : '—'}</td>
@@ -1130,6 +1223,8 @@ function tableProd(p){
   const cols = [
     {t:'Товар', v:r=>r.name, f:r=>r.name + (r.hasCost ? '' : ' <span class="tag" style="background:#3a2226;color:#ffb3ae">нет СС</span>')},
     {t:'Штук', v:r=>r.qty, f:r=>fmt(r.qty)},
+    {t:'Возвраты', v:r=>r.qty ? r.retQty / r.qty : 0, f:r=>r.retQty
+      ? `<span class="neg">${fmt(r.retQty)} шт</span> <span style="color:var(--tx2);font-size:11px">${(r.retQty/r.qty*100).toFixed(0)}%</span>` : '—'},
     {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
     {t:'Себестоимость', v:r=>r.cogs, f:r=>r.hasCost ? money(r.cogs) : '—'},
     {t:'СС за штуку', v:r=>r.cost||0, f:r=>r.cost ? money(r.cost) : '—'},
@@ -1137,7 +1232,7 @@ function tableProd(p){
       ? `<span class="${r.profit>=0?'pos':'neg'}">${money(r.profit)}</span>` : '—'},
     {t:'Маржа', v:r=>r.margin, f:r=>r.hasCost
       ? `<span class="${r.margin>=0?'pos':'neg'}">${(r.margin*100).toFixed(1)}%</span>` : '—'},
-    {t:'Наценка', v:r=>r.cogs?r.sum/r.cogs:0, f:r=>r.hasCost && r.cogs ? (r.sum/r.cogs).toFixed(2)+'×' : '—'},
+    {t:'Наценка', v:r=>r.cogs?r.net/r.cogs:0, f:r=>r.hasCost && r.cogs ? (r.net/r.cogs).toFixed(2)+'×' : '—'},
     {t:'Доля прибыли', v:r=>r.profit, f:r=>r.hasCost && totProfit && r.profit>0
       ? (r.profit/totProfit*100).toFixed(1)+'%' : '—'},
     {t:'Заказов', v:r=>r.orders, f:r=>fmt(r.orders)},
@@ -1162,8 +1257,10 @@ function tableProd(p){
     }
   });
   const tq = sum(p,x=>x.qty), ts = sum(p,x=>x.sum), tc = sum(p,x=>x.cogs), tp = sum(p,x=>x.profit);
-  html += '</tbody><tfoot><tr>' + ['Итого', fmt(tq), money(ts), money(tc), '',
-    money(tp), ts ? (tp/ts*100).toFixed(1)+'%' : '—', tc ? (ts/tc).toFixed(2)+'×' : '—', '100%',
+  const trq = sum(p,x=>x.retQty), tn = sum(p,x=>x.net);
+  html += '</tbody><tfoot><tr>' + ['Итого', fmt(tq),
+    trq ? fmt(trq) + ' шт · ' + (trq/tq*100).toFixed(1) + '%' : '—', money(ts), money(tc), '',
+    money(tp), tn ? (tp/tn*100).toFixed(1)+'%' : '—', tc ? (tn/tc).toFixed(2)+'×' : '—', '100%',
     fmt(sum(p,x=>x.orders))].map(t=>`<td>${t}</td>`).join('') + '</tr></tfoot>';
   el.innerHTML = html;
   pending.forEach(d => d.draw());
@@ -1286,13 +1383,13 @@ function prodDetail(ckey, name){
 /* ---------- экспорт ---------- */
 function exportCsv(){
   const rows = filtered();
-  const head = ['Дата','Час','ID заказа','Email','Статус','Выручка за товар','Себестоимость',
-    'Эквайринг','Логистика за наш счёт','Прибыль','Маржинальность %','Скидка','Штук',
+  const head = ['Дата','Час','ID заказа','Email','Статус','Возврат','Выручка за товар','Себестоимость',
+    'Эквайринг','Логистика за наш счёт','Обратная доставка','Прибыль','Маржинальность %','Скидка','Штук',
     'Служба доставки','Стоимость доставки','Категория','utm_source','Промокод','Размеры','Товары'];
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   const csv = '﻿' + [head.map(esc).join(';')].concat(rows.map(r => [
-    r.date, r.hour, r.id, r.email, r.status, r.goods, r.cogs,
-    Math.round(acqOf(r)), r.ourLog, Math.round(profitOf(r)),
+    r.date, r.hour, r.id, r.email, r.status, r.returned ? 'да' : '', r.goods, cogsOf(r),
+    Math.round(acqOf(r)), r.ourLog, retShipOf(r), Math.round(profitOf(r)),
     r.goods ? (profitOf(r)/r.goods*100).toFixed(1) : '',
     r.discount, r.units, r.delivery, r.delivPrice, r.cat, r.utm, r.promo,
     r.items.map(i => i.size).join(' | '), r.items.map(i => `${i.name} x${i.qty}`).join(' | ')
