@@ -99,12 +99,16 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
 .err{color:var(--bad)}
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;background:#20303f;color:var(--tx2)}
 .pill.ok{background:#12331d;color:var(--ok)}
+.ret-sub{font-size:11.5px;color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+.ret-foot{font-size:11.5px;color:var(--tx2);margin-top:8px;line-height:1.5}
+tr.ret-hi td{background:#21171a}
+.retsz{display:inline-block;padding:1px 7px;border-radius:999px;background:#3a2226;color:#ffb3ae;font-size:11px;margin:0 3px 3px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 12.0</span>
+  <div class="sub" id="meta"><span class="ver">сборка 12.1</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -202,6 +206,33 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
         <div class="cardnote">Нажмите на товар — откроется динамика продаж: последние 30 дней против предыдущих 30 (можно переключить на 7). Сравнение считается по всей истории и не зависит от выбранного периода (период задаёт только правую границу).<br>
           Товары группируются по артикулу из справочника себестоимости, поэтому старые и новые написания артикула и разные варианты названия считаются одним товаром. Показывается самое свежее название.</div>
         <div class="scroll"><table id="tProd" class="fit"></table></div></div>
+    </div>
+
+    <!-- блок возвратов — по просьбе Степана в самом низу страницы -->
+    <div class="grid" id="retCard">
+      <div class="card"><h3>Возвраты</h3>
+        <div class="cardnote" id="retNote"></div>
+        <div class="pd-kpis" id="retKpis" style="margin-bottom:14px"></div>
+        <div class="grid g2" style="margin-bottom:0">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+              <div class="ret-sub" style="margin:0">Антитоп: какие товары возвращают</div>
+              <div class="pd-toggle" id="retSortBtns">
+                <button data-s="n">Больше всего возвратов</button>
+                <button data-s="pct">Самый высокий %</button>
+              </div>
+            </div>
+            <div class="scroll" style="max-height:340px"><table id="tRet" class="fit"></table></div>
+            <div class="ret-foot" id="retClean"></div>
+          </div>
+          <div>
+            <div class="ret-sub">Где возвращают чаще — доля возвращённых заказов</div>
+            <div class="cw" style="height:340px"><canvas id="chRetSeg"></canvas></div>
+          </div>
+        </div>
+        <div class="ret-sub" style="margin-top:14px">Возвраты по месяцам</div>
+        <div class="cw" style="height:200px"><canvas id="chRetMonth"></canvas></div>
+      </div>
     </div>
   </div>
 </div>
@@ -673,7 +704,7 @@ function render(){
   const prods = productAgg(rows);
   drawPnl(byM); drawMargin(byM); drawProfitTop(prods); drawScatter(prods);
   drawProd(prods); drawUtm(rows);
-  drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); repeatBlock(rows);
+  drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); repeatBlock(rows); retBlock(rows);
   noCostBlock(rows);
   tableMonth(byM); tableDay(byD.slice().reverse(), rows); tableProd(prods);
 }
@@ -803,6 +834,144 @@ function drawDeliv(rows){
     options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9aa7b4',boxWidth:12,font:{size:11}}}} } });
 }
 const repOpen = new Set();
+/* ---------- возвраты: отдельный блок ---------- */
+// До ~11.09.2026 возвраты вырезали из «Покупок», и в архив они не попали вместе с самим
+// заказом (грабля №14). Доля возвратов до августа вышла бы нулевой — это неправда,
+// поэтому считаем с 1 августа.
+const RET_FROM = '2026-08-01';
+// Свежий заказ ещё могут вернуть: если считать долю и по нему, она занижается.
+// Поэтому доли — только по заказам старше RET_MATURE дней от последнего заказа в архиве.
+const RET_MATURE = 14;
+const RET_MIN_SOLD = 10;     // меньше продаж — процент случайный, в антитоп не берём
+const RET_MIN_SEG = 15;      // то же для разрезов на графике
+// Сортировка антитопа. По умолчанию — по числу возвратов (просьба Степана 03.10.2026),
+// переключается на долю возвратов кнопками над таблицей.
+let retSort = 'n';
+
+function retBlock(rows){
+  const card = document.getElementById('retCard');
+  if (!RET){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  const last = RAW.length ? RAW[RAW.length-1].date : mskToday();
+  const md = new Date(last + 'T00:00:00'); md.setDate(md.getDate() - RET_MATURE);
+  const matureTo = ymd(md);
+  const dd = s => s.split('-').reverse().join('.');
+  const pct = (x,y) => y ? (x/y*100).toFixed(1) + '%' : '—';
+  const all  = rows.filter(r => r.date >= RET_FROM);           // для сумм
+  const base = all.filter(r => r.date <= matureTo);             // для долей
+  const retAll = all.filter(r => r.returned);
+  const bRet = base.filter(r => r.returned);
+  // во что обошёлся возврат: упущенная валовая прибыль + обратная доставка
+  const lostOf = r => (r.goods - r.noCostSum - r.cogs) + retShipOf(r) * wOf(r);
+
+  document.getElementById('retNote').textContent = base.length
+    ? `Доли считаются по заказам с ${dd(base[0].date)} по ${dd(base[base.length-1].date)}: `
+      + `раньше августа возвраты в архив не попадали, а заказы последних ${RET_MATURE} дней ещё могут вернуть. `
+      + `Суммы — по всем возвратам выбранного периода. Товары и разрезы, где продаж меньше ${RET_MIN_SOLD}, не показываем — процент там случайный.`
+    : `В выбранном периоде нет заказов старше ${RET_MATURE} дней (или он раньше августа, когда возвраты ещё не учитывались) — долю возвратов считать рано. Выберите период пошире.`;
+
+  const bGoods = sum(base, r => r.goods), bRetGoods = sum(bRet, r => r.goods);
+  const k = [
+    ['Возвращают', pct(bRet.length, base.length), `${bRet.length} из ${base.length} заказов`],
+    ['Доля выручки', pct(bRetGoods, bGoods), 'ушло на возвраты'],
+    ['Вернули за период', fmt(retAll.length) + ' зак. · ' + fmt(sum(retAll, r => r.units)) + ' шт', money(sum(retAll, r => r.goods))],
+    ['Стоили прибыли', money(sum(retAll, lostOf)), 'упущенная прибыль + обратная доставка'],
+    ['Обратная доставка', money(sum(retAll, r => retShipOf(r) * wOf(r))), 'платим мы'],
+    ['Чек возврата', money(bRet.length ? bRetGoods / bRet.length : 0),
+      'средний чек всех заказов ' + money(base.length ? bGoods / base.length : 0)],
+  ];
+  document.getElementById('retKpis').innerHTML = k.map(([l,v,d]) =>
+    `<div class="pd-kpi"><span>${l}</span><b>${v}</b><span style="text-transform:none;letter-spacing:0">${d}</span></div>`).join('');
+
+  // ---- антитоп товаров ----
+  const pm = new Map();
+  base.forEach(r => r.items.forEach(it => {
+    if (!pm.has(it.ckey)) pm.set(it.ckey, {name:it.name, last:r.date, qty:0, rq:0, sz:{}, lost:0});
+    const g = pm.get(it.ckey);
+    if (r.date >= g.last){ g.last = r.date; g.name = it.name; }
+    g.qty += it.qty;
+    if (r.returned){
+      g.rq += it.qty; g.sz[it.size] = (g.sz[it.size] || 0) + it.qty;
+      const w = r.goods ? it.sum / r.goods : 0;
+      g.lost += (it.cost !== null ? it.sum - it.cost * it.qty : 0) + r.retShip * w;
+    }
+  }));
+  const pv = [...pm.values()];
+  const avgU = sum(pv, g => g.rq) / Math.max(1, sum(pv, g => g.qty));
+  const prods = pv.filter(g => g.qty >= RET_MIN_SOLD);
+  const bad = prods.filter(g => g.rq).sort(retSort === 'pct'
+    ? (a,b) => b.rq/b.qty - a.rq/a.qty || b.rq - a.rq
+    : (a,b) => b.rq - a.rq || b.rq/b.qty - a.rq/a.qty);
+  document.querySelectorAll('#retSortBtns button').forEach(b => {
+    b.className = b.dataset.s === retSort ? 'on' : '';
+    b.onclick = () => { retSort = b.dataset.s; retBlock(filtered()); };
+  });
+  const clean = prods.filter(g => !g.rq).sort((a,b) => b.qty - a.qty);
+  const SZ = ['XS','S','M','L','XL','XXL','XXXL','—'];
+  const szOrd = s => SZ.indexOf(s) < 0 ? 99 : SZ.indexOf(s);
+  document.getElementById('tRet').innerHTML = bad.length
+    ? '<thead><tr><th>Товар</th><th>Продано</th><th>Вернули</th><th>%</th><th>Какие размеры</th><th>Стоили прибыли</th></tr></thead><tbody>'
+      + bad.map(g => `<tr class="${g.rq/g.qty > avgU ? 'ret-hi' : ''}"><td>${g.name}</td><td>${fmt(g.qty)}</td>
+          <td class="neg">${fmt(g.rq)}</td><td class="${g.rq/g.qty > avgU ? 'neg' : ''}"><b>${(g.rq/g.qty*100).toFixed(1)}%</b></td>
+          <td style="text-align:left;white-space:normal">${Object.entries(g.sz).sort((a,b) => szOrd(a[0]) - szOrd(b[0]))
+            .map(([s,n]) => `<span class="retsz">${s}${n > 1 ? ' ×' + n : ''}</span>`).join('')}</td>
+          <td>${money(g.lost)}</td></tr>`).join('')
+      + `</tbody><tfoot><tr><td>В среднем по всем товарам</td><td>${fmt(sum(pv, g => g.qty))}</td>
+          <td>${fmt(sum(pv, g => g.rq))}</td><td>${(avgU*100).toFixed(1)}%</td><td></td><td>${money(sum(pv, g => g.lost))}</td></tr></tfoot>`
+    : '<tbody><tr><td style="color:var(--tx2)">Возвратов среди товаров с ' + RET_MIN_SOLD + '+ продажами нет</td></tr></tbody>';
+  document.getElementById('retClean').innerHTML = clean.length
+    ? `<b style="color:var(--ok)">Ни одного возврата</b> при ${RET_MIN_SOLD}+ продажах: `
+      + clean.slice(0, 10).map(g => `${g.name} <span style="opacity:.7">(${g.qty})</span>`).join(', ')
+      + (clean.length > 10 ? ` и ещё ${clean.length - 10}` : '')
+    : '';
+
+  // ---- разрезы: где возвращают чаще ----
+  const seg = [];
+  const total = {l:'Все заказы', n:base.length, r:bRet.length, all:true};
+  if (base.length) seg.push(total);
+  const addO = (l, pred) => { const o = base.filter(pred);
+    if (o.length >= RET_MIN_SEG) seg.push({l, n:o.length, r:o.filter(r => r.returned).length}); };
+  addO('Чек до 5 тыс.',  r => r.goods < 5000);
+  addO('Чек 5–10 тыс.',  r => r.goods >= 5000 && r.goods < 10000);
+  addO('Чек от 10 тыс.', r => r.goods >= 10000);
+  addO('1 вещь в заказе',  r => r.units <= 1);
+  addO('2+ вещи в заказе', r => r.units > 1);
+  addO('С промокодом',  r => !!r.promo);
+  addO('Без промокода', r => !r.promo);
+  const svc = new Map(); base.forEach(r => { const s = r.delivery || 'доставка не указана'; svc.set(s, (svc.get(s)||0) + 1); });
+  [...svc.entries()].sort((a,b) => b[1] - a[1]).slice(0, 3)
+    .forEach(([s]) => addO(s, r => (r.delivery || 'доставка не указана') === s));
+  // размеры считаем по штукам, а не по заказам: в одном заказе бывают разные размеры
+  ['S','M','L','XL','XXL'].forEach(s => {
+    let n = 0, rr = 0;
+    base.forEach(r => r.items.forEach(it => { if (it.size === s){ n += it.qty; if (r.returned) rr += it.qty; } }));
+    if (n >= RET_MIN_SEG) seg.push({l:'Размер ' + s + ' (шт)', n, r:rr});
+  });
+  const avgO = base.length ? bRet.length / base.length : 0;
+  const rate = x => x.n ? x.r / x.n * 100 : 0;
+  mk('chRetSeg', { type:'bar', data:{ labels:seg.map(x => x.l),
+    datasets:[{ data:seg.map(x => +rate(x).toFixed(1)),
+      backgroundColor:seg.map(x => x.all ? '#4f9cf9' : rate(x) > avgO*100*1.3 ? '#f85149' : '#5b6675'), borderRadius:4 }] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{ legend:{display:false},
+      tooltip:{ callbacks:{ label: c => { const x = seg[c.dataIndex];
+        return `${c.raw}% — вернули ${x.r} из ${x.n}` + (x.l.includes('(шт)') ? ' шт' : ' заказов'); } } } },
+      scales:{ x:{...AX, ticks:{color:'#9aa7b4', callback:v => v + '%'}}, y:{...AX, ticks:{color:'#9aa7b4', font:{size:11}}} } } });
+
+  // ---- по месяцам ----
+  const gm = group(all, r => r.date.slice(0,7));
+  mk('chRetMonth', { data:{ labels:gm.map(x => mLabel(x.k)), datasets:[
+    {type:'bar', label:'Доля выручки, % (тёмный столбик — заказы месяца ещё могут вернуть)', data:gm.map(x => x.goods ? +(x.ret/x.goods*100).toFixed(1) : 0),
+      backgroundColor:gm.map(x => x.k + '-31' > matureTo ? '#6e2b3a' : '#f85149'), yAxisID:'y', order:2},
+    {type:'line', label:'Возвращённых заказов', data:gm.map(x => x.retN), borderColor:'#f2a65a',
+      backgroundColor:'#f2a65a', yAxisID:'y1', tension:.3, order:1} ]},
+    options:{ maintainAspectRatio:false, plugins:{ legend:{labels:{color:'#9aa7b4', boxWidth:12}},
+      tooltip:{ callbacks:{ afterBody: it => { const x = gm[it[0].dataIndex];
+        return [money(x.ret) + ' из ' + money(x.goods)]
+          .concat(x.k + '-31' > matureTo ? ['часть заказов месяца ещё могут вернуть'] : []); } } } },
+      scales:{ x:AX, y:{...AX, ticks:{color:'#9aa7b4', callback:v => v + '%'}},
+        y1:{position:'right', grid:{display:false}, ticks:{color:'#f2a65a', precision:0}} } } });
+}
+
 function repeatBlock(rows){
   const m = new Map();
   rows.forEach(r => {
