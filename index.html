@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 12.1</span>
+  <div class="sub" id="meta"><span class="ver">сборка 13.0</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -129,7 +129,6 @@ tr.ret-hi td{background:#21171a}
       </div>
       <div class="f"><label>Категория</label><select id="cat"><option value="">Все</option></select></div>
       <div class="f"><label>Источник (utm)</label><select id="utm"><option value="">Все</option></select></div>
-      <div class="f"><label>Эквайринг, %</label><input type="number" id="acq" value="5" min="0" max="30" step="0.1" style="width:90px"></div>
       <div class="f"><label>&nbsp;</label><button id="reset">Сбросить</button></div>
       <div class="f"><label>&nbsp;</label><button id="reload">Обновить</button></div>
       <div class="f"><label>&nbsp;</label><button id="csv">Скачать CSV</button></div>
@@ -188,6 +187,14 @@ tr.ret-hi td{background:#21171a}
       <div class="card"><h3>Доставка: доплата покупателем</h3>
         <div id="delivBox"></div>
         <div class="cw" style="height:190px"><canvas id="chDeliv"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>Эквайринг по способам оплаты</h3>
+        <div class="cardnote">Фактическая комиссия CloudPayments по каждому заказу. Тильда способ оплаты не знает —
+          он и комиссия берутся из кабинета CloudPayments. С 16.09.2026 новые условия: карты 4 %, СБП 2 %.</div>
+        <div class="scroll" style="max-height:320px"><table id="tPay"></table></div>
       </div>
     </div>
 
@@ -521,6 +528,11 @@ function onData(resp){
       cat: String(parseCell(c[10]) || '').trim() || '(нет)',
       promo: String(parseCell(c[11]) || '').trim(),
       discount: num(parseCell(c[13])),
+      // эквайринг по факту из CloudPayments (поле 22) и способ оплаты (23).
+      // null — комиссии по заказу ещё нет, тогда acqOf() считает по средней ставке
+      acqFact: (() => { const v = parseCell(c[22]);
+        return v === null || v === undefined || v === '' ? null : num(v); })(),
+      payMethod: String(parseCell(c[23]) || '').trim(),
       items, units: items.reduce((a,b) => a + b.qty, 0)
     });
   });
@@ -583,7 +595,6 @@ function initFilters(){
   fillSel('cat', [...new Set(RAW.map(r => r.cat))].sort());
   fillSel('utm', [...new Set(RAW.map(r => r.utm))].sort());
   ['period','status','cat','utm'].forEach(id => document.getElementById(id).onchange = render);
-  document.getElementById('acq').oninput = render;
   ['from','to'].forEach(id => document.getElementById(id).onchange = () => { document.getElementById('period').value='custom'; render(); });
   document.getElementById('reset').onclick = () => {
     document.getElementById('period').value='all'; document.getElementById('status').value='all';
@@ -656,8 +667,16 @@ function filtered(){
 //   доставка к нам    — остаётся
 //   обратная доставка — добавляется (r.retShip)
 // То есть возвращённый заказ приносит не прибыль, а небольшой минус.
-const acqRate = () => (parseFloat(document.getElementById('acq').value) || 0) / 100;
-const acqOf = r => r.price * acqRate();
+// Эквайринг (сборка 13.0, 06.10.2026). Поля «Эквайринг, %» больше нет: комиссия берётся
+// фактическая, из CloudPayments — скрипт кладёт её в архив по каждому заказу (поле 22).
+// Если по заказу её ещё нет (оплата не подтянулась, запасной путь из старой таблицы,
+// второй сайт), считаем по средней ставке на дату. Ставки посчитаны по реестрам
+// CloudPayments за апрель–октябрь 2026: до 16.09 — 4,7 % с оборота (карты 5 %, СБП 3,17 %,
+// SberPay/T-Pay 5 %, Долями 8 %), с 16.09 новые условия — 4,2 % (карты 4 %, СБП 2 %,
+// SberPay/T-Pay по-прежнему 5 %, Долями 8 %).
+const ACQ_EST = [ ['2000-01-01', 0.047], ['2026-09-16', 0.042] ];
+const acqEstRate = d => { let x = ACQ_EST[0][1]; ACQ_EST.forEach(([from, k]) => { if (d >= from) x = k; }); return x; };
+const acqOf = r => r.acqFact !== null ? r.acqFact : r.price * acqEstRate(r.date);
 const wOf = r => r.goods ? (r.goods - r.noCostSum) / r.goods : 0;  // доля позиций с СС в заказе
 const coveredOf = r => r.returned ? 0 : r.goods - r.noCostSum;    // выручка, участвующая в расчёте
 const cogsOf = r => r.returned ? 0 : r.cogs;
@@ -704,7 +723,7 @@ function render(){
   const prods = productAgg(rows);
   drawPnl(byM); drawMargin(byM); drawProfitTop(prods); drawScatter(prods);
   drawProd(prods); drawUtm(rows);
-  drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); repeatBlock(rows); retBlock(rows);
+  drawSize(rows); drawHour(rows); drawDow(rows); drawDeliv(rows); payBlock(rows); repeatBlock(rows); retBlock(rows);
   noCostBlock(rows);
   tableMonth(byM); tableDay(byD.slice().reverse(), rows); tableProd(prods);
 }
@@ -834,6 +853,24 @@ function drawDeliv(rows){
     options:{ maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:'#9aa7b4',boxWidth:12,font:{size:11}}}} } });
 }
 const repOpen = new Set();
+/* ---------- эквайринг по способам оплаты ---------- */
+function payBlock(rows){
+  const m = new Map();
+  rows.forEach(r => {
+    const k = r.acqFact !== null ? (r.payMethod || 'Способ не указан') : 'Ещё нет в CloudPayments — по средней ставке';
+    if (!m.has(k)) m.set(k, {k, n:0, turn:0, fee:0, est: r.acqFact === null});
+    const g = m.get(k); g.n++; g.turn += r.price; g.fee += acqOf(r);
+  });
+  const list = [...m.values()].sort((a,b) => (a.est - b.est) || b.turn - a.turn);
+  const tn = sum(list, x => x.n), tt = sum(list, x => x.turn), tf = sum(list, x => x.fee);
+  const pct = (x,y) => y ? (x/y*100).toFixed(2) + '%' : '—';
+  document.getElementById('tPay').innerHTML =
+    '<thead><tr><th>Способ оплаты</th><th>Заказов</th><th>Оборот</th><th>Доля оборота</th><th>Комиссия</th><th>Ставка</th></tr></thead><tbody>'
+    + list.map(x => `<tr${x.est ? ' style="color:var(--tx2)"' : ''}><td>${x.k}</td><td>${fmt(x.n)}</td><td>${money(x.turn)}</td>
+        <td>${pct(x.turn, tt)}</td><td>${money(x.fee)}</td><td><b>${pct(x.fee, x.turn)}</b></td></tr>`).join('')
+    + `</tbody><tfoot><tr><td>Итого</td><td>${fmt(tn)}</td><td>${money(tt)}</td><td>100%</td><td>${money(tf)}</td><td>${pct(tf, tt)}</td></tr></tfoot>`;
+}
+
 /* ---------- возвраты: отдельный блок ---------- */
 // До ~11.09.2026 возвраты вырезали из «Покупок», и в архив они не попали вместе с самим
 // заказом (грабля №14). Доля возвратов до августа вышла бы нулевой — это неправда,
@@ -1102,6 +1139,8 @@ function renderKpis(rows, a, b){
 
   const cogs   = rows.reduce((s,r) => s+cogsOf(r), 0);
   const acq    = rows.reduce((s,r) => s+acqOf(r)*wOf(r), 0);
+  const acqN   = rows.filter(r => r.acqFact !== null).length;   // по скольким заказам комиссия фактическая
+  const sum0   = rows.reduce((s,r) => s+r.price, 0);
   const ourLog = rows.reduce((s,r) => s+r.ourLog*wOf(r), 0);
   const profit = rows.reduce((s,r) => s+profitOf(r), 0);
   const noCost = rows.reduce((s,r) => s+r.noCostSum, 0);
@@ -1124,7 +1163,8 @@ function renderKpis(rows, a, b){
     ['Валовая прибыль', money(gross), 'маржа ' + share(gross, covered), 'good'],
     ['Чистая прибыль', money(profit), 'маржинальность ' + share(profit, covered), profit > 0 ? 'hero' : 'warn'],
     ['Прибыль на заказ', money(n ? profit/n : 0), money(profit/days) + ' в день', ''],
-    ['Эквайринг', money(acq), (acqRate()*100).toFixed(1) + '% с оборота', ''],
+    ['Эквайринг', money(acq), (sum0 ? (rows.reduce((s,r) => s+acqOf(r), 0)/sum0*100).toFixed(2) : '—') + '% с оборота · '
+      + (acqN === n ? 'всё по факту CloudPayments' : 'по факту ' + fmt(acqN) + ' из ' + fmt(n) + ' заказов, остальные — по средней ставке'), ''],
     ['Логистика за наш счёт', money(ourLog), share(ourLog, covered) + ' от выручки · всего доставки ' + money(deliv), ''],
     ['Наценка', cogs ? (covered/cogs).toFixed(2) + '×' : '—', 'выручка к себестоимости', ''],
     ['Штук продано', fmt(units), (units/Math.max(1,n)).toFixed(2) + ' шт на заказ', ''],
@@ -1553,12 +1593,12 @@ function prodDetail(ckey, name){
 function exportCsv(){
   const rows = filtered();
   const head = ['Дата','Час','ID заказа','Email','Статус','Возврат','Выручка за товар','Себестоимость',
-    'Эквайринг','Логистика за наш счёт','Обратная доставка','Прибыль','Маржинальность %','Скидка','Штук',
+    'Способ оплаты','Эквайринг','Эквайринг по факту','Логистика за наш счёт','Обратная доставка','Прибыль','Маржинальность %','Скидка','Штук',
     'Служба доставки','Стоимость доставки','Категория','utm_source','Промокод','Размеры','Товары'];
   const esc = v => '"' + String(v).replace(/"/g,'""') + '"';
   const csv = '﻿' + [head.map(esc).join(';')].concat(rows.map(r => [
     r.date, r.hour, r.id, r.email, r.status, r.returned ? 'да' : '', r.goods, cogsOf(r),
-    Math.round(acqOf(r)), r.ourLog, retShipOf(r), Math.round(profitOf(r)),
+    r.payMethod, Math.round(acqOf(r)), r.acqFact !== null ? 'да' : 'оценка', r.ourLog, retShipOf(r), Math.round(profitOf(r)),
     r.goods ? (profitOf(r)/r.goods*100).toFixed(1) : '',
     r.discount, r.units, r.delivery, r.delivPrice, r.cat, r.utm, r.promo,
     r.items.map(i => i.size).join(' | '), r.items.map(i => `${i.name} x${i.qty}`).join(' | ')
