@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 13.0</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.0</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -431,48 +431,101 @@ function jsonp(sheetId, gid, query, onOk, onErr, headers){
 // заказы приходят из архива через скрипт-приёмник тем же способом (script-тег).
 // Скрипты Google иногда отвечают 503 (кратковременная перегрузка), поэтому
 // пробуем три раза с паузой, прежде чем сдаться.
-function jsonpApi(onOk, onErr, attempt){
-  attempt = attempt || 1;
+// action: data — весь архив как есть (~560 КБ, старый путь);
+//         snap — готовый сжатый снимок (с 14.0); refresh — пересобрать снимок сейчас.
+function jsonpApi(onOk, onErr, attempt, action, wait){
+  attempt = attempt || 1; action = action || 'data'; wait = wait || 30000;
   const cb = 'apicb_' + Math.random().toString(36).slice(2);
-  let timer = null;
+  let timer = null, done = false;
   const retry = msg => {
-    if (attempt < 3) setTimeout(() => jsonpApi(onOk, onErr, attempt + 1), 2000 * attempt);
+    if (done) return; done = true;
+    if (attempt < 3) setTimeout(() => jsonpApi(onOk, onErr, attempt + 1, action, wait), 2000 * attempt);
     else onErr(msg);
   };
-  timer = setTimeout(() => retry('архив не ответил за 30 секунд'), 30000);
-  window[cb] = resp => { clearTimeout(timer); try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
+  timer = setTimeout(() => retry('архив не ответил за ' + Math.round(wait/1000) + ' секунд'), wait);
+  window[cb] = resp => { if (done) return; done = true; clearTimeout(timer);
+    try { onOk(resp); } catch(e){ onErr('ошибка разбора — ' + e.message); } };
   const s = document.createElement('script');
   // без куки Google: приёмник на stepan.wb — втором аккаунте в браузере Степана,
   // с куки Google уводит запрос на /macros/u/1/… и отвечает 503
   s.crossOrigin = 'anonymous';
-  s.src = API + '?action=data&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
+  s.src = API + '?action=' + action + '&key=' + API_KEY + '&callback=' + cb + '&_=' + Date.now();
   s.onerror = () => { clearTimeout(timer); retry('не удалось загрузить архив'); };
   document.head.appendChild(s);
 }
-function load(){
+
+/* ---------- снимок (сборка 14.0, 07.10.2026) ----------
+ * Скрипт заранее собирает данные, сжимает gzip и держит готовыми; пересобирает каждые
+ * 15 минут, если были новые заказы (apps-script/Снимок.gs). Дашборд:
+ *   1) сразу показывает то, что видел в прошлый раз (память браузера);
+ *   2) параллельно забирает свежий снимок и, если он новее, перерисовывается;
+ *   3) кнопка «Обновить» просит скрипт собрать снимок прямо сейчас.
+ * Если снимок недоступен — старый путь: весь архив (action=data), потом старая таблица. */
+let SNAP_TS = '', SNAP_SRC = '', LOAD_ID = 0;
+const MEM_KEY = 'bladnes_snap_v1';
+const gviz = (id, gid, q, headers) => new Promise((ok, bad) => jsonp(id, gid, q, ok, bad, headers));
+const apiP = (action, wait) => new Promise((ok, bad) => jsonpApi(ok, bad, 1, action, wait));
+async function unzipSnap(b64){
+  const bin = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+  const st = new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(st).text());
+}
+function memGet(){ try { return JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); } catch(e){ return null; } }
+function memPut(s){ try { localStorage.setItem(MEM_KEY, JSON.stringify({ts:s.ts, gz:s.gz})); } catch(e){} }
+const SNAP_OK = typeof DecompressionStream !== 'undefined';
+
+async function load(force){
+  const id = ++LOAD_ID;
   const el = document.getElementById('loading');
-  el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю себестоимость…';
-  const orders = () => {
-    el.textContent = 'Загружаю заказы из архива…';
-    jsonpApi(onData, m => {
-      // архив не отвечает — чтобы дашборд не остался пустым, читаем старую таблицу
-      FALLBACK = m;
-      el.textContent = 'Архив не ответил, читаю старую таблицу…';
-      jsonp(SHEET_ID, GID, QUERY, onData, m2 => fail('Заказы: архив — ' + m + '; таблица — ' + m2));
-    });
-  };
-  // без листа возвратов дашборд тоже работает — просто без их учёта, с предупреждением
-  const returns = () => {
-    el.textContent = 'Загружаю возвраты…';
-    RET_ERR = '';
-    jsonp(SHEET_ID, RET_GID, 'select *',
-      resp => { onReturns(resp); orders(); },
-      m => { RET = null; RET_ERR = m; orders(); }, 0);
-  };
-  // без справочника себестоимости дашборд должен работать — просто без прибыли
-  jsonp(COST_SHEET_ID, COST_GID, COST_QUERY,
-    resp => { onCost(resp); returns(); },
-    () => { COST = new Map(); COST_ROWS = 0; returns(); });
+  const btn = document.getElementById('reload');
+  const busy = on => { if (btn){ btn.disabled = on; btn.textContent = on ? 'Обновляю…' : 'Обновить'; } };
+  if (!RAW.length){ el.style.display = ''; el.className = 'msg'; el.textContent = 'Загружаю данные…'; }
+  busy(true);
+  // снимок просим сразу, параллельно со справочниками
+  const pSnap = SNAP_OK ? apiP(force ? 'refresh' : 'snap', force ? 90000 : 25000) : Promise.reject('браузер не умеет распаковывать');
+  pSnap.catch(() => {});
+  // без справочника себестоимости и листа возвратов дашборд работает — просто без них
+  RET_ERR = '';
+  await Promise.all([
+    gviz(COST_SHEET_ID, COST_GID, COST_QUERY).then(onCost, () => { COST = new Map(); COST_ROWS = 0; }),
+    gviz(SHEET_ID, RET_GID, 'select *', 0).then(onReturns, m => { RET = null; RET_ERR = m; })
+  ]);
+  if (id !== LOAD_ID) return;
+  // 1) память браузера — показываем мгновенно, пока едет свежий снимок
+  let shown = false;
+  if (!force){
+    const m = memGet();
+    if (m && m.gz && SNAP_OK){
+      try { const d = await unzipSnap(m.gz); if (id !== LOAD_ID) return;
+        SNAP_TS = m.ts; SNAP_SRC = 'память браузера, проверяю свежие…'; FALLBACK = ''; onData(d); shown = true; } catch(e){}
+    }
+  }
+  // 2) свежий снимок
+  try {
+    const s = await pSnap; if (id !== LOAD_ID) return;
+    if (!s || !s.gz) throw 'снимка пока нет';
+    if (!shown || s.ts !== SNAP_TS || force){
+      const d = await unzipSnap(s.gz); if (id !== LOAD_ID) return;
+      SNAP_TS = s.ts; SNAP_SRC = 'снимок'; FALLBACK = ''; onData(d);
+    } else { SNAP_SRC = 'снимок'; setUpd(); }
+    memPut(s);
+    busy(false);
+    return;
+  } catch(m){
+    if (id !== LOAD_ID) return;
+    if (shown){ SNAP_SRC = 'память браузера — свежий снимок не пришёл (' + m + ')'; setUpd(); busy(false); return; }
+  }
+  // 3) старый путь: весь архив, потом старая таблица
+  SNAP_TS = ''; SNAP_SRC = '';
+  el.style.display = ''; el.textContent = 'Загружаю заказы из архива…';
+  try { onData(await apiP('data', 30000)); }
+  catch(m){
+    if (id !== LOAD_ID) return;
+    FALLBACK = m; el.textContent = 'Архив не ответил, читаю старую таблицу…';
+    try { onData(await gviz(SHEET_ID, GID, QUERY)); }
+    catch(m2){ fail('Заказы: архив — ' + m + '; таблица — ' + m2); }
+  }
+  busy(false);
 }
 function fail(msg){
   const el = document.getElementById('loading');
@@ -548,11 +601,20 @@ function onData(resp){
   const avgAll = avg(RAW.filter(r => r.delivPrice > 0).map(r => r.delivPrice));
   RAW.forEach(r => { if (r.returned)
     r.retShip = Math.round(r.delivPrice || avg(bySvc.get(r.delivery) || []) || avgAll); });
-  const retFound = RAW.filter(r => r.returned).length;
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
+  setUpd();
+  initFilters();
+  render();
+}
+// строка в шапке: откуда и на какое время данные
+function setUpd(){
   const lastDate = RAW.length ? RAW[RAW.length-1].date.split('-').reverse().join('.') : '—';
-  document.getElementById('upd').innerHTML = 'обновлено ' + mskNow()
+  const retFound = RAW.filter(r => r.returned).length;
+  document.getElementById('upd').innerHTML = (SNAP_TS
+      ? 'данные на <b>' + SNAP_TS.slice(8,10) + '.' + SNAP_TS.slice(5,7) + ' ' + SNAP_TS.slice(11) + ' МСК</b>'
+        + (SNAP_SRC && SNAP_SRC !== 'снимок' ? ' <span style="color:var(--tx2)">(' + SNAP_SRC + ')</span>' : '')
+      : 'обновлено ' + mskNow())
     + (FALLBACK ? ' · <b style="color:#d64545">архив не ответил (' + FALLBACK + '), данные из старой таблицы</b>' : '')
     + ' · заказов: <b>' + RAW.length + '</b> · последний в архиве: <b>' + lastDate + '</b>'
     + ' · артикулов в справочнике себестоимости: <b>' + COST_ROWS + '</b>'
@@ -563,8 +625,6 @@ function onData(resp){
         + (RET.size > retFound ? ' <span style="color:var(--tx2)" title="Эти возвраты вырезали из таблицы «Покупки» до запуска архива, поэтому в выручке их и так нет">(ещё '
           + (RET.size - retFound) + ' старых — в выручке их и так нет)</span>' : '')
       : ' · <b style="color:#d64545">лист «Возвраты» не загрузился (' + RET_ERR + ') — прибыль без учёта возвратов</b>');
-  initFilters();
-  render();
 }
 
 /* ---------- фильтры ---------- */
@@ -601,7 +661,7 @@ function initFilters(){
     document.getElementById('cat').value=''; document.getElementById('utm').value='';
     document.getElementById('from').value=''; document.getElementById('to').value=''; render();
   };
-  document.getElementById('reload').onclick = load;
+  document.getElementById('reload').onclick = () => load(true);   // пересобрать снимок сейчас
   document.getElementById('csv').onclick = exportCsv;
   const all = RAW.map(r => r.date);
   document.getElementById('from').value = all[0] || '';
