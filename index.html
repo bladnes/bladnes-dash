@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.0</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.1</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -472,6 +472,9 @@ async function unzipSnap(b64){
 }
 function memGet(){ try { return JSON.parse(localStorage.getItem(MEM_KEY) || 'null'); } catch(e){ return null; } }
 function memPut(s){ try { localStorage.setItem(MEM_KEY, JSON.stringify({ts:s.ts, gz:s.gz})); } catch(e){} }
+const MEM_AUX = 'bladnes_aux_v1';
+function memAuxGet(){ try { return JSON.parse(localStorage.getItem(MEM_AUX) || 'null'); } catch(e){ return null; } }
+function memAuxPut(){ try { localStorage.setItem(MEM_AUX, JSON.stringify({cost:[...COST], costRows:COST_ROWS, ret: RET ? [...RET] : null})); } catch(e){} }
 const SNAP_OK = typeof DecompressionStream !== 'undefined';
 
 async function load(force){
@@ -484,30 +487,36 @@ async function load(force){
   // снимок просим сразу, параллельно со справочниками
   const pSnap = SNAP_OK ? apiP(force ? 'refresh' : 'snap', force ? 90000 : 25000) : Promise.reject('браузер не умеет распаковывать');
   pSnap.catch(() => {});
-  // без справочника себестоимости и листа возвратов дашборд работает — просто без них
-  RET_ERR = '';
-  await Promise.all([
-    gviz(COST_SHEET_ID, COST_GID, COST_QUERY).then(onCost, () => { COST = new Map(); COST_ROWS = 0; }),
-    gviz(SHEET_ID, RET_GID, 'select *', 0).then(onReturns, m => { RET = null; RET_ERR = m; })
-  ]);
-  if (id !== LOAD_ID) return;
-  // 1) память браузера — показываем мгновенно, пока едет свежий снимок
+  const pCost = gviz(COST_SHEET_ID, COST_GID, COST_QUERY);
+  const pRet  = gviz(SHEET_ID, RET_GID, 'select *', 0);
+  pCost.catch(() => {}); pRet.catch(() => {});
+  // 1) память браузера — показываем мгновенно, не дожидаясь ни справочников, ни снимка.
+  // Себестоимость и возвраты тоже берём из памяти (только артикулы с ценой и номера
+  // возвращённых заказов — никаких имён и адресов с листа «Возвраты»).
   let shown = false;
-  if (!force){
-    const m = memGet();
-    if (m && m.gz && SNAP_OK){
-      try { const d = await unzipSnap(m.gz); if (id !== LOAD_ID) return;
+  if (!force && !RAW.length && SNAP_OK){
+    const m = memGet(), aux = memAuxGet();
+    if (m && m.gz && aux){
+      try { COST = new Map(aux.cost); COST_ROWS = aux.costRows; RET = aux.ret ? new Set(aux.ret) : null;
+        const d = await unzipSnap(m.gz); if (id !== LOAD_ID) return;
         SNAP_TS = m.ts; SNAP_SRC = 'память браузера, проверяю свежие…'; FALLBACK = ''; onData(d); shown = true; } catch(e){}
     }
   }
+  // без справочника себестоимости и листа возвратов дашборд работает — просто без них
+  RET_ERR = '';
+  await Promise.all([
+    pCost.then(onCost, () => { if (!shown){ COST = new Map(); COST_ROWS = 0; } }),
+    pRet.then(onReturns, m => { if (!shown){ RET = null; RET_ERR = m; } })
+  ]);
+  if (id !== LOAD_ID) return;
+  memAuxPut();
   // 2) свежий снимок
   try {
     const s = await pSnap; if (id !== LOAD_ID) return;
     if (!s || !s.gz) throw 'снимка пока нет';
-    if (!shown || s.ts !== SNAP_TS || force){
-      const d = await unzipSnap(s.gz); if (id !== LOAD_ID) return;
-      SNAP_TS = s.ts; SNAP_SRC = 'снимок'; FALLBACK = ''; onData(d);
-    } else { SNAP_SRC = 'снимок'; setUpd(); }
+    // перерисовываем всегда: даже если снимок тот же, себестоимость и возвраты могли обновиться
+    const d = await unzipSnap(s.gz); if (id !== LOAD_ID) return;
+    SNAP_TS = s.ts; SNAP_SRC = 'снимок'; FALLBACK = ''; onData(d);
     memPut(s);
     busy(false);
     return;
