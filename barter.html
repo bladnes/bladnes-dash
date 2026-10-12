@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 7, 25.09.2026: ссылки отправок — в журнале UTM).
+   Бартер bladnes — рабочий интерфейс (сборка 8, 07.10.2026: дата получения, один ролик — одна публикация).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -472,6 +472,10 @@ let PIN = lsGet(LS.pin) || '';
 let QUEUE = (() => { try { return JSON.parse(lsGet(LS.queue) || '[]'); } catch(e) { return []; } })();
 const saveQueue = () => lsSet(LS.queue, JSON.stringify(QUEUE));
 const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+// один ролик — один ключ, как бы ни была записана ссылка (/reel/ и /p/, www, слэш на конце); то же в скрипте — postKey_
+const postKey = u => { const s = String(u || ''), ig = s.match(/instagram\.com\/(?:[^\/?#]+\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i); if (ig) return 'ig:' + ig[1];
+  const tt = s.match(/tiktok\.com\/@[^\/]+\/(?:video|photo)\/(\d+)/i); if (tt) return 'tt:' + tt[1];
+  return s.replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|m\.)?/i, '').replace(/\/+$/, '').toLowerCase(); };
 
 // JSONP без куки Google: при двух аккаунтах в браузере запрос с куки уходит на /macros/u/1/… и падает с 503
 function jsonp(params, ms){
@@ -538,6 +542,8 @@ async function flush(){
       let r;
       try { r = await api({action:'op', key:PIN, op:JSON.stringify(op)}); }
       catch(e) { SYNC.off = true; setTimeout(flush, 20000); break; }             // нет связи — попробуем позже
+      if (r && !r.ok && r.retry && (op._n = (op._n || 0) + 1) <= 30){ SYNC.wait = true; setTimeout(flush, 5000); break; }   // база занята (утренний сбор, отчёт) — действие ждёт в очереди
+      SYNC.wait = false;
       SYNC.off = false; QUEUE.shift(); saveQueue(); changed = true;
       if (!r.ok) toast('Не сохранилось: ' + esc(r.error || 'ошибка'));
       if (op._resolve) op._resolve(r);
@@ -557,8 +563,8 @@ function send(op, local){ if (local) try { local(); } catch(e) {} if (S) refresh
 function renderSync(){
   const el = $('#sync'); if (!el) return;
   const n = QUEUE.length;
-  el.className = 'sync' + (SYNC.busy ? ' busy' : SYNC.off ? ' off' : '');
-  el.querySelector('span').textContent = SYNC.busy ? (n ? 'сохраняю ' + n + '…' : 'обновляю…') : SYNC.off ? (n ? 'нет связи · в очереди ' + n : 'нет связи') : (SYNC.at ? 'сохранено ' + SYNC.at.slice(11, 16) : '');
+  el.className = 'sync' + (SYNC.busy || (SYNC.wait && n) ? ' busy' : SYNC.off ? ' off' : '');
+  el.querySelector('span').textContent = SYNC.busy ? (n ? 'сохраняю ' + n + '…' : 'обновляю…') : SYNC.wait && n ? 'база занята · жду, в очереди ' + n : SYNC.off ? (n ? 'нет связи · в очереди ' + n : 'нет связи') : (SYNC.at ? 'сохранено ' + SYNC.at.slice(11, 16) : '');
   el.title = el.querySelector('span').textContent;
 }
 function showLoginError(m){ $('#login').hidden = false; $('#pinErr').textContent = m || ''; }
@@ -808,9 +814,13 @@ function tasks(){
     list: od.map(s => ({h:`<b>${esc(bh(s.b))}</b><div class="s">${s.id} · дедлайн ${dLong(s._deadline)} · ${money(s._cost)}${M.b[s.b] && M.b[s.b].last && diffDays(M.b[s.b].last, TODAY) > 30 ? ` · <span class="warn">последний пост в профиле — ${dLong(M.b[s.b].last)}</span>` : ''}</div>`,
       a:[['Напомнить', 'remind', s.id, 'pri'], ['Вышла', 'addPostFor', s.id], ['Отказ', 'refuse', s.id]]}))});
   // 2. договорились, но не отправили
-  S.sh.filter(s => s._st === 'agreed' && s.b && !s._sentOk && s.sent == null && s.deal && diffDays(s.deal, TODAY) >= 3).forEach(s => add({id:'ag-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+  S.sh.filter(s => s._st === 'agreed' && s.b && !s._sentOk && !s.sent && s.deal && diffDays(s.deal, TODAY) >= 3).forEach(s => add({id:'ag-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
     tt:`${esc(bh(s.b))} — договорились ${dLong(s.deal)}, не отправлено`, tx:`${s.id}. Если посылка уже ушла — укажите трек и стоимость доставки.`,
     acts:[['Указать трек', 'track', s.id, 'pri'], ['Отказ', 'refuse', s.id]]}));
+  S.sh.filter(s => s.b && !s.refused && !s._sentOk && s._st !== 'agreed').forEach(s => add({id:'ns-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+    tt:`${esc(bh(s.b))} — ${s._posts.length ? 'публикация вышла' : 'посылка получена'}, а трека и доставки нет`,
+    tx:`${s.id}. Посылка ушла, но даты отправки и стоимости доставки в базе нет — расходы отдела занижены. Укажите трек, стоимость и настоящую дату отправки.`,
+    acts:[['Указать трек', 'track', s.id, 'pri']]}));
   S.sh.filter(s => s._sentOk && s.b && !s.ship && !s.refused).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
     tt:`${esc(bh(s.b))} — нет стоимости доставки`, tx:`${s.id}${s.svc ? ' · ' + esc(s.svc) : ''}${s.track ? ' ' + esc(s.track) : ''}, отправлена ${dRu(s.sent)}. Впишите, сколько заплатили за доставку, — сумма есть в приложении СДЭК. Без неё расходы отдела занижены.`, acts:[['Внести стоимость', 'track', s.id, 'pri']]}));
   // 3. промокоды из заказов
@@ -870,13 +880,20 @@ function tasks(){
   if (dlv.length) T.push({id:'dates', g:'После переноса', cls:'amb', ic:'cal', tt:`${dlv.length} ${plural(dlv.length,'вопрос','вопроса','вопросов')} по датам отправки`,
     tx:'Так в таблице не бывает: год 2009 или отправка раньше договорённости. Подсказка в каждой строке — это вероятная правильная дата; проверьте по чекам или переписке.', list:dlv});
   const byUrl = {};
-  S.po.forEach(p => { if (!p.url) return; if (byUrl[p.url]){ const a = byUrl[p.url], keep = a._measured ? a : p._measured ? p : a, drop = keep === a ? p : a;
+  S.po.forEach(p => { if (!p.url) return; const k = postKey(p.url); if (byUrl[k]){ const a = byUrl[k], keep = a._measured ? a : p._measured ? p : a, drop = keep === a ? p : a;
     add({id:'dp-' + drop.id, g:'После переноса', cls:'amb', ic:'merge', tt:`Одна публикация записана дважды: ${a.id} и ${p.id}`,
-      tx:`${esc(bh(p.b))}, ссылка совпадает символ в символ. Оставляю ${keep.id}${keep._measured ? ' — по нему есть замер' : ''}.`, acts:[[`Оставить ${keep.id}`, 'dropPost', drop.id, 'pri']]}); }
-    else byUrl[p.url] = p; });
+      tx:`${esc(bh(p.b))}, обе ссылки ведут на один и тот же ролик. Оставляю ${keep.id}${keep._measured ? ' — по нему есть замер' : ''}.`, acts:[[`Оставить ${keep.id}`, 'dropPost', drop.id, 'pri']]}); }
+    else byUrl[k] = p; });
+  // 5а. блогер выложил новый пост после получения посылки, а публикации в базе нет
+  const np = S.sh.filter(s => s._sentOk && s.b && !s.refused && !s._posts.length && M.b[s.b] && M.b[s.b].last && M.b[s.b].last >= (s.dlv || addDays(s.sent, S.cfg.transit)))
+    .map(s => ({s, b:M.b[s.b], id:'np-' + s.id + '-' + M.b[s.b].last})).filter(x => !done[x.id]).sort((a, b) => (a.s._deadline || '') < (b.s._deadline || '') ? -1 : 1);
+  if (np.length) T.push({id:'np', g:'Парсер', cls:'amb', ic:'eye', tt:`У ${np.length} ${plural(np.length,'блогера','блогеров','блогеров')} новый пост после получения посылки — проверьте профиль`,
+    tx:'Парсер сам находит публикацию только по отметке бренда в подписи. Если ролик про bladnes вышел без отметки — нажмите «Вышла» и вставьте ссылку. Если пост не про нас — «Не про нас».',
+    list: np.map(x => ({h:`<b>${esc(x.b.h)}</b><div class="s">${x.s.id} · новый пост ${dRu(x.b.last)} · срок публикации до ${dRu(x.s._deadline)}</div>`,
+      a:[['Профиль', 'openUrl', x.b.url, 'pri'], ['Вышла', 'addPostFor', x.s.id], ['Не про нас', 'dismiss', x.id]]}))});
   // 6. находки парсера (лист «Находки» базы)
-  const have = new Set(S.po.map(p => p.url));
-  const fl = S.found.filter(f => f.st === 'новая' && !have.has(f.url));
+  const have = new Set(S.po.map(p => postKey(p.url)));
+  const fl = S.found.filter(f => f.st === 'новая' && !have.has(postKey(f.url)));
   if (fl.length) add({id:'found', g:'Парсер', cls:'grn', ic:'bot', tt:`Парсер нашёл ${fl.length} ${plural(fl.length,'публикацию','публикации','публикаций')}, которых нет в базе`,
     tx:`Ролики и посты с отметкой бренда у блогеров, чья отправка ждёт публикации. Подтвердите — публикация встанет к отправке, просмотры пойдут в итоги.`,
     list: fl.map(f => { const b = findByHandle(f.h), s = b && b._ships.filter(x => !x.refused).sort((a, c) => (c._sent || '') < (a._sent || '') ? -1 : 1)[0];
@@ -1015,7 +1032,7 @@ function openShip(id){
         ${step(!!s.dlv || s._posts.length, false, 'Получено', dRu(s.dlv))}${step(s._posts.length, s._st === 'overdue', s._st === 'overdue' ? 'Просрочено' : 'Публикация', s._posts.length ? dRu(s._firstPost) : s._deadline ? 'до ' + dRu(s._deadline) : '')}</div>
       <div class="row" style="margin:14px 0 4px">
         ${!s._sentOk && !s.refused ? `<button class="btn sm pri" data-a="track" data-v="${s.id}">${icon('truck')}Указать трек</button>` : ''}
-        ${s._sentOk && !s.dlv && !s._posts.length && !s.refused ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}Блогер получил</button>` : ''}
+        ${s._sentOk && !s._posts.length && !s.refused ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}${s.dlv ? 'Получено ' + dRu(s.dlv) + ' · изменить' : 'Блогер получил'}</button>` : ''}
         ${!s.refused ? `<button class="btn sm" data-a="addPostFor" data-v="${s.id}">${icon('play')}Добавить публикацию</button>` : ''}
         ${!s.refused ? `<button class="btn sm" data-a="editItems" data-v="${s.id}">${icon('box')}Товары</button>` : ''}
         ${!s.refused && !s._posts.length ? `<button class="btn sm danger" data-a="refuse" data-v="${s.id}">Отказ или потеря</button>` : ''}
@@ -1401,7 +1418,7 @@ function postForm(shipId){
     if (pp && pp.h) hb = findByHandle(pp.h);
     if (hb && !st.s){ const c = hb._ships.filter(x => x._st !== 'refused').sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1)[0]; if (c) st.s = c.id; }
     if (pp && pp.fmt && !st.fmtT) st.fmt = pp.fmt;
-    const dup = st.url && S.po.find(p => p.url && st.url.split('?')[0] === p.url);
+    const dup = st.url && S.po.find(p => p.url && postKey(st.url) === postKey(p.url));
     const cand = S.sh.filter(s => !s.refused && s.b).sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1);
     const sel = st.s ? M.s[st.s] : null;
     sh.b.innerHTML = `
@@ -1621,7 +1638,7 @@ function rHow(){
       <li><b>Что не парсится:</b> сторис (живут сутки, просмотры видит только автор) и закрытые аккаунты. Для них — ручной ввод одной цифры и скрин.</li>
       <li><b>Подключение — API-ключом, а не MCP-коннектором.</b> Утренний прогон делает сам скрипт на серверах Google, без Claude: не тратит лимиты и не зависит от того, открыт ли чат. Ключ лежит в свойствах скрипта, в публичную страницу не попадает. MCP-коннектор можно добавить позже — для разовых задач вроде «найди похожих блогеров».</li>
       <li><b>Тестовый прогон 22.09.</b> Замеры 6 роликов из таблицы — 73 297 просмотров вместо 7 985 в таблице. Поиск в профилях 21 блогера — 5 публикаций, которых в таблице нет, в том числе ролик @falling_head_down на 22 300 просмотров с неизвестным промокодом SHAKATAKA. Плюс: P0004 и P0007 — один и тот же ролик, профиль @pufasan не существует, @koshkaxjena не публикуется с 15 июня. Списано $0,40.</li>
-      <li><b>Стоимость:</b> около $0,003 за ролик. Чтобы уложиться в бесплатные $5 в месяц: профили с активной отправкой проверяем раз в два дня по 3 последних ролика, замеры — на 1, 3, 7, 14 и 30-й день. Ориентир — $3–4 в месяц при 20 активных отправках. Если отправок станет вдвое больше — либо реже проверки, либо платный тариф.</li>
+      <li><b>Стоимость:</b> около $0,003 за ролик. Чтобы уложиться в бесплатные $5 в месяц: профили с активной отправкой проверяем раз в три дня по 3 последних ролика, замеры — на 1, 3, 7, 14 и 30-й день. Ориентир — $3–4 в месяц при 20 активных отправках. Если отправок станет вдвое больше — либо реже проверки, либо платный тариф.</li>
     </ul>
 
     <h3>Доставка до блогера</h3>
@@ -1630,9 +1647,10 @@ function rHow(){
       <li><b>Правило: блогерам — только СДЭК.</b> При отправке Матвей вставляет трек и стоимость доставки — сумма есть в приложении СДЭК. Без стоимости отправку не сохранить; если её нет у старой отправки, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Почему вручную.</b> Посылки блогерам уходят с личного кабинета СДЭК Матвея. API СДЭК работает только по договору (у магазина — IM-SPB1177-1157), и такие посылки не видит. Утренняя сверка со СДЭК выключена; если отправки переведут на кабинет магазина, её включает одна настройка скрипта (CDEK_SYNC).</li>
       <li><b>Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}.</b> Раньше этой даты не считаются заказы, публикации и ФОТ; парсер не берёт более ранние ролики; отправку или публикацию раньше неё не внести. Старые бартеры не заводим: заказов по промокодам блогеров до августа в архиве нет. Дату меняет Степан в настройках.</li>
+      <li><b>Сборка 8, 07.10.</b> Один ролик — одна публикация: ссылки <code>/reel/…</code> и <code>/p/…</code> считаются одним роликом, парсер не предлагает то, что уже внесено. Повторный запрос не создаёт вторую отправку. Если база занята утренним сбором, действие ждёт в очереди и уходит само. Задачи «договорились, не отправлено» и «публикация есть, а трека нет» теперь показываются. Новая задача: у блогера вышел новый пост после получения посылки — проверьте профиль (парсер находит публикацию только по отметке бренда в подписи).</li>
       <li><b>Ссылки из отправок — в журнале UTM.</b> Каждое утро скрипт дописывает в журнал UTM ссылку каждой новой отправки (метки как на странице: ник, blogger, barter, площадка_формат, номер отправки) — дашборд блогеров считает по ним заказы. Дубли не пишутся.</li>
       <li><b>Таблица-бэкап.</b> Каждое утро скрипт перезаписывает Google-таблицу со всеми данными и итогами по месяцам — в том же виде, что старая таблица. Ссылка и кнопка «Обновить сейчас» — в настройках.</li>
-      <li><b>«Получено» — одна кнопка</b> «Блогер получил», для любой службы. Не СДЭК (Почта, Яндекс, курьер) — только в крайнем случае. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
+      <li><b>«Получено» — одна кнопка</b> «Блогер получил», для любой службы. Она спрашивает день вручения (по умолчанию — отправка плюс ${S.cfg.transit} дней или сегодня, что раньше); дату потом можно исправить той же кнопкой. Не СДЭК (Почта, Яндекс, курьер) — только в крайнем случае. Если её не нажали, дедлайн считается от даты отправки плюс ${S.cfg.transit} дней в пути.</li>
     </ul>
 
     <h3>Продажи и промокоды</h3>
@@ -1720,7 +1738,7 @@ function addMenu(){
     <div class="mi" data-m="stories"><div class="ic">${icon('eye')}</div><div><div class="a">Просмотры сторис</div><div class="b">цифра со скрина</div></div></div></div>`});
   $$('[data-m]', sh.b).forEach(el => el.onclick = () => { sh.close(); const m = el.dataset.m;
     if (m === 'ship') shipForm(); else if (m === 'blogger') bloggerForm(); else if (m === 'post') postForm();
-    else if (m === 'track') pickShip('Какая посылка ушла?', s => s._st === 'agreed' && s.b, id => trackForm(id));
+    else if (m === 'track') pickShip('Какая посылка ушла?', s => !s.refused && s.b && !s._sentOk, id => trackForm(id));
     else if (m === 'stories') { postForm(); } });
 }
 function pickShip(title, filter, cb){
@@ -1735,9 +1753,12 @@ function pickBlogger(title, cb){
     $$('[data-b]', sh.b).forEach(el => el.onclick = () => { sh.close(); cb(el.dataset.b); }); };
   $('#pq', sh.b).oninput = e => draw(e.target.value); draw('');
 }
-function pickDate(title, cb){
-  const sh = sheet({title, body:`<input type="date" class="in" id="d" max="${TODAY}" value="${TODAY}">`, foot:`<button class="btn pri" id="ok">Сохранить</button>`});
-  $('#ok', sh.f).onclick = () => { const v = $('#d', sh.b).value; if (v){ sh.close(); cb(v); } };
+function pickDate(title, cb, o){ o = o || {};
+  const sh = sheet({title, body:`<div class="fld"><input type="date" class="in" id="d" ${o.min ? `min="${o.min}" ` : ''}max="${TODAY}" value="${o.value || TODAY}">${o.hint ? `<div class="hint">${o.hint}</div>` : ''}</div>`,
+    foot:`<button class="btn pri" id="ok">Сохранить</button>`});
+  $('#ok', sh.f).onclick = () => { const v = $('#d', sh.b).value; if (!v) return;
+    if (v > TODAY || (o.min && v < o.min)) return toast(o.min ? `Дата — от ${dRu(o.min)} до сегодняшней` : 'Дата не позже сегодняшней');
+    sh.close(); cb(v); };
 }
 
 /* =====================================================================
@@ -1769,7 +1790,10 @@ const A = {
   copyUtm:v => copyText(utmFor(M.s[v]), 'Ссылка скопирована'),
   copyBrief:v => copyText(briefText(M.s[v]), 'Сообщение скопировано'),
   copyOne:v => copyText(v),
-  delivered:v => { send({type:'delivered', id:v}, () => { M.s[v].dlv = TODAY; }); closeAll(); toast('Отмечено: получено'); },
+  delivered:v => { const s = M.s[v]; if (!s || !s._sentOk) return;   // день вручения: от него считается срок на публикацию
+    const est = addDays(s.sent, S.cfg.transit), def = s.dlv || (est < TODAY ? est : TODAY);
+    pickDate(`Когда блогер получил ${v}?`, d => { send({type:'delivered', id:v, date:d}, () => { s.dlv = d; }); closeAll(); toast('Получено ' + dRu(d)); },
+      {min:s.sent, value:def, hint:`Отправлено ${dRu(s.sent)}. Поставьте день вручения из приложения СДЭК — от него считается срок на публикацию (${S.cfg.pubDays} ${plural(S.cfg.pubDays,'день','дня','дней')}). Не знаете точно — оставьте как есть.`}); },
   refuse:v => { if (!confirm(`${v}: отметить отказ или потерю? ${M.s[v] && M.s[v]._sentOk ? 'Посылка уже ушла — товар и доставка останутся в расходах.' : 'Посылка не уходила — в расходах её не будет.'} Запись останется в журнале.`)) return;
     send({type:'refuse', id:v}, () => { M.s[v].refused = true; }); closeAll(); },
   linkYes:v => { const l = M.links[v]; send({type:'link', code:v, b:l.b, how:'подтверждено'}, () => { S.links[v] = {b:l.b, st:'ok', how:'подтверждено'}; }); toast('Продажи попали в итоги'); },
@@ -1784,9 +1808,9 @@ const A = {
   setB:v => { const [sid, bid] = v.split('|'); send({type:'setB', id:sid, b:bid}, () => { S.sh.find(s => s.id === sid).b = bid; }); },
   pickB:v => pickBlogger(`Кому ушла ${v}?`, id => A.setB(v + '|' + id)),
   setSent:v => { const [sid, d] = v.split('|'); send({type:'setSent', id:sid, date:d}, () => { S.sh.find(s => s.id === sid).sent = d; }); },
-  pickSent:v => pickDate(`Дата отправки ${v}`, d => A.setSent(v + '|' + d)),
+  pickSent:v => pickDate(`Дата отправки ${v}`, d => A.setSent(v + '|' + d), {value:M.s[v] && M.s[v]._sentOk ? M.s[v].sent : ''}),
   dropPost:v => send({type:'dropPost', p:v}, () => { S.po = S.po.filter(p => p.id !== v); }),
-  dismiss:v => send({type:'done', task:v, text: /^bf-/.test(v) ? 'подтвердил, что дата отправки ' + v.slice(3) + ' верна' : 'закрыл задачу'}, () => { S.done[v] = 1; }),
+  dismiss:v => send({type:'done', task:v, text: /^bf-/.test(v) ? 'подтвердил, что дата отправки ' + v.slice(3) + ' верна' : /^np-/.test(v) ? 'проверил профиль по ' + v.slice(3, 8) + ' — публикации пока нет' : 'закрыл задачу'}, () => { S.done[v] = 1; }),
   toggleStop:v => { const b = M.b[v]; send({type:'stop', b:v, on:!b.stop}, () => { b.stop = !b.stop; }); closeAll(); },
   undo:v => { send({type:'undo', logId:v}, () => { S.log = S.log.filter(x => x.id !== v); }); toast('Отменяю…'); }
 };
