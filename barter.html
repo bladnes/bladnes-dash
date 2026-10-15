@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 9, 15.10.2026: лонгсливы V3 в списке товаров).
+   Бартер bladnes — рабочий интерфейс (сборка 10, 15.10.2026: свитеры в списке, себестоимость уточняется).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -384,12 +384,17 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 const API = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && new URLSearchParams(location.search).get('api')) || 'https://script.google.com/macros/s/AKfycbxhREhl8m_EMkxNgr5aPQClTFEINXc4nAn7AuGp0f2yEpLuhR2Y2YiWSjW0hQ6Wxhwbdw/exec';
 // Новые позиции из админки Тильды, ещё не опубликованные на сайте (без фото и цены), — их уже отправляют блогерам.
 // Номер тот же, что в Тильде: когда товар опубликуют, карточка с витрины заменит запись сама (себестоимость отсюда останется, если её нет в справочнике).
-// Себестоимость — от Степана 15.10.2026. Свитеры (archive / limited) добавить, когда будет себестоимость.
+// Себестоимость лонгсливов — от Степана 15.10.2026. Свитеры — pending: партия ещё на таможне, себестоимость впишем позже
+// и пересчитаем уже сделанные отправки (порядок — в CLAUDE.md проекта, запись 15.10).
 const EXTRA_PRODUCTS = [
   {id:'727294963043', t:'nato longsleeve V3 black', cost:1845},
   {id:'725205153473', t:'nato longsleeve V3 white', cost:1896},
   {id:'454163705593', t:'stamp longsleeve V3 white', cost:1896},
-  {id:'158188921113', t:'cataract longsleeve V3 white', cost:1678}
+  {id:'158188921113', t:'cataract longsleeve V3 white', cost:1678},
+  {id:'249343377063', t:'sweater archive black', cost:null, pending:true, c:'sweaters'},
+  {id:'877055228783', t:'sweater archive rusty', cost:null, pending:true, c:'sweaters'},
+  {id:'706280358753', t:'sweater limited black', cost:null, pending:true, c:'sweaters'},
+  {id:'568854443013', t:'sweater limited rusty', cost:null, pending:true, c:'sweaters'}
 ].map(p => Object.assign({u:'', p:0, po:0, img:'', m:'NEW', c:'longs', sku:p.t}, p));
 const withExtra = list => { const ex = Object.fromEntries(EXTRA_PRODUCTS.map(p => [p.id, p])), have = new Set(list.map(p => p.id));
   return EXTRA_PRODUCTS.filter(p => !have.has(p.id)).concat(list.map(p => ex[p.id] && !p.cost ? Object.assign({}, p, {cost:ex[p.id].cost}) : p)); };
@@ -470,6 +475,7 @@ const UNIT_COGS = {'878156394552':1680.1,'587658289212':1703.54,'336160937852':4
   '533064016422':1050.8,'393493380593':2140,'357886017523':2834,'734877044382':1244,'826964456222':1244,'546619649632':1244,'167788360302':2531,
   '237323648893':3417,'634875826052':600,'209570555412':2357};
 const pCost = pid => (P_BY_ID[pid] && P_BY_ID[pid].cost) || (UNIT_COGS[pid] != null ? UNIT_COGS[pid] : Math.round((P_BY_ID[pid] ? P_BY_ID[pid].p : 0) * 0.422));
+const pendingCost = pid => !!(P_BY_ID[pid] && P_BY_ID[pid].pending && !P_BY_ID[pid].cost);   // себестоимость ещё не известна (новая партия)
 const pCostExact = pid => !!((P_BY_ID[pid] && P_BY_ID[pid].cost) || UNIT_COGS[pid] != null);
 const pImg = pid => P_BY_ID[pid] ? P_BY_ID[pid].img : '';
 const noSize = pid => { const p = P_BY_ID[pid]; return p && (p.c === 'limited' || p.c === 'scarves'); };
@@ -1033,7 +1039,7 @@ function openShip(id){
   const step = (on, x, l, d) => `<div class="st ${on ? 'd' : ''} ${x ? 'x' : ''}">${l}<b>${d || '—'}</b></div>`;
   const items = s.items.map(i => { const p = P_BY_ID[i.pid];
     return `<div class="pi">${i.pid ? `<div class="th" style="background-image:url('${pImg(i.pid)}')"></div>` : '<div class="th none">?</div>'}<div class="g"><div class="n">${esc(p ? p.t : (i.t || i.sku))}${i.q > 1 ? ' × ' + i.q : ''}</div>
-      <div class="c">${i.size ? 'размер ' + esc(i.size) + ' · ' : ''}себестоимость ${money((i.pid ? pCost(i.pid) : 0) * i.q)}${i.pid && !pCostExact(i.pid) ? ' ≈' : ''}</div></div></div>`; }).join('');
+      <div class="c">${i.size ? 'размер ' + esc(i.size) + ' · ' : ''}${pendingCost(i.pid) ? 'себестоимость уточняется' : 'себестоимость ' + money((i.pid ? pCost(i.pid) : 0) * i.q)}${i.pid && !pCostExact(i.pid) && !pendingCost(i.pid) ? ' ≈' : ''}</div></div></div>`; }).join('');
   const posts = s._posts.map(p => postRow(p)).join('');
   const orders = s._orders.map(o => `<tr><td>${dRu(o.d)} · ${esc(o.items)}</td><td class="num">${money(o.rev)}</td></tr>`).join('');
   const code = promoOf(b);
@@ -1127,14 +1133,14 @@ function shipForm(pre){
     const cost = sum(st.items, i => pCost(i.pid) * i.q);
     const items = st.items.map((i, k) => { const p = P_BY_ID[i.pid];
       return `<div class="pi"><div class="th" style="background-image:url('${pImg(i.pid)}')"></div><div class="g"><div class="n">${esc(p.t)}</div>
-        <div class="c">себестоимость ${money(pCost(i.pid))}${pCostExact(i.pid) ? '' : ' ≈'} · из справочника</div>
+        <div class="c">${pendingCost(i.pid) ? 'себестоимость уточняется — новая партия, впишем позже' : 'себестоимость ' + money(pCost(i.pid)) + (pCostExact(i.pid) ? '' : ' ≈') + ' · из справочника'}</div>
         ${noSize(i.pid) ? '' : `<div class="chips">${['S','M','L','XL','XXL'].map(z => `<button class="chip ${i.size === z ? 'on' : ''}" data-sz="${k}|${z}">${z}</button>`).join('')}</div>`}
         <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
         <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
     const q = st.pq.trim().toLowerCase();
     const plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 80);
     const picker = st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
-      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">СС ${fmt(pCost(p.id))} ₽</div></button>`).join('')}</div>` : '';
+      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">${pendingCost(p.id) ? 'СС уточняется' : 'СС ' + fmt(pCost(p.id)) + ' ₽'}</div></button>`).join('')}</div>` : '';
     const PF = ['TikTok видео', 'Reels', 'Stories', 'Пост', 'YouTube Shorts'];
     const prom = PF.map(f => { const x = st.promised.find(y => y.f === f);
       return `<button class="chip ${x ? 'on' : ''}" data-pf="${f}">${f}${x ? ` <span class="n">×${x.n}</span>` : ''}</button>`; }).join('');
@@ -1257,7 +1263,7 @@ function itemsForm(id){
   const draw = () => {
     const items = st.items.map((i, k) => { const p = P_BY_ID[i.pid];
       return `<div class="pi">${p ? `<div class="th" style="background-image:url('${pImg(i.pid)}')"></div>` : '<div class="th none">?</div>'}<div class="g"><div class="n">${esc(p ? p.t : (i.t || i.sku))}</div>
-        <div class="c">себестоимость ${money(costOf(i))}${p && !pCostExact(i.pid) ? ' ≈' : ''}</div>
+        <div class="c">${pendingCost(i.pid) ? 'себестоимость уточняется' : 'себестоимость ' + money(costOf(i))}${p && !pCostExact(i.pid) ? ' ≈' : ''}</div>
         ${noSize(i.pid) ? '' : `<div class="chips">${['S','M','L','XL','XXL'].map(z => `<button class="chip ${i.size === z ? 'on' : ''}" data-sz="${k}|${z}">${z}</button>`).join('')}</div>`}
         <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
         <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
@@ -1265,7 +1271,7 @@ function itemsForm(id){
     sh.b.innerHTML = `${items || '<div class="dim">Товаров пока нет — выберите из каталога.</div>'}
       <button class="btn sm ${st.items.length ? '' : 'pri'}" id="pick" style="margin-top:10px">${icon(st.pick ? 'close' : 'plus')}${st.pick ? 'Скрыть каталог' : 'Добавить товар'}</button>
       ${st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
-      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">СС ${fmt(pCost(p.id))} ₽</div></button>`).join('')}</div>` : ''}
+      <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">${pendingCost(p.id) ? 'СС уточняется' : 'СС ' + fmt(pCost(p.id)) + ' ₽'}</div></button>`).join('')}</div>` : ''}
       ${st.items.length ? `<div class="hint">Себестоимость посылки: <b style="color:var(--tx)">${money(sum(st.items, i => costOf(i) * i.q))}</b></div>` : ''}`;
     $('#svI', sh.f).disabled = !st.items.length;
     $('#pick', sh.b).onclick = () => { st.pick = !st.pick; draw(); };
@@ -1658,7 +1664,7 @@ function rHow(){
       <li><b>Правило: блогерам — только СДЭК.</b> При отправке Матвей вставляет трек и стоимость доставки — сумма есть в приложении СДЭК. Без стоимости отправку не сохранить; если её нет у старой отправки, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Почему вручную.</b> Посылки блогерам уходят с личного кабинета СДЭК Матвея. API СДЭК работает только по договору (у магазина — IM-SPB1177-1157), и такие посылки не видит. Утренняя сверка со СДЭК выключена; если отправки переведут на кабинет магазина, её включает одна настройка скрипта (CDEK_SYNC).</li>
       <li><b>Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}.</b> Раньше этой даты не считаются заказы, публикации и ФОТ; парсер не берёт более ранние ролики; отправку или публикацию раньше неё не внести. Старые бартеры не заводим: заказов по промокодам блогеров до августа в архиве нет. Дату меняет Степан в настройках.</li>
-      <li><b>Сборка 9, 15.10.</b> В списке товаров есть позиции, которых ещё нет на сайте: лонгсливы V3 (nato, stamp, cataract) — без фото, с себестоимостью от Степана. Когда их опубликуют в Тильде, карточки с сайта заменят эти записи сами.</li>
+      <li><b>Сборка 9, 15.10.</b> В списке товаров есть позиции, которых ещё нет на сайте: лонгсливы V3 (nato, stamp, cataract) — без фото, с себестоимостью от Степана; свитеры archive и limited — себестоимость уточняется (партия на таможне), такие отправки пока идут в расходы без товара и будут пересчитаны. Когда их опубликуют в Тильде, карточки с сайта заменят эти записи сами.</li>
       <li><b>Сборка 8, 07.10.</b> Один ролик — одна публикация: ссылки <code>/reel/…</code> и <code>/p/…</code> считаются одним роликом, парсер не предлагает то, что уже внесено. Повторный запрос не создаёт вторую отправку. Если база занята утренним сбором, действие ждёт в очереди и уходит само. Задачи «договорились, не отправлено» и «публикация есть, а трека нет» теперь показываются. Новая задача: у блогера вышел новый пост после получения посылки — проверьте профиль (парсер находит публикацию только по отметке бренда в подписи).</li>
       <li><b>Ссылки из отправок — в журнале UTM.</b> Каждое утро скрипт дописывает в журнал UTM ссылку каждой новой отправки (метки как на странице: ник, blogger, barter, площадка_формат, номер отправки) — дашборд блогеров считает по ним заказы. Дубли не пишутся.</li>
       <li><b>Таблица-бэкап.</b> Каждое утро скрипт перезаписывает Google-таблицу со всеми данными и итогами по месяцам — в том же виде, что старая таблица. Ссылка и кнопка «Обновить сейчас» — в настройках.</li>
