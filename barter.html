@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 8, 07.10.2026: дата получения, один ролик — одна публикация).
+   Бартер bladnes — рабочий интерфейс (сборка 9, 15.10.2026: лонгсливы V3 в списке товаров).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -382,7 +382,18 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
    ===================================================================== */
 // на этом компьютере для проверки можно подменить адрес (?api=http://127.0.0.1:…); с любого другого адреса — только боевой скрипт
 const API = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && new URLSearchParams(location.search).get('api')) || 'https://script.google.com/macros/s/AKfycbxhREhl8m_EMkxNgr5aPQClTFEINXc4nAn7AuGp0f2yEpLuhR2Y2YiWSjW0hQ6Wxhwbdw/exec';
-let PRODUCTS = window.PRODUCTS_FALLBACK || [], ORDERS = [];
+// Новые позиции из админки Тильды, ещё не опубликованные на сайте (без фото и цены), — их уже отправляют блогерам.
+// Номер тот же, что в Тильде: когда товар опубликуют, карточка с витрины заменит запись сама (себестоимость отсюда останется, если её нет в справочнике).
+// Себестоимость — от Степана 15.10.2026. Свитеры (archive / limited) добавить, когда будет себестоимость.
+const EXTRA_PRODUCTS = [
+  {id:'727294963043', t:'nato longsleeve V3 black', cost:1845},
+  {id:'725205153473', t:'nato longsleeve V3 white', cost:1896},
+  {id:'454163705593', t:'stamp longsleeve V3 white', cost:1896},
+  {id:'158188921113', t:'cataract longsleeve V3 white', cost:1678}
+].map(p => Object.assign({u:'', p:0, po:0, img:'', m:'NEW', c:'longs', sku:p.t}, p));
+const withExtra = list => { const ex = Object.fromEntries(EXTRA_PRODUCTS.map(p => [p.id, p])), have = new Set(list.map(p => p.id));
+  return EXTRA_PRODUCTS.filter(p => !have.has(p.id)).concat(list.map(p => ex[p.id] && !p.cost ? Object.assign({}, p, {cost:ex[p.id].cost}) : p)); };
+let PRODUCTS = withExtra(window.PRODUCTS_FALLBACK || []), ORDERS = [];
 const ACQ = 0.05;                       // эквайринг — как в дашборде продаж
 const PEOPLE = [{n:'Матвей', c:'#f2a65a'}, {n:'Степан', c:'#4f9cf9'}];
 const LS = {pin:'bl_barter_pin', cache:'bl_barter_cache_v1', queue:'bl_barter_queue_v1'};
@@ -511,7 +522,7 @@ function fromServer(d){
 }
 function applyExt(){
   if (!EXT) return;
-  if (EXT.products && EXT.products.length){ PRODUCTS = EXT.products; P_BY_ID = Object.fromEntries(PRODUCTS.map(p => [p.id, p])); }
+  if (EXT.products && EXT.products.length){ PRODUCTS = withExtra(EXT.products); P_BY_ID = Object.fromEntries(PRODUCTS.map(p => [p.id, p])); }
   if (EXT.orders) ORDERS = EXT.orders.filter(o => o.promo || (o.utm && /^s\d{4}$/i.test(o.utm.t || '')));   // промокод или ссылка из отправки
 }
 function saveCache(raw){ lsSet(LS.cache, JSON.stringify({raw, ext:EXT, me:ME, at:mskNow()})); }
@@ -687,7 +698,7 @@ const bh = id => M.b[id] ? M.b[id].h : '(без блогера)';
 // схема меток утверждена 22.09.2026: source — ник, medium — blogger, content — площадка_формат, term — номер отправки
 function utmFor(s){
   const b = M.b[s.b]; if (!b) return '';
-  const it = s.items.find(i => i.pid && P_BY_ID[i.pid]);
+  const it = s.items.find(i => i.pid && P_BY_ID[i.pid] && P_BY_ID[i.pid].u);   // у неопубликованной позиции нет страницы — ссылка на главную, как в скрипте
   const base = s.land === 'product' && it ? P_BY_ID[it.pid].u : 'https://bladnes.com/';
   const pr = s.promised && s.promised[0] ? s.promised[0].f : (b.pl === 'TikTok' ? 'TikTok видео' : 'Reels');
   const fm = {'TikTok видео':'video','Reels':'reels','Stories':'stories','Пост':'post','YouTube Shorts':'shorts'}[pr] || 'post';
@@ -1121,7 +1132,7 @@ function shipForm(pre){
         <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
         <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
     const q = st.pq.trim().toLowerCase();
-    const plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 48);
+    const plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 80);
     const picker = st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
       <div class="prods">${plist.map(p => `<button class="pc" data-pp="${p.id}"><div class="ph" style="background-image:url('${p.img}')"></div><div class="n">${esc(p.t)}</div><div class="p">СС ${fmt(pCost(p.id))} ₽</div></button>`).join('')}</div>` : '';
     const PF = ['TikTok видео', 'Reels', 'Stories', 'Пост', 'YouTube Shorts'];
@@ -1250,7 +1261,7 @@ function itemsForm(id){
         ${noSize(i.pid) ? '' : `<div class="chips">${['S','M','L','XL','XXL'].map(z => `<button class="chip ${i.size === z ? 'on' : ''}" data-sz="${k}|${z}">${z}</button>`).join('')}</div>`}
         <div class="row" style="margin-top:8px"><span class="step"><button data-qm="${k}">−</button><span>${i.q}</span><button data-qp="${k}">+</button></span></div></div>
         <button class="x" data-rm="${k}" aria-label="Убрать">${icon('close')}</button></div>`; }).join('');
-    const q = st.pq.trim().toLowerCase(), plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 48);
+    const q = st.pq.trim().toLowerCase(), plist = PRODUCTS.filter(p => !q || p.t.toLowerCase().includes(q)).slice(0, 80);
     sh.b.innerHTML = `${items || '<div class="dim">Товаров пока нет — выберите из каталога.</div>'}
       <button class="btn sm ${st.items.length ? '' : 'pri'}" id="pick" style="margin-top:10px">${icon(st.pick ? 'close' : 'plus')}${st.pick ? 'Скрыть каталог' : 'Добавить товар'}</button>
       ${st.pick ? `<div class="search" style="margin-top:10px">${icon('search')}<input class="in" id="pq" placeholder="Поиск по каталогу" value="${esc(st.pq)}" autocomplete="off"></div>
@@ -1647,6 +1658,7 @@ function rHow(){
       <li><b>Правило: блогерам — только СДЭК.</b> При отправке Матвей вставляет трек и стоимость доставки — сумма есть в приложении СДЭК. Без стоимости отправку не сохранить; если её нет у старой отправки, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Почему вручную.</b> Посылки блогерам уходят с личного кабинета СДЭК Матвея. API СДЭК работает только по договору (у магазина — IM-SPB1177-1157), и такие посылки не видит. Утренняя сверка со СДЭК выключена; если отправки переведут на кабинет магазина, её включает одна настройка скрипта (CDEK_SYNC).</li>
       <li><b>Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}.</b> Раньше этой даты не считаются заказы, публикации и ФОТ; парсер не берёт более ранние ролики; отправку или публикацию раньше неё не внести. Старые бартеры не заводим: заказов по промокодам блогеров до августа в архиве нет. Дату меняет Степан в настройках.</li>
+      <li><b>Сборка 9, 15.10.</b> В списке товаров есть позиции, которых ещё нет на сайте: лонгсливы V3 (nato, stamp, cataract) — без фото, с себестоимостью от Степана. Когда их опубликуют в Тильде, карточки с сайта заменят эти записи сами.</li>
       <li><b>Сборка 8, 07.10.</b> Один ролик — одна публикация: ссылки <code>/reel/…</code> и <code>/p/…</code> считаются одним роликом, парсер не предлагает то, что уже внесено. Повторный запрос не создаёт вторую отправку. Если база занята утренним сбором, действие ждёт в очереди и уходит само. Задачи «договорились, не отправлено» и «публикация есть, а трека нет» теперь показываются. Новая задача: у блогера вышел новый пост после получения посылки — проверьте профиль (парсер находит публикацию только по отметке бренда в подписи).</li>
       <li><b>Ссылки из отправок — в журнале UTM.</b> Каждое утро скрипт дописывает в журнал UTM ссылку каждой новой отправки (метки как на странице: ник, blogger, barter, площадка_формат, номер отправки) — дашборд блогеров считает по ним заказы. Дубли не пишутся.</li>
       <li><b>Таблица-бэкап.</b> Каждое утро скрипт перезаписывает Google-таблицу со всеми данными и итогами по месяцам — в том же виде, что старая таблица. Ссылка и кнопка «Обновить сейчас» — в настройках.</li>
