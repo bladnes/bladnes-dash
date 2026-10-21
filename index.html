@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.1</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.2</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -352,6 +352,11 @@ const COST_ALIAS = {
 const COST_MANUAL = {
   'cursed watch black': 6900,
   'cursed watch silver': 4950,
+  // лонгсливы V3 — Степан, 22.10.2026 (в справочнике себестоимости их пока нет)
+  'nato longsleeve v3 black': 1845,
+  'nato longsleeve v3 white': 1896,
+  'stamp longsleeve v3 white': 1896,
+  'cataract longsleeve v3 white': 1678,
 };
 const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
 const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
