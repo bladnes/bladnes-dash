@@ -374,7 +374,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 11, 26.10.2026: стоимость доставки СДЭК — из кабинета).
+   Бартер bladnes — рабочий интерфейс (сборка 12, 09.11.2026: пять новых позиций в списке, себестоимость уточняется).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -394,7 +394,14 @@ const EXTRA_PRODUCTS = [
   {id:'249343377063', t:'sweater archive black', cost:null, pending:true, c:'sweaters'},
   {id:'877055228783', t:'sweater archive rusty', cost:null, pending:true, c:'sweaters'},
   {id:'706280358753', t:'sweater limited black', cost:null, pending:true, c:'sweaters'},
-  {id:'568854443013', t:'sweater limited rusty', cost:null, pending:true, c:'sweaters'}
+  {id:'568854443013', t:'sweater limited rusty', cost:null, pending:true, c:'sweaters'},
+  // 09.11.2026 — по просьбе Степана, без себестоимости и фото. В Тильде этих карточек нет, номер свой (new-…):
+  // когда товар заведут в Тильде, запись сама НЕ заменится — поменять id здесь и пересохранить товары отправок.
+  {id:'new-archive-leather-jacket', t:'Archive Leather Jacket', cost:null, pending:true, c:'jackets'},
+  {id:'new-gun-archive-bag', t:'gun archive bag', cost:null, pending:true, c:''},
+  {id:'new-double-jeans-archive', t:'Double Jeans Archive', cost:null, pending:true, c:'trousers-and-jeans'},
+  {id:'new-black-straight-pants', t:'Black Straight Pants', cost:null, pending:true, c:'trousers-and-jeans'},
+  {id:'new-quarterzip-ramm', t:'QuarterZip RAMM', cost:null, pending:true, c:'hoodie'}
 ].map(p => Object.assign({u:'', p:0, po:0, img:'', m:'NEW', c:'longs', sku:p.t}, p));
 const withExtra = list => { const ex = Object.fromEntries(EXTRA_PRODUCTS.map(p => [p.id, p])), have = new Set(list.map(p => p.id));
   return EXTRA_PRODUCTS.filter(p => !have.has(p.id)).concat(list.map(p => ex[p.id] && !p.cost ? Object.assign({}, p, {cost:ex[p.id].cost}) : p)); };
