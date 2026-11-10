@@ -375,7 +375,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
+   Бартер bladnes — рабочий интерфейс (сборка 14, 10.11.2026: промокод из подписи, дубль публикации понятнее, площадка по ссылке; сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -959,7 +959,7 @@ function tasks(){
     list: fl.map(f => { const b = findByHandle(f.h), s = b && b._ships.filter(x => !x.refused).sort((a, c) => (c._sent || '') < (a._sent || '') ? -1 : 1)[0];
       return {h:`${plb(f.pl)} <b>${esc(f.h)}</b> · ${esc(f.fmt)} · ${dRu(f.d)}${f.views ? ' · <b>' + fmt(f.views) + '</b> просм.' : ' · ' + fmt(f.likes) + ' лайков'}<div class="s">«${esc(String(f.text || '').slice(0, 90))}»</div>`,
         a:(s ? [[`Это ${s.id}`, 'foundYes', f.n + '|' + s.id, 'pri']] : [['Выбрать отправку', 'foundPick', f.n, 'pri']]).concat([['Открыть', 'openUrl', f.url], ['Не наше', 'foundNo', f.n]])}; })});
-  S.found.filter(f => f.code && f.st !== 'отклонена').forEach(f => {
+  S.found.filter(f => f.code && /^[A-Z0-9]{3,20}$/i.test(f.code) && f.st !== 'отклонена').forEach(f => {
     const b = findByHandle(f.h), code = String(f.code).toUpperCase(), l = M.links[code];
     if (!b || promoOf(b) === code || (l && l.b === b.id)) return;
     add({id:'pc-' + code, g:'Парсер', cls:'red', ic:'tag', tt:`${esc(f.h)} называет в ролике промокод ${esc(code)} — его нет в базе`,
@@ -1533,6 +1533,13 @@ function openPost(id){
     <div class="row" style="margin-top:14px"><button class="btn sm" data-a="measure" data-v="${p.id}">${icon('eye')}Внести просмотры вручную</button>
       ${s ? `<button class="btn sm" data-a="openShip" data-v="${s.id}">${icon('box')}Отправка ${s.id}</button>` : ''}</div>`});
 }
+function postDupBox(dup, sel){   // сборка 14
+  const other = sel && dup.b && sel.b !== dup.b;
+  return `<div class="box bad" style="margin-top:8px"><div class="t">${icon('alert')} Этот ролик уже записан: ${dup.id}</div>
+    <div class="d">${esc(bh(dup.b))} · отправка ${esc(dup.s || '—')} · вышел ${dLong(dup.d)}. ${other
+      ? `Он другого блогера — а выбрана отправка <b>${esc(bh(sel.b))} · ${sel.id}</b>. Ссылку на ролик ${esc(bh(sel.b))} возьмите в его профиле.`
+      : 'Второй раз добавлять не нужно.'}</div></div>`;
+}
 function postForm(shipId){
   const st = {url:'', s:shipId || '', fmt:'', date:TODAY, views:''};
   const sh = sheet({title:'Новая публикация', sub:'Вставьте ссылку — остальное определится', body:'', foot:`<button class="btn pri" id="svP" disabled>Сохранить</button>`});
@@ -1542,12 +1549,13 @@ function postForm(shipId){
     if (pp && pp.h) hb = findByHandle(pp.h);
     if (hb && !st.s){ const c = hb._ships.filter(x => x._st !== 'refused').sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1)[0]; if (c) st.s = c.id; }
     if (pp && pp.fmt && !st.fmtT) st.fmt = pp.fmt;
-    const dup = st.url && S.po.find(p => p.url && postKey(st.url) === postKey(p.url));
+    const dup = st.url && (S.po.find(p => p.url && postKey(st.url) === postKey(p.url)) || (st.dupId && M.p[st.dupId]));
     const cand = S.sh.filter(s => !s.refused && s.b).sort((a, b) => (b._sent || '') < (a._sent || '') ? -1 : 1);
     const sel = st.s ? M.s[st.s] : null;
     sh.b.innerHTML = `
       <div class="fld"><label>Ссылка на публикацию</label><div class="inb"><input class="in" id="u" inputmode="url" autocapitalize="off" placeholder="https://www.tiktok.com/@ник/video/…" value="${esc(st.url)}"><button class="ib" id="uP">${icon('paste')}</button></div>
-        ${dup ? `<div class="box bad" style="margin-top:8px"><div class="t">${icon('alert')} Уже есть: ${dup.id}</div><div class="d">Эта ссылка записана ${dLong(dup.d)}. Второй раз добавлять не нужно.</div></div>` : ''}
+        ${dup ? postDupBox(dup, sel) : ''}
+        ${!dup && hb && sel && sel.b !== hb.id ? `<div class="box warn" style="margin-top:8px"><div class="d" style="margin:0">Ссылка на ролик <b>${esc(hb.h)}</b>, а выбрана отправка <b>${esc(bh(sel.b))} · ${sel.id}</b>. Проверьте, что выбрали нужную.</div></div>` : ''}
         ${pp && pp.h && !hb ? `<div class="box warn" style="margin-top:8px"><div class="d" style="margin:0">${esc(pp.h)} нет в базе — сначала добавьте блогера и отправку.</div></div>` : ''}</div>
       <div class="fld"><label>По какой отправке</label>
         ${sel ? `<div class="sel">${M.b[sel.b] ? plb(M.b[sel.b].pl) : ''}<div class="g"><b>${esc(bh(sel.b))} · ${sel.id}</b><div class="muted" style="font-size:12.5px">${ST[sel._st]} · ${sel.items.map(i => (P_BY_ID[i.pid] || {}).t || i.sku).join(', ')}</div></div><button class="btn link" id="chS">Сменить</button></div>`
@@ -1558,7 +1566,7 @@ function postForm(shipId){
       ${st.fmt === 'Stories' ? `<div class="fld"><label>Просмотры со скрина статистики</label><input class="in" id="vw" inputmode="numeric" placeholder="например, 1 450" value="${esc(st.views)}"><div class="hint">Сторис парсер не видит: они исчезают через сутки, а просмотры видит только автор.</div>
         <label class="btn sm" style="margin-top:8px">${icon('paste')}Прикрепить скрин<input type="file" accept="image/*" hidden></label></div>` : ''}`;
     $('#svP', sh.f).disabled = !(st.url && st.s && st.fmt && !dup);
-    const u = $('#u', sh.b); u.addEventListener('input', () => { st.url = u.value.trim(); const pos = u.selectionStart; draw(); const n = $('#u', sh.b); n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} });
+    const u = $('#u', sh.b); u.addEventListener('input', () => { st.url = u.value.trim(); st.dupId = ''; const pos = u.selectionStart; draw(); const n = $('#u', sh.b); n.focus(); try { n.setSelectionRange(pos, pos); } catch(e) {} });
     $('#uP', sh.b).onclick = () => pasteInto(u);
     const ss = $('#ss', sh.b); if (ss) ss.onchange = () => { st.s = ss.value; draw(); };
     const chS = $('#chS', sh.b); if (chS) chS.onclick = () => { st.s = ''; draw(); };
@@ -1571,8 +1579,10 @@ function postForm(shipId){
   $('#svP', sh.f).onclick = async () => {
     const s = M.s[st.s], b = M.b[s.b];
     const btn = $('#svP', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
-    const r = await sendWait({type:'addPost', s:s.id, url:st.url.split('?')[0], fmt:st.fmt, d:st.date, pl:b.pl, views:st.fmt === 'Stories' ? +st.views || 0 : 0});
-    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    const r = await sendWait({type:'addPost', s:s.id, url:st.url.split('?')[0], fmt:st.fmt, d:st.date, pl:(parsePost(st.url) || {}).pl || b.pl, views:st.fmt === 'Stories' ? +st.views || 0 : 0});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить';
+      const m = String(r.error || '').match(/уже есть: (P\d+)/); if (m && M.p[m[1]]){ st.dupId = m[1]; draw(); return; }
+      toast('Не сохранилось: ' + esc(r.error || '')); return; }
     sh.close(); await loadAll(); toast('Публикация добавлена, отправка → «Вышло»');
   };
 }
