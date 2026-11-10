@@ -199,6 +199,7 @@ input.in:focus,textarea.in:focus{border-color:var(--acc)}
 .res{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);background:var(--panel2);border-radius:12px;cursor:pointer;margin-top:8px}
 .res:hover,.res:focus{border-color:var(--acc);outline:none}
 .res .g{flex:1;min-width:0}
+.res.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
 .res .g .a{font-weight:600}.res .g .b{font-size:12.5px;color:var(--tx2)}
 .sel{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:#132a45;border:1px solid #1f4f86}
 .sel .g{flex:1;min-width:0}
@@ -374,7 +375,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 12, 09.11.2026: пять новых позиций в списке, себестоимость уточняется).
+   Бартер bladnes — рабочий интерфейс (сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -530,6 +531,7 @@ function fromServer(d){
     sh: d.sh.map(s => Object.assign({}, s, {items: items[s.id] || [], promised: s.promised || [], ship: s.ship || 0, cogs: s.cogs || 0, extra: s.extra || 0})),
     po: d.po, ms: d.ms, found: d.found || [], log: d.log || [], cfg: d.cfg || {},
     links: Object.fromEntries((d.links || []).map(l => [l.code, {b: l.b || null, st: l.st === 'no' ? 'no' : 'ok', how: l.how}])),
+    cd: d.cd || [], chk: Object.fromEntries((d.chk || []).map(c => [c.obj, c])), cdekSince: d.cdekSince || '2026-10-26',
     done: Object.fromEntries((d.done || []).map(x => [x, 1]))
   };
 }
@@ -601,6 +603,7 @@ function derive(){
   m.b = Object.fromEntries(S.bl.map(b => [b.id, b]));
   m.s = Object.fromEntries(S.sh.map(s => [s.id, s]));
   m.p = Object.fromEntries(S.po.map(p => [p.id, p]));
+  m.cdOf = {}; (S.cd || []).forEach(c => { if (c.s) m.cdOf[c.s] = c; });   // отправка → посылка из кабинета СДЭК
   const shipsOf = {}, postsOf = {}, msOf = {};
   S.sh.forEach(s => (shipsOf[s.b] = shipsOf[s.b] || []).push(s));
   S.po.forEach(p => (postsOf[p.s] = postsOf[p.s] || []).push(p));
@@ -831,6 +834,34 @@ function refresh(){ if (!S) return; M = derive(); renderNav(); ({today:rToday, s
 function tasks(){
   const T = [], done = S.done;
   const add = t => { if (!done[t.id]) T.push(t); };
+  // 0. посылки из кабинета СДЭК, которые никто не разобрал (сборка 13)
+  const cdFree = (S.cd || []).filter(c => !c.kind && !c.ret).sort((a, b) => (a.made || '') < (b.made || '') ? -1 : 1);
+  if (cdFree.length) T.push({id:'cdfree', g:'СДЭК', cls:'red', ic:'truck', tt:`${cdFree.length} ${plural(cdFree.length,'посылка','посылки','посылок')} из кабинета СДЭК не разобраны`,
+    tx:'Каждая посылка из кабинета бартера должна быть в базе. Укажите, кому она ушла, — или напишите, что это не бартер и зачем её отправляли.',
+    list: cdFree.map(c => ({h:`<b>СДЭК ${esc(c.track)}</b><div class="s">${cdLine(c)}</div>`, a:[['Разобрать', 'cdOpen', c.track, 'pri']]}))});
+  if (ME !== 'Степан') Object.values(S.chk).filter(c => c.res === 'вопрос').forEach(c => { const tr = c.obj.indexOf('cd:') === 0 ? c.obj.slice(3) : '';
+    T.push({id:'q-' + c.obj, g:'Вопросы Степана', cls:'red', ic:'msg', tt:`Вопрос Степана: ${esc(chkTitle(c.obj))}`, tx:`«${esc(c.note)}»`,
+      acts:[['Ответить', 'chkAnswer', c.obj, 'pri']].concat(tr ? [['Разобрать заново', 'cdOpen', tr]] : c.obj.indexOf('sh:') === 0 ? [['Открыть отправку', 'openShip', c.obj.slice(3)]] : [])}); });
+  if (ME === 'Степан'){
+    const pend = o => { const c = S.chk[o]; return !c || c.res === ''; };   // '' — Матвей ответил, снова ждёт Степана
+    const ans = o => S.chk[o] && S.chk[o].ans ? `<br>Ответ Матвея: «${esc(S.chk[o].ans)}»` : '';
+    const rv = [];
+    (S.cd || []).filter(c => c.kind === 'не бартер' && pend('cd:' + c.track)).forEach(c => rv.push({o:'cd:' + c.track,
+      h:`<b>СДЭК ${esc(c.track)} — не бартер</b><div class="s">${cdLine(c)}<br>Матвей: «${esc(c.why)}»${ans('cd:' + c.track)}</div>`}));
+    S.sh.filter(s => s.svc === 'СДЭК' && s.cdek === 'не найден' && !s.refused && (String(s.created || '').slice(0,10) >= S.cdekSince || String(s.sent || '') >= S.cdekSince) && pend('sh:' + s.id))
+      .forEach(s => rv.push({o:'sh:' + s.id, h:`<b>${s.id} · ${esc(bh(s.b))}</b><div class="s">трек ${esc(s.track)} не найден в кабинете СДЭК бартера — посылка ушла не оттуда, доставка ${s.ship ? money(s.ship) + ' внесена вручную' : 'не указана'}${ans('sh:' + s.id)}</div>`}));
+    if (rv.length) T.push({id:'rv', g:'Проверка', cls:'blu', ic:'check', tt:`${rv.length} ${plural(rv.length,'посылка','посылки','посылок')} на проверку`,
+      tx:'Посылки, которые Матвей назвал «не бартер», и отправки не из кабинета бартера. «Верно» — запись уходит из списка; «Вопрос» — Матвей получит задачу и ответит.',
+      list: rv.map(x => ({h:x.h, a:[['Верно', 'rvOk', x.o, 'ok'], ['Вопрос', 'rvAsk', x.o]]}))});
+    const pr = Object.entries(M.links).filter(([c, l]) => l.b && l.st !== 'no' && M.orders.some(o => o.promo === c && o._b === l.b))
+      .map(([c, l]) => ({c, l, o:'promo:' + c + ':' + l.b})).filter(x => pend(x.o));
+    if (pr.length) T.push({id:'rvp', g:'Проверка', cls:'blu', ic:'tag', tt:`${pr.length} ${plural(pr.length,'промокод','промокода','промокодов')} с продажами — проверьте, чьи они`,
+      tx:'Продажи по промокоду идут в итоги бартера. Проверьте, что код действительно этого блогера. Если код потом привяжут к другому блогеру, он снова появится здесь.',
+      list: pr.map(x => { const os = M.orders.filter(o => o.promo === x.c && o._b === x.l.b);
+        return {h:`<b>${esc(x.c)}</b> → ${esc(bh(x.l.b))}<div class="s">${os.length} ${plural(os.length,'заказ','заказа','заказов')} · ${money(sum(os, o => o.rev))} · ${esc(x.l.how || '')}${ans(x.o)}</div>`,
+          a:[['Верно', 'rvOk', x.o, 'ok'], ['Вопрос', 'rvAsk', x.o]]}; }),
+      acts: pr.length > 1 ? [[`Все ${pr.length} верны`, 'rvAll', pr.map(x => x.o).join(','), '']] : []});
+  }
   // 1. просрочки
   const od = S.sh.filter(s => s._st === 'overdue').sort((a, b) => a._deadline < b._deadline ? -1 : 1);
   if (od.length) add({id:'od', g:'Просрочено', cls:'red', ic:'alert', tt:`${od.length} ${plural(od.length,'посылка','посылки','посылок')} без публикации после дедлайна`,
@@ -845,7 +876,12 @@ function tasks(){
     tt:`${esc(bh(s.b))} — ${s._posts.length ? 'публикация вышла' : 'посылка получена'}, а трека и доставки нет`,
     tx:`${s.id}. Посылка ушла, но даты отправки и стоимости доставки в базе нет — расходы отдела занижены. Укажите трек, стоимость и настоящую дату отправки.`,
     acts:[['Указать трек', 'track', s.id, 'pri']]}));
-  S.sh.filter(s => s._sentOk && s.b && !s.ship && !s.refused && !(s.svc === 'СДЭК' && cdekOk(s.track) && s.cdek !== 'не найден')).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
+  const nf = s => ME !== 'Степан' && s.svc === 'СДЭК' && s.cdek === 'не найден' && !(s.sent < S.cdekSince);
+  S.sh.filter(s => s._sentOk && s.b && !s.refused && nf(s)).forEach(s => add({id:'nf-' + s.id + '-' + s.track, g:'СДЭК', cls:'red', ic:'truck',
+    tt:`${esc(bh(s.b))} — трек ${esc(s.track)} не найден в кабинете СДЭК бартера`,
+    tx:`${s.id}. Проверьте номер в кабинете бартера и исправьте. Посылки блогерам — только из кабинета бартера; если эта ушла не оттуда, Степан увидит её в проверке.`,
+    acts:[['Исправить трек', 'track', s.id, 'pri']]}));
+  S.sh.filter(s => s._sentOk && s.b && !s.ship && !s.refused && !nf(s) && !(s.svc === 'СДЭК' && cdekOk(s.track) && s.cdek !== 'не найден')).forEach(s => add({id:'nc-' + s.id, g:'Отправить', cls:'amb', ic:'truck',
     tt:`${esc(bh(s.b))} — нет стоимости доставки`, tx:`${s.id}${s.svc ? ' · ' + esc(s.svc) : ''}${s.track ? ' ' + esc(s.track) : ''}, отправлена ${dRu(s.sent)}. Впишите, сколько заплатили за доставку, — сумма есть в приложении СДЭК. Без неё расходы отдела занижены.`, acts:[['Внести стоимость', 'track', s.id, 'pri']]}));
   // 3. промокоды из заказов
   Object.entries(M.links).filter(([c, l]) => l.st === 'pending').forEach(([c, l]) => {
@@ -942,7 +978,7 @@ function taskCount(){ try { return tasks().filter(t => !t.ex).length; } catch(e)
 function rToday(){
   const T = tasks(), ss = S.sh.filter(s => !s.refused);
   const cnt = (st) => ss.filter(s => s._st === st).length;
-  const ORDER = ['Парсер', 'После переноса', 'Подтвердить', 'Просрочено', 'Отправить', 'Промокоды'];
+  const ORDER = ['СДЭК', 'Вопросы Степана', 'Проверка', 'Парсер', 'После переноса', 'Подтвердить', 'Просрочено', 'Отправить', 'Промокоды'];
   const groups = [...new Set(T.map(t => t.g))].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   const NOTE = {'После переноса':'Разовые вопросы по данным из таблицы. Сначала даты — от них зависят просрочки и итоги.'};
   const tHtml = T.length ? groups.map(g => `<div class="sec"><h2>${g}</h2><span class="r dim">${T.filter(t => t.g === g).length}</span></div>
@@ -1034,7 +1070,7 @@ function rShips(){
   let list = all.filter(s => CUR.shipF === 'all' ? s._st !== 'refused' : s._st === CUR.shipF);
   if (q) list = list.filter(s => (bh(s.b) + ' ' + s.id + ' ' + s.items.map(i => (P_BY_ID[i.pid] || {}).t || i.sku).join(' ')).toLowerCase().includes(q));
   list.sort((a, b) => (b._sent || b.deal || '') < (a._sent || a.deal || '') ? -1 : 1);
-  $('#view').innerHTML = `
+  $('#view').innerHTML = `${cdSummary()}
     <div class="search" style="margin-bottom:10px">${icon('search')}<input class="in" id="q" placeholder="Ник, номер или товар" value="${esc(CUR.q)}" autocomplete="off"></div>
     <div class="chips">${F.map(f => `<button class="chip ${CUR.shipF === f[0] ? 'on' : ''}" data-a="shipF" data-v="${f[0]}">${f[1]} <span class="n">${f[0] === 'all' ? all.filter(s => s._st !== 'refused').length : all.filter(s => s._st === f[0]).length}</span></button>`).join('')}</div>
     <div class="list g2" style="margin-top:10px">${list.map(shipItem).join('') || '<div class="empty">Ничего не нашлось</div>'}</div>`;
@@ -1056,7 +1092,7 @@ function openShip(id){
         ${step(!!s.dlv || s._posts.length, false, 'Получено', dRu(s.dlv))}${step(s._posts.length, s._st === 'overdue', s._st === 'overdue' ? 'Просрочено' : 'Публикация', s._posts.length ? dRu(s._firstPost) : s._deadline ? 'до ' + dRu(s._deadline) : '')}</div>
       <div class="row" style="margin:14px 0 4px">
         ${!s._sentOk && !s.refused ? `<button class="btn sm pri" data-a="track" data-v="${s.id}">${icon('truck')}Указать трек</button>` : ''}
-        ${s._sentOk && !s._posts.length && !s.refused ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}${s.dlv ? 'Получено ' + dRu(s.dlv) + ' · изменить' : 'Блогер получил'}</button>` : ''}
+        ${s._sentOk && !s._posts.length && !s.refused && !(M.cdOf[s.id] && ME !== 'Степан') ? `<button class="btn sm" data-a="delivered" data-v="${s.id}">${icon('check')}${s.dlv ? 'Получено ' + dRu(s.dlv) + ' · изменить' : 'Блогер получил'}</button>` : ''}
         ${!s.refused ? `<button class="btn sm" data-a="addPostFor" data-v="${s.id}">${icon('play')}Добавить публикацию</button>` : ''}
         ${!s.refused ? `<button class="btn sm" data-a="editItems" data-v="${s.id}">${icon('box')}Товары</button>` : ''}
         ${!s.refused && !s._posts.length ? `<button class="btn sm danger" data-a="refuse" data-v="${s.id}">Отказ или потеря</button>` : ''}
@@ -1068,7 +1104,7 @@ function openShip(id){
         <div><div class="l">Заказов</div><div class="v sm">${s._orders.length}</div></div><div><div class="l">Выручка</div><div class="v sm">${money(s._rev)}</div></div>
         <div><div class="l">Результат</div><div class="v sm ${s._margin - s._cost >= 0 ? 'ok' : 'bad'}">${money(s._margin - s._cost)}</div></div></div>
       <div class="dim" style="font-size:12px;margin-top:6px">Результат = маржа с заказов по промокоду (выручка − себестоимость − эквайринг 5 %) − товар − доставка. Без ФОТ.</div>
-      ${s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}<br>${s.ship ? 'Стоимость ' + money(s.ship) + ' — внесена вручную.' : '<span class="warn">Стоимость доставки не указана.</span>'} «Получено» — кнопкой «Блогер получил».</div>${s._sentOk && !s.refused ? `<div class="row" style="margin-top:8px"><button class="btn sm" data-a="track" data-v="${s.id}">${icon('truck')}Изменить трек и стоимость</button></div>` : ''}</div>` : ''}
+      ${M.cdOf[s.id] ? (c => `<div class="lab" style="margin-top:16px">Доставка · кабинет СДЭК</div><div class="box"><div class="d" style="margin:0">Трек ${esc(c.track)} · ${esc([c.to, c.city].filter(Boolean).join(', '))} · ${esc(c.st || '')}<br>Стоимость ${c.sum ? money(c.sum) : '—'}, даты отправки и получения — из СДЭК, ставятся сами.</div></div>`)(M.cdOf[s.id]) : s.svc || s.track ? `<div class="lab" style="margin-top:16px">Доставка</div><div class="box"><div class="d" style="margin:0">${esc(s.svc)} ${s.track ? '· трек ' + esc(s.track) : ''}<br>${s.ship ? 'Стоимость ' + money(s.ship) + ' — внесена вручную.' : '<span class="warn">Стоимость доставки не указана.</span>'}${s.cdek === 'не найден' ? ' <span class="warn">Трек не найден в кабинете СДЭК бартера.</span>' : ''} «Получено» — кнопкой «Блогер получил».</div>${s._sentOk && !s.refused ? `<div class="row" style="margin-top:8px"><button class="btn sm" data-a="track" data-v="${s.id}">${icon('truck')}Изменить трек и стоимость</button></div>` : ''}</div>` : ''}
       <div class="lab" style="margin-top:16px">Публикации</div>${posts || `<div class="dim" style="font-size:13.5px">Пока нет. ${s._deadline ? 'Дедлайн — ' + dLong(s._deadline) + '.' : ''} Парсер проверяет профиль каждое утро.</div>`}
       ${orders ? `<div class="lab" style="margin-top:16px">Заказы по промокоду ${esc(code)}</div><div class="tw"><table class="t"><tbody>${orders}</tbody></table></div>` : ''}
       <div class="lab" style="margin-top:16px">Для блогера</div>
@@ -1090,7 +1126,13 @@ function postRow(p){
 /* ---------- доставка: правило «блогерам — только СДЭК» ---------- */
 const OTHER_SVC = ['Почта','Яндекс','Курьер','Другое'];
 const cdekOk = t => /^\d{10,12}$/.test(String(t || '').replace(/\s/g, ''));
+// Матвей, новая посылка: только СДЭК из кабинета бартера; трек проверяется сразу, стоимость и даты — из СДЭК (сборка 13)
+const strictCdek = st => ME !== 'Степан' && !(st.orig && st.orig < S.cdekSince);
 function deliveryFields(st){
+  if (strictCdek(st)) return `<div class="box info"><div class="d" style="margin:0"><b>Блогерам — только СДЭК из кабинета бартера.</b> Впишите трек: скрипт сразу проверит его в кабинете и сам возьмёт стоимость доставки, дату отправки и дату вручения. Трека не из кабинета система не примет.</div></div>
+    <div class="fld" style="margin-top:12px"><label>Трек СДЭК</label>
+      <div class="inb"><input class="in" id="trk" inputmode="numeric" placeholder="номер из кабинета СДЭК бартера" value="${esc(st.track)}"><button class="ib" id="trkP" title="Вставить">${icon('paste')}</button></div>
+      <div class="hint warn" id="trkW" style="${st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10–11 цифр — проверьте, не вставилось ли лишнее.</div></div>`;
   const cdek = st.svc === 'СДЭК';
   return `<div class="lab">Служба</div>
     <div class="chips wrap"><button class="chip ${cdek ? 'on' : ''}" data-svc="СДЭК">СДЭК</button><button class="chip ${!cdek ? 'on' : ''}" data-svc="other">Не СДЭК</button></div>
@@ -1106,7 +1148,7 @@ function deliveryFields(st){
     ${st.date < M.start && st.date !== st.orig ? `<div class="hint warn">Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}: раньше этой даты отправки не вносим.</div>` : ''}`;
 }
 // СДЭК: нужен только верный трек — стоимость и даты скрипт каждое утро берёт из кабинета бартера; другие службы — стоимость обязательна
-const deliveryValid = st => (st.svc === 'СДЭК' ? cdekOk(st.track) : +st.cost > 0) && (st.date >= M.start || st.date === st.orig);
+const deliveryValid = st => strictCdek(st) ? cdekOk(st.track) : ((st.svc === 'СДЭК' ? cdekOk(st.track) : +st.cost > 0) && (st.date >= M.start || st.date === st.orig));
 function bindDelivery(root, st, draw, onChange){
   $$('[data-svc]', root).forEach(el => el.onclick = () => { const v = el.dataset.svc;
     st.svc = v === 'other' ? (OTHER_SVC.includes(st.svc) ? st.svc : OTHER_SVC[0]) : v; draw(); });
@@ -1119,9 +1161,9 @@ function bindDelivery(root, st, draw, onChange){
 }
 
 /* ---------- форма: новая отправка ---------- */
-function shipForm(pre){
-  const st = {b:pre || null, items:[], promised:[], sentNow:false, svc:'СДЭК', track:'', cost:'', date:TODAY, land:'product', pick:false, pq:''};
-  const sh = sheet({title:'Новая отправка', sub:'Номер, дата, себестоимость, промокод и ссылка — сами', body:'', foot:`<button class="btn pri" id="saveShip" disabled>Сохранить отправку</button>`});
+function shipForm(pre, o){
+  const st = {b:pre || null, items:[], promised:[], sentNow:false, svc:'СДЭК', track:'', cost:'', date:TODAY, land:'product', pick:false, pq:'', cd:(o && o.cd) || null};
+  const sh = sheet({title:st.cd ? 'Отправка из посылки СДЭК ' + esc(st.cd.track) : 'Новая отправка', sub:st.cd ? esc(cdLine(st.cd)) : 'Номер, дата, себестоимость, промокод и ссылка — сами', body:'', foot:`<button class="btn pri" id="saveShip" disabled>Сохранить отправку</button>`});
   const draw = () => {
     const b = st.b ? M.b[st.b] : null;
     let who = '';
@@ -1159,10 +1201,10 @@ function shipForm(pre){
         ${st.items.length ? `<div class="hint">Себестоимость посылки: <b style="color:var(--tx)">${money(cost)}</b></div>` : ''}</div>
       <div class="fld"><label>3. Что обещал <span class="dim">— по желанию</span></label><div class="chips wrap">${prom}</div>
         <div class="hint">Нажмите ещё раз, чтобы увеличить количество; долгое нажатие убирает.</div></div>
-      <div class="fld"><label>4. Посылка уже ушла?</label>
+      ${st.cd ? `<div class="fld"><label>4. Посылка</label><div class="box info"><div class="d" style="margin:0">СДЭК ${esc(st.cd.track)} · ${cdLine(st.cd)}. Дата отправки и стоимость доставки — из СДЭК.</div></div></div>` : `<div class="fld"><label>4. Посылка уже ушла?</label>
         <div class="toggle ${st.sentNow ? 'on' : ''}" id="tgSent"><div class="g"><b>${st.sentNow ? 'Да, указываю трек' : 'Нет, трек добавлю позже'}</b><div class="dim" style="font-size:12.5px">${st.sentNow ? 'Трек и стоимость доставки — обязательно' : 'Задача «указать трек» появится сама'}</div></div><div class="sw2"></div></div>
-        <div style="margin-top:12px">${sv}</div></div>`;
-    const canSave = () => { $('#saveShip', sh.f).disabled = !(b && !b.stop && st.items.length && (!st.sentNow || deliveryValid(st))); };
+        <div style="margin-top:12px">${sv}</div></div>`}`;
+    const canSave = () => { $('#saveShip', sh.f).disabled = !(b && !b.stop && st.items.length && (st.cd || !st.sentNow || deliveryValid(st))); };
     canSave();
     // обработчики
     const bq = $('#bq', sh.b);
@@ -1181,7 +1223,7 @@ function shipForm(pre){
       el.onpointerup = el.onpointerleave = () => { if (t !== 'long') clearTimeout(t); };
       el.onclick = () => { if (t === 'long'){ t = null; return; } const x = st.promised.find(y => y.f === el.dataset.pf); if (x) x.n = x.n >= 5 ? 1 : x.n + 1; else st.promised.push({f:el.dataset.pf, n:1}); draw(); };
     });
-    $('#tgSent', sh.b).onclick = () => { st.sentNow = !st.sentNow; draw(); };
+    const tg = $('#tgSent', sh.b); if (tg) tg.onclick = () => { st.sentNow = !st.sentNow; draw(); };
     bindDelivery(sh.b, st, draw, canSave);
   };
   const drawRes = () => {
@@ -1208,7 +1250,9 @@ function shipForm(pre){
   $('#saveShip', sh.f).onclick = async () => {
     const b = M.b[st.b]; if (!b || !st.items.length) return;
     const btn = $('#saveShip', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
-    const r = await sendWait({type:'addShip', b:b.id, items:st.items.map(i => ({pid:i.pid, t:(P_BY_ID[i.pid] || {}).t || '', sku:(P_BY_ID[i.pid] || {}).sku || '', size:i.size, q:i.q, cost:pCost(i.pid)})),
+    const its = st.items.map(i => ({pid:i.pid, t:(P_BY_ID[i.pid] || {}).t || '', sku:(P_BY_ID[i.pid] || {}).sku || '', size:i.size, q:i.q, cost:pCost(i.pid)}));
+    const r = st.cd ? await sendWait({type:'cdAssign', mode:'new', track:st.cd.track, b:b.id, items:its, promised:st.promised, land:'product', promo:promoOf(b) ? '' : suggestCode(b.h)})
+      : await sendWait({type:'addShip', b:b.id, items:its,
       promised:st.promised, sentNow:st.sentNow, svc:st.svc, track:st.track.replace(/\s/g, ''), ship:+st.cost || 0, date:st.date, land:'product', promo:promoOf(b) ? '' : suggestCode(b.h)});
     if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить отправку'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
     sh.close(); await loadAll(); shipDone(r.id);
@@ -1299,16 +1343,72 @@ function itemsForm(id){
 }
 /* ---------- трек ---------- */
 function trackForm(id){
-  const s = M.s[id]; const st = {svc:s.svc || 'СДЭК', track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY, orig:s._sentOk ? s.sent : null};   // правка трека не сбрасывает дату отправки
+  const s = M.s[id]; const st = {svc:(ME !== 'Степан' && !(s._sentOk && s.sent < S.cdekSince)) ? 'СДЭК' : s.svc || 'СДЭК', track:s.track || '', cost:s.ship ? String(s.ship) : '', date:s._sentOk ? s.sent : TODAY, orig:s._sentOk ? s.sent : null};   // правка трека не сбрасывает дату отправки
   const sh = sheet({title:`Трек и доставка · ${s.id}`, sub:esc(bh(s.b)), body:'', foot:`<button class="btn pri" id="svT" disabled>Сохранить</button>`});
   const canSave = () => { $('#svT', sh.f).disabled = !deliveryValid(st); };
   const draw = () => { sh.b.innerHTML = deliveryFields(st); bindDelivery(sh.b, st, draw, canSave); canSave(); };
   draw();
-  $('#svT', sh.f).onclick = () => {
-    const track = st.track.replace(/\s/g, '');
-    send({type:'setTrack', id:s.id, svc:st.svc, track, ship:+st.cost || 0, date:st.date},
-      () => { s.sent = st.date; s.svc = st.svc; s.track = track; s.ship = +st.cost; });
-    sh.close(); toast('Трек и стоимость доставки сохранены'); };
+  $('#svT', sh.f).onclick = async () => {
+    const track = st.track.replace(/\s/g, ''), btn = $('#svT', sh.f); btn.classList.add('busy'); btn.textContent = 'Проверяю в СДЭК…';
+    const r = await sendWait(Object.assign({type:'setTrack', id:s.id, svc:st.svc, track}, strictCdek(st) ? {} : {ship:+st.cost || 0, date:st.date}));
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    closeAll(); await loadAll(); toast(strictCdek(st) ? 'Трек сохранён — данные из СДЭК подставлены' : 'Трек и стоимость доставки сохранены'); };
+}
+
+/* ---------- посылки из кабинета СДЭК (сборка 13) ---------- */
+const cdLine = c => [c.to, c.city, c.made ? 'оформлена ' + dRu(c.made) : '', c.sum ? 'доставка ' + money(c.sum) : '', c.st].filter(Boolean).map(esc).join(' · ');
+const chkTitle = o => { const m = String(o).split(':');
+  return m[0] === 'cd' ? 'посылка СДЭК ' + m[1] : m[0] === 'sh' ? 'отправка ' + m[1] + ' · ' + bh((M.s[m[1]] || {}).b) : m[0] === 'promo' ? 'промокод ' + m[1] + ' → ' + bh(m[2]) : o; };
+function cdForm(track){
+  const c = (S.cd || []).find(x => x.track === track); if (!c) return toast('Посылка не найдена — обновите страницу');
+  const st = {mode:null, s:null, why:''};
+  const open = S.sh.filter(s => !s.refused && s.b && !s.track && !s._sentOk).sort((a, b) => (b.deal || '') < (a.deal || '') ? -1 : 1);
+  const sh = sheet({title:'Посылка СДЭК ' + esc(c.track), sub:'Что это за посылка?', body:'', foot:'<button class="btn pri" id="svCd" disabled>Сохранить</button>'});
+  const draw = () => {
+    sh.b.innerHTML = `<div class="box info"><div class="d" style="margin:0">Получатель: <b>${esc(c.to || '—')}</b>${c.city ? ', ' + esc(c.city) : ''}<br>Оформлена ${dRu(c.made)}${c.sent ? ' · принята ' + dRu(c.sent) : ''} · доставка ${c.sum ? money(c.sum) : '—'}${c.st ? ' · ' + esc(c.st) : ''}</div></div>
+      ${c.kind === 'не бартер' ? `<div class="box warn" style="margin-top:8px"><div class="d" style="margin:0">Сейчас отмечена «не бартер»: «${esc(c.why)}»</div></div>` : ''}
+      <div class="lab" style="margin-top:14px">Это…</div>
+      <div class="chips wrap"><button class="chip ${st.mode === 'ship' ? 'on' : ''}" data-md="ship">Отправка, о которой договорились</button>
+        <button class="chip" data-md="new">Новая отправка блогеру</button><button class="chip ${st.mode === 'other' ? 'on' : ''}" data-md="other">Не бартер</button></div>
+      ${st.mode === 'ship' ? (open.length ? open.map(s => `<div class="res ${st.s === s.id ? 'on' : ''}" data-s="${s.id}">${M.b[s.b] ? plb(M.b[s.b].pl) : ''}<div class="g"><div class="a">${esc(bh(s.b))} · ${s.id}</div><div class="b">${s.deal ? 'договорились ' + dLong(s.deal) + ' · ' : ''}${esc(s.items.map(i => (P_BY_ID[i.pid] || {}).t || i.t).join(', ') || 'товары не указаны')}</div></div></div>`).join('')
+        : '<div class="dim" style="margin-top:10px">Отправок без трека нет — выберите «Новая отправка блогеру».</div>') : ''}
+      ${st.mode === 'other' ? `<div class="fld" style="margin-top:12px"><label>Что это и кому — обязательно</label><textarea class="in" id="why" placeholder="например: обмен брака покупателю, заказ 1234">${esc(st.why)}</textarea>
+        <div class="hint">Степан проверит каждую такую посылку и может задать вопрос.</div></div>` : ''}`;
+    $$('[data-md]', sh.b).forEach(el => el.onclick = () => { const m = el.dataset.md;
+      if (m === 'new'){ sh.close(); return shipForm(null, {cd:c}); } st.mode = m; draw(); });
+    $$('[data-s]', sh.b).forEach(el => el.onclick = () => { st.s = el.dataset.s; draw(); });
+    const w = $('#why', sh.b); if (w) w.oninput = () => { st.why = w.value; can(); };
+    can();
+  };
+  const can = () => { $('#svCd', sh.f).disabled = !((st.mode === 'ship' && st.s) || (st.mode === 'other' && st.why.trim().length >= 5)); };
+  draw();
+  $('#svCd', sh.f).onclick = async () => {
+    const btn = $('#svCd', sh.f); btn.classList.add('busy'); btn.textContent = 'Сохраняю…';
+    const r = await sendWait({type:'cdAssign', track:c.track, mode:st.mode, id:st.s, why:st.why.trim()});
+    if (!r.ok){ btn.classList.remove('busy'); btn.textContent = 'Сохранить'; toast('Не сохранилось: ' + esc(r.error || '')); return; }
+    closeAll(); await loadAll(); toast(st.mode === 'ship' ? 'Посылка привязана к ' + st.s : 'Записано: не бартер — Степан проверит');
+  };
+}
+function textAsk(title, sub, ph, cb){
+  const sh = sheet({title, sub, body:`<div class="fld"><textarea class="in" id="ta" placeholder="${esc(ph)}"></textarea></div>`, foot:'<button class="btn pri" id="okT" disabled>Отправить</button>'});
+  const ta = $('#ta', sh.b); ta.oninput = () => { $('#okT', sh.f).disabled = ta.value.trim().length < 3; };
+  $('#okT', sh.f).onclick = () => { const t = ta.value.trim(); if (t.length < 3) return; sh.close(); cb(t); };
+  setTimeout(() => ta.focus(), 50);
+}
+// Сверка кабинета СДЭК по месяцам: сколько посылок и денег за доставку, сколько из них бартер — сходится с актом СДЭК
+function cdSummary(){
+  const L = (S.cd || []).filter(c => !c.ret); if (!L.length) return '';
+  const mon = c => String(c.sent || c.made || '').slice(0,7), ms = [...new Set(L.map(mon).filter(Boolean))].sort().reverse().slice(0, 3);
+  const cell = arr => `<b>${arr.length}</b><br><span class="dim" style="font-size:12px">${money(sum(arr, c => +c.sum || 0))}</span>`;
+  return `<div class="card" style="margin-bottom:12px;padding:12px 14px"><div class="sec" style="margin:0 0 6px"><h2>Кабинет СДЭК бартера</h2><a class="r" href="#" data-a="cdAll">все посылки →</a></div>
+    <div class="tw"><table class="t"><thead><tr><th></th><th class="num">Всего</th><th class="num">Бартер</th><th class="num">Не бартер</th><th class="num">Не разобр.</th></tr></thead><tbody>
+    ${ms.map(m => { const a = L.filter(c => mon(c) === m); return `<tr><td>${MON_N[+m.slice(5) - 1].slice(0, 3)}</td><td class="num">${cell(a)}</td><td class="num">${cell(a.filter(c => c.kind === 'бартер'))}</td><td class="num">${cell(a.filter(c => c.kind === 'не бартер'))}</td><td class="num ${a.some(c => !c.kind) ? 'bad' : ''}">${cell(a.filter(c => !c.kind))}</td></tr>`; }).join('')}
+    </tbody></table></div><div class="hint">Число посылок и сумма доставки за месяц должны совпасть с актом СДЭК по кабинету бартера.</div></div>`;
+}
+function cdAll(){
+  const L = (S.cd || []).slice().sort((a, b) => (b.made || '') < (a.made || '') ? -1 : 1);
+  sheet({title:'Посылки кабинета СДЭК', sub:L.length + ' ' + plural(L.length,'посылка','посылки','посылок'), wide:true, body: L.map(c => `<div class="res" ${c.s ? `data-a="openShip" data-v="${c.s}"` : !c.kind && !c.ret ? `data-a="cdOpen" data-v="${c.track}"` : ''}><div class="g"><div class="a">СДЭК ${esc(c.track)} · ${c.ret ? 'возврат' : c.kind === 'бартер' ? esc(c.s) + ' → ' + esc(bh((M.s[c.s] || {}).b)) : c.kind === 'не бартер' ? 'не бартер' : '<span class="warn">не разобрана</span>'}</div>
+    <div class="b">${cdLine(c)}${c.why ? '<br>«' + esc(c.why) + '»' : ''}${S.chk['cd:' + c.track] ? ' · проверка: ' + esc(S.chk['cd:' + c.track].res || 'ответ Матвея') : ''}</div></div></div>`).join('') || '<div class="empty">Посылок пока нет</div>'});
 }
 
 /* =====================================================================
@@ -1624,7 +1724,7 @@ function rHow(){
         <div class="fb"><b>Каталог Тильды</b>товары с фото — Матвей выбирает, а не пишет артикул</div>
         <div class="fb"><b>Справочник себестоимости</b>тот же, что у дашборда продаж (102 артикула)</div>
         <div class="fb"><b>Архив заказов</b>промокоды и UTM каждого заказа — продажи блогеров считаются сами</div>
-        <div class="fb"><b>СДЭК</b>с 26.10 — свой кабинет бартера: по треку каждое утро стоимость доставки, дата приёма и вручения</div>
+        <div class="fb"><b>СДЭК</b>кабинет бартера: каждая посылка приходит сама (вебхук) — получатель, стоимость доставки, даты приёма и вручения</div>
         <div class="fb"><b>Apify</b>TikTok и Reels: новые ролики у блогеров, просмотры каждый день</div>
       </div>
       <div class="farr"><span class="v">↓</span><span class="h">→</span></div>
@@ -1668,6 +1768,7 @@ function rHow(){
     <h3>Доставка до блогера</h3>
     <ul>
       <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
+      <li><b>Сборка 13, 10.11: все посылки — из кабинета СДЭК бартера.</b> СДЭК сам сообщает о каждой посылке кабинета, она появляется в задачах «СДЭК». Матвей обязан её разобрать: отправка, о которой договорились, новая отправка блогеру или «не бартер» с пояснением. Дата отправки, дата вручения и стоимость доставки таких отправок — только из СДЭК, руками их не поменять. Трек не из кабинета не принимается; отправки не СДЭКом вносит только Степан. Степан проверяет посылки «не бартер», отправки не из кабинета и промокоды с продажами: «Верно» или «Вопрос» — вопрос уходит Матвею задачей. На странице «Отправки» — сверка кабинета по месяцам с актом СДЭК.</li>
       <li><b>Правило: блогерам — только СДЭК, из кабинета бартера.</b> При отправке Матвей вставляет трек. Стоимость доставки, дату приёма посылки и дату вручения скрипт каждое утро берёт из СДЭК сам и ставит их вместо введённых вручную; каждое расхождение с ручным вводом пишется в журнал. Если СДЭК трек не нашёл, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Старые посылки — вручную.</b> До 26.10.2026 посылки уходили с личного кабинета СДЭК Матвея, API их не видит: у этих отправок стоимость и даты остаются ручными, сверка их не трогает (свойство скрипта CDEK_SINCE).</li>
       <li><b>Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}.</b> Раньше этой даты не считаются заказы, публикации и ФОТ; парсер не берёт более ранние ролики; отправку или публикацию раньше неё не внести. Старые бартеры не заводим: заказов по промокодам блогеров до августа в архиве нет. Дату меняет Степан в настройках.</li>
@@ -1791,6 +1892,14 @@ function pickDate(title, cb, o){ o = o || {};
    ===================================================================== */
 const A = {
   addMenu, settings, addBlogger:() => bloggerForm(), addPost:() => postForm(),
+  cdOpen:v => cdForm(v), cdAll:() => cdAll(),
+  rvOk:v => { send({type:'review', objs:[v], res:'верно'}, () => { S.chk[v] = {obj:v, res:'верно'}; }); toast('Отмечено: верно'); },
+  rvAll:v => { const objs = v.split(','); if (!confirm('Отметить верными все ' + objs.length + '?')) return;
+    send({type:'review', objs, res:'верно'}, () => objs.forEach(o => { S.chk[o] = {obj:o, res:'верно'}; })); toast('Отмечено: ' + objs.length); },
+  rvAsk:v => textAsk('Вопрос Матвею', esc(chkTitle(v)), 'Что непонятно? Матвей увидит вопрос в задачах', t => {
+    send({type:'review', objs:[v], res:'вопрос', note:t}, () => { S.chk[v] = {obj:v, res:'вопрос', note:t}; }); toast('Вопрос отправлен Матвею'); }),
+  chkAnswer:v => textAsk('Ответ Степану', '«' + esc((S.chk[v] || {}).note || '') + '»', 'Ваш ответ', t => {
+    send({type:'answer', obj:v, text:t}, () => { Object.assign(S.chk[v], {res:'', ans:t}); }); toast('Ответ отправлен'); }),
   openUrl:v => window.open(v, '_blank', 'noopener'),
   foundYes:v => { const [n, sid] = v.split('|'); const f = S.found.find(x => x.n === n), s = M.s[sid], b = M.b[s.b];
     const code = f.code && String(f.code).toUpperCase(), l = code && M.links[code];
