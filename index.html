@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.2</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.3</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -335,9 +335,14 @@ function parseProducts(s){
 }
 
 /* ---------- себестоимость ---------- */
-const COST_SHEET_ID = '1yH_qmiEEPMQlVK6tO84ZdsUFyft2Seip49PQWh1XbTA';
-const COST_GID = '1079391248';
-const COST_QUERY = 'select A,B';          // Артикул | Актуальная СС
+// С 11.11.2026 — отдельная таблица «Bladnes — себестоимость для дашборда» (stepan.wb, открыта
+// на просмотр по ссылке). В A1 стоит IMPORTRANGE из вкладки «CC» финансовой таблицы — её ID
+// сюда не пишем: страница публичная, а в финтаблице баланс и ОПиУ.
+// A = артикул, B = себестоимость; артикулы повторяются (с одной и той же ценой) — это нормально.
+// Прежний справочник: 1yH_qmiEEPMQlVK6tO84ZdsUFyft2Seip49PQWh1XbTA, gid 1079391248.
+const COST_SHEET_ID = '1W9SCoowoq_Z2m1FkMHZBw359q52DqyrysU_-RGeAtVs';
+const COST_GID = '0';
+const COST_QUERY = 'select A,B';          // Артикул | СС
 let COST = new Map(), COST_ROWS = 0;
 
 // артикулы, которые автоматически не сопоставляются (опечатки в справочнике и т.п.)
@@ -349,14 +354,11 @@ const COST_ALIAS = {
 };
 // себестоимости, которых нет в справочнике — заданы вручную.
 // Как только добавите их в таблицу, эти строки можно убрать.
+// Часы и лонгсливы V3 во вкладке CC уже есть, их отсюда убрали 11.11.2026.
 const COST_MANUAL = {
-  'cursed watch black': 6900,
-  'cursed watch silver': 4950,
-  // лонгсливы V3 — Степан, 22.10.2026 (в справочнике себестоимости их пока нет)
-  'nato longsleeve v3 black': 1845,
-  'nato longsleeve v3 white': 1896,
-  'stamp longsleeve v3 white': 1896,
-  'cataract longsleeve v3 white': 1678,
+  // были в старом справочнике, во вкладке CC их нет — цены оттуда
+  't-shirt unite': 2140,
+  't-shirt captcha': 1695,
 };
 const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
 const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
@@ -396,9 +398,11 @@ function onCost(resp){
     const k = normKey(parseCell(c[0]) || '');
     const v = num(parseCell(c[1]));
     if (!k || k === '0' || !v) return;
-    COST.set(k, v); COST_ROWS++;
+    COST.set(k, v);
   });
-  Object.entries(COST_MANUAL).forEach(([k,v]) => { COST.set(normKey(k), v); COST_ROWS++; });
+  // ручные — только если в таблице артикула нет: таблица главнее
+  Object.entries(COST_MANUAL).forEach(([k,v]) => { if (!COST.has(normKey(k))) COST.set(normKey(k), v); });
+  COST_ROWS = COST.size;              // уникальные артикулы: в CC есть повторы
 }
 
 /* ---------- возвраты ---------- */
