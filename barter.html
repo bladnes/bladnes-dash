@@ -375,7 +375,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 15, 11.11.2026: кожаная куртка с сайта, себестоимость 3 335,64; сборка 14, 10.11.2026: промокод из подписи, дубль публикации понятнее, площадка по ссылке; сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
+   Бартер bladnes — рабочий интерфейс (сборка 16, 11.11.2026: мягкий режим проверки кабинета СДЭК; сборка 15, 11.11.2026: кожаная куртка с сайта, себестоимость 3 335,64; сборка 14, 10.11.2026: промокод из подписи, дубль публикации понятнее, площадка по ссылке; сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -852,6 +852,8 @@ function tasks(){
     const rv = [];
     (S.cd || []).filter(c => c.kind === 'не бартер' && pend('cd:' + c.track)).forEach(c => rv.push({o:'cd:' + c.track,
       h:`<b>СДЭК ${esc(c.track)} — не бартер</b><div class="s">${cdLine(c)}<br>Матвей: «${esc(c.why)}»${ans('cd:' + c.track)}</div>`}));
+    S.sh.filter(s => s._sentOk && s.svc && s.svc !== 'СДЭК' && !s.refused && s.by !== 'Степан' && String(s.created || '').slice(0,10) >= S.cdekSince && pend('sh:' + s.id))
+      .forEach(s => rv.push({o:'sh:' + s.id, h:`<b>${s.id} · ${esc(bh(s.b))}</b><div class="s">отправлена не СДЭКом (${esc(s.svc)}), доставка ${s.ship ? money(s.ship) + ' внесена вручную' : 'не указана'}${ans('sh:' + s.id)}</div>`}));
     S.sh.filter(s => s.svc === 'СДЭК' && s.cdek === 'не найден' && !s.refused && (String(s.created || '').slice(0,10) >= S.cdekSince || String(s.sent || '') >= S.cdekSince) && pend('sh:' + s.id))
       .forEach(s => rv.push({o:'sh:' + s.id, h:`<b>${s.id} · ${esc(bh(s.b))}</b><div class="s">трек ${esc(s.track)} не найден в кабинете СДЭК бартера — посылка ушла не оттуда, доставка ${s.ship ? money(s.ship) + ' внесена вручную' : 'не указана'}${ans('sh:' + s.id)}</div>`}));
     if (rv.length) T.push({id:'rv', g:'Проверка', cls:'blu', ic:'check', tt:`${rv.length} ${plural(rv.length,'посылка','посылки','посылок')} на проверку`,
@@ -880,7 +882,7 @@ function tasks(){
     tt:`${esc(bh(s.b))} — ${s._posts.length ? 'публикация вышла' : 'посылка получена'}, а трека и доставки нет`,
     tx:`${s.id}. Посылка ушла, но даты отправки и стоимости доставки в базе нет — расходы отдела занижены. Укажите трек, стоимость и настоящую дату отправки.`,
     acts:[['Указать трек', 'track', s.id, 'pri']]}));
-  const nf = s => ME !== 'Степан' && s.svc === 'СДЭК' && s.cdek === 'не найден' && !(s.sent < S.cdekSince);
+  const nf = s => cdekStrictOn() && ME !== 'Степан' && s.svc === 'СДЭК' && s.cdek === 'не найден' && !(s.sent < S.cdekSince);
   S.sh.filter(s => s._sentOk && s.b && !s.refused && nf(s)).forEach(s => add({id:'nf-' + s.id + '-' + s.track, g:'СДЭК', cls:'red', ic:'truck',
     tt:`${esc(bh(s.b))} — трек ${esc(s.track)} не найден в кабинете СДЭК бартера`,
     tx:`${s.id}. Проверьте номер в кабинете бартера и исправьте. Посылки блогерам — только из кабинета бартера; если эта ушла не оттуда, Степан увидит её в проверке.`,
@@ -1131,7 +1133,8 @@ function postRow(p){
 const OTHER_SVC = ['Почта','Яндекс','Курьер','Другое'];
 const cdekOk = t => /^\d{10,12}$/.test(String(t || '').replace(/\s/g, ''));
 // Матвей, новая посылка: только СДЭК из кабинета бартера; трек проверяется сразу, стоимость и даты — из СДЭК (сборка 13)
-const strictCdek = st => ME !== 'Степан' && !(st.orig && st.orig < S.cdekSince);
+const cdekStrictOn = () => !!(S && S.cfg && S.cfg.cdekStrict === true);
+const strictCdek = st => cdekStrictOn() && ME !== 'Степан' && !(st.orig && st.orig < S.cdekSince);
 function deliveryFields(st){
   if (strictCdek(st)) return `<div class="box info"><div class="d" style="margin:0"><b>Блогерам — только СДЭК из кабинета бартера.</b> Впишите трек: скрипт сразу проверит его в кабинете и сам возьмёт стоимость доставки, дату отправки и дату вручения. Трека не из кабинета система не примет.</div></div>
     <div class="fld" style="margin-top:12px"><label>Трек СДЭК</label>
@@ -1146,13 +1149,13 @@ function deliveryFields(st){
     <div class="fld" style="margin-top:12px"><label>Трек-номер${cdek ? '' : ' <span class="dim">— если есть</span>'}</label>
       <div class="inb"><input class="in" id="trk" ${cdek ? 'inputmode="numeric"' : 'autocapitalize="characters"'} placeholder="${cdek ? 'номер из приложения СДЭК' : 'номер отправления'}" value="${esc(st.track)}"><button class="ib" id="trkP" title="Вставить">${icon('paste')}</button></div>
       <div class="hint warn" id="trkW" style="${cdek && st.track && !cdekOk(st.track) ? '' : 'display:none'}">У СДЭК номер из 10–11 цифр — проверьте, не вставилось ли лишнее.</div></div>
-    <div class="fld"><label>Стоимость доставки до блогера, ₽ <span class="dim">${cdek ? '— можно не вписывать: подтянется из СДЭК утром' : '— обязательно'}</span></label><input class="in" id="cst" inputmode="numeric" placeholder="сколько заплатили, например 780" value="${esc(st.cost)}"></div>
+    <div class="fld"><label>Стоимость доставки до блогера, ₽ <span class="dim">${cdek && cdekStrictOn() ? '— можно не вписывать: подтянется из СДЭК утром' : '— обязательно'}</span></label><input class="in" id="cst" inputmode="numeric" placeholder="сколько заплатили, например 780" value="${esc(st.cost)}"></div>
     <div class="lab">Когда отправили</div><div class="chips wrap">${[[TODAY,'Сегодня'], [addDays(TODAY,-1),'Вчера']].map(x => `<button class="chip ${st.date === x[0] ? 'on' : ''}" data-dt="${x[0]}">${x[1]}</button>`).join('')}
       <input type="date" class="in" id="dtx" style="max-width:170px;min-height:38px;padding:6px 10px;font-size:14px" value="${st.date}" min="${M.start}" max="${TODAY}"></div>
     ${st.date < M.start && st.date !== st.orig ? `<div class="hint warn">Отсчёт — с ${dLong(M.start)} ${M.start.slice(0,4)}: раньше этой даты отправки не вносим.</div>` : ''}`;
 }
 // СДЭК: нужен только верный трек — стоимость и даты скрипт каждое утро берёт из кабинета бартера; другие службы — стоимость обязательна
-const deliveryValid = st => strictCdek(st) ? cdekOk(st.track) : ((st.svc === 'СДЭК' ? cdekOk(st.track) : +st.cost > 0) && (st.date >= M.start || st.date === st.orig));
+const deliveryValid = st => strictCdek(st) ? cdekOk(st.track) : ((st.svc === 'СДЭК' ? cdekOk(st.track) && (cdekStrictOn() || +st.cost > 0) : +st.cost > 0) && (st.date >= M.start || st.date === st.orig));
 function bindDelivery(root, st, draw, onChange){
   $$('[data-svc]', root).forEach(el => el.onclick = () => { const v = el.dataset.svc;
     st.svc = v === 'other' ? (OTHER_SVC.includes(st.svc) ? st.svc : OTHER_SVC[0]) : v; draw(); });
@@ -1782,6 +1785,7 @@ function rHow(){
     <h3>Доставка до блогера</h3>
     <ul>
       <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
+      <li><b>Сборка 16, 11.11: мягкий режим.</b> Пока у Матвея нет входа в кабинет бартера, строгая проверка выключена (настройки → «Строгая проверка кабинета СДЭК»): трек, стоимость доставки и дата вносятся руками, как раньше. Каждая такая отправка — у Степана в «Проверке». Включить строгий режим — один переключатель.</li>
       <li><b>Сборка 13, 10.11: все посылки — из кабинета СДЭК бартера.</b> СДЭК сам сообщает о каждой посылке кабинета, она появляется в задачах «СДЭК». Матвей обязан её разобрать: отправка, о которой договорились, новая отправка блогеру или «не бартер» с пояснением. Дата отправки, дата вручения и стоимость доставки таких отправок — только из СДЭК, руками их не поменять. Трек не из кабинета не принимается; отправки не СДЭКом вносит только Степан. Степан проверяет посылки «не бартер», отправки не из кабинета и промокоды с продажами: «Верно» или «Вопрос» — вопрос уходит Матвею задачей. На странице «Отправки» — сверка кабинета по месяцам с актом СДЭК.</li>
       <li><b>Правило: блогерам — только СДЭК, из кабинета бартера.</b> При отправке Матвей вставляет трек. Стоимость доставки, дату приёма посылки и дату вручения скрипт каждое утро берёт из СДЭК сам и ставит их вместо введённых вручную; каждое расхождение с ручным вводом пишется в журнал. Если СДЭК трек не нашёл, на «Сегодня» появится задача «нет стоимости доставки».</li>
       <li><b>Старые посылки — вручную.</b> До 26.10.2026 посылки уходили с личного кабинета СДЭК Матвея, API их не видит: у этих отправок стоимость и даты остаются ручными, сверка их не трогает (свойство скрипта CDEK_SINCE).</li>
@@ -1846,6 +1850,7 @@ function settings(){
     ${months.filter(m => fotFor(m) || c.fot[m] != null).map(m => `<div class="row" style="margin-bottom:8px;flex-wrap:nowrap"><span style="width:100px">${MON_N[+m.slice(5) - 1]}</span><input class="in" data-fot="${m}" inputmode="numeric" placeholder="${fmt(c.fotRate)} — как обычно" value="${c.fot[m] != null ? c.fot[m] : ''}"></div>`).join('')}` : ''}
     <div class="fld" style="margin-top:14px"><label>Отсчётная дата</label><input type="date" class="in" id="c_start" style="max-width:190px" value="${M.start}" max="${TODAY}">
       <div class="hint">С неё считаются итоги, ФОТ, заказы и публикации; парсер не берёт ролики раньше неё. Отправки до этой даты относятся к первому месяцу.</div></div>
+    <div class="toggle ${c.cdekStrict === true ? 'on' : ''}" id="c_strict" style="margin-top:14px"><div class="g"><b>Строгая проверка кабинета СДЭК</b><div class="dim" style="font-size:12.5px">Включено — Матвей вносит только посылки из кабинета бартера (ИП Карапетяна), стоимость и даты берутся из СДЭК. Выключено — любые треки и стоимость руками; посылки не из кабинета попадают к вам в «Проверку».</div></div><div class="sw2"></div></div>
     <div class="toggle ${c.usePending ? 'on' : ''}" id="c_pend" style="margin-top:14px"><div class="g"><b>Учитывать неподтверждённые промокоды</b><div class="dim" style="font-size:12.5px">SKELETON, BOOM — пока их не подтвердили</div></div><div class="sw2"></div></div>
     <div class="fld" style="margin-top:18px"><label>Таблица-бэкап</label>
     <div class="hint">Google-таблица со всеми данными и итогами по месяцам — как старая таблица Матвея. Скрипт перезаписывает её каждое утро после сбора данных; руками не править.${c.reportAt ? ' Обновлена ' + dRu(String(c.reportAt).slice(0,10)) + ' в ' + esc(String(c.reportAt).slice(11,16)) + '.' : ''}</div>
@@ -1860,9 +1865,10 @@ function settings(){
     $('#c_repBox', sh.b).innerHTML = `<a class="btn sm pri" href="${esc(r.id)}" target="_blank" rel="noopener">${icon('ext')}Открыть таблицу</a><span class="hint" style="margin:0 0 0 8px;align-self:center">обновлена только что</span>`;
   };
   $('#c_pend', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
+  $('#c_strict', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
   $('#svC', sh.f).onclick = () => {
     const nx = {cpm: +$('#c_cpm', sh.b).value || 250, pubDays: +$('#c_pub', sh.b).value || 14, transit: +$('#c_tr', sh.b).value || 7,
-      fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot),
+      fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), cdekStrict: $('#c_strict', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot),
       start: /^\d{4}-\d{2}-\d{2}$/.test($('#c_start', sh.b).value) ? $('#c_start', sh.b).value : M.start};
     $$('[data-fot]', sh.b).forEach(i => { const s = i.value.replace(/[^\d]/g, ''); if (s !== '') nx.fot[i.dataset.fot] = +s; else delete nx.fot[i.dataset.fot]; });
     Object.keys(nx).forEach(k => { if (JSON.stringify(nx[k]) !== JSON.stringify(c[k])) send({type:'cfg', k, v:nx[k]}, () => c[k] = nx[k]); });
