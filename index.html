@@ -108,7 +108,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.3</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.4</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -351,6 +351,12 @@ const COST_ALIAS = {
   'mlong': 'mlong-01',                               // Лонгслив КРЕСТЫ — подтверждено
   'widejeans v.2': 'widejeans v.1',                  // дистресс считаем по себестоимости V.1
   'велюровый лонгслив тени': 'shadowswithin',        // в заказе нет артикула, сопоставляем по названию
+  // свитера (14.11.2026): на сайте цвета gray/brown, во вкладке CC — black/rusty;
+  // свитер без «limited» в CC называется «archive»
+  'sweater gray': 'sweater archive black',
+  'sweater brown': 'sweater archive rusty',
+  'sweater limited gray': 'sweater limited black',
+  'sweater limited brown': 'sweater limited rusty',
 };
 // себестоимости, которых нет в справочнике — заданы вручную.
 // Как только добавите их в таблицу, эти строки можно убрать.
