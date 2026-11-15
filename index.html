@@ -111,12 +111,13 @@ tr.ret-hi td{background:#21171a}
 .psfound b{color:var(--tx)}
 .psnote{font-size:11.5px;color:#ffb3ae;margin:-4px 0 10px;line-height:1.5}
 .part{display:block;margin:1px 0 0 14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--tx2);opacity:.8}
+.was{display:block;margin-top:1px;font-size:10.5px;color:var(--tx2);opacity:.8}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.5</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.6</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -381,6 +382,20 @@ const COST_MANUAL = {
   't-shirt unite': 2140,
   't-shirt captcha': 1695,
 };
+// Один товар, у которого в справочнике две строки (15.11.2026, сборка 14.6). В заказах до
+// сентября артикул шёл без приставки («escape from reality black», «unite»), потом — с «t-shirt».
+// Обе строки в справочнике есть, и себестоимость в них РАЗНАЯ, поэтому в таблице товаров одна
+// футболка шла двумя строками. Склеиваем только строки: себестоимость у каждой продажи остаётся
+// своя — та, что стоит у её артикула. Прибыль и итоги от склейки не меняются.
+// Слева — ключ, который получается сам; справа — ключ, под которым товар показываем.
+// ⚠️ В COST_ALIAS такое вписывать нельзя: там меняется себестоимость, а здесь — только строка.
+const PROD_MERGE = {
+  'escape from reality black': 't-shirt escape from reality black',   // 1658 ₽ → 1270 ₽
+  'escape from reality gray':  't-shirt escape from reality gray',
+  'escape from reality red':   't-shirt escape from reality red',
+  't-shirt unite':             't-shirt unite black',                 // 2140 ₽ (вручную) → 1695 ₽
+  't-shirt captcha':           't-shirt captcha gray',                // 1695 ₽ и там и там
+};
 const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
 const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
 function baseSku(s){          // «WideJeans TotalBlack-L» → «widejeans totalblack»
@@ -591,7 +606,10 @@ function onData(resp){
       it.cost = r.cost; it.costHow = r.how;
       // ключ товара: артикул из справочника себестоимости. Он один и тот же для старого
       // и нового написания артикула и для разных вариантов названия — по нему и группируем.
-      it.ckey = r.key || normKey(it.name);
+      // PROD_MERGE склеивает товар, у которого в справочнике две строки; себестоимость
+      // позиции (it.cost) при этом остаётся той, что нашлась по её собственному артикулу.
+      const key = r.key || normKey(it.name);
+      it.ckey = PROD_MERGE[key] || key;
       if (r.cost === null){ noCostQty += it.qty; noCostSum += it.sum; }
       else cogs += r.cost * it.qty;
     });
@@ -1330,12 +1348,15 @@ function productAgg(rows){
   rows.forEach(r => r.items.forEach(it => {
     if (!m.has(it.ckey)) m.set(it.ckey, {ckey:it.ckey, name:it.name, art:it.art, cost:it.cost,
       lastSeen:r.date, qty:0, sum:0, cogs:0, acq:0, ourLog:0, noCostQty:0, ord:new Set(),
-      retQty:0, retSum:0, retShip:0});
+      retQty:0, retSum:0, retShip:0, costs:new Set()});
     const g = m.get(it.ckey);
     g.qty += it.qty; g.sum += it.sum; g.ord.add(r.id || r.date + r.email);
-    // показываем самое свежее название — то, как товар называется на сайте сейчас
-    if (r.date >= g.lastSeen){ g.lastSeen = r.date; g.name = it.name; if (it.art !== '—') g.art = it.art; }
+    // показываем самое свежее название — то, как товар называется на сайте сейчас.
+    // «СС за штуку» тоже самая свежая: у склеенных товаров (PROD_MERGE) она менялась
+    if (r.date >= g.lastSeen){ g.lastSeen = r.date; g.name = it.name; if (it.art !== '—') g.art = it.art;
+      if (it.cost !== null) g.cost = it.cost; }
     if (g.cost === null && it.cost !== null) g.cost = it.cost;
+    if (it.cost !== null) g.costs.add(it.cost);
     // переменные расходы заказа делим между позициями пропорционально их сумме
     const w = r.goods ? it.sum / r.goods : 0;
     g.acq += acqOf(r) * w; g.ourLog += r.ourLog * w;
@@ -1350,6 +1371,7 @@ function productAgg(rows){
     const net = g.sum - g.retSum;                  // выручка за вычетом возвратов
     const profit = hasCost ? net - g.cogs - g.acq - g.ourLog - g.retShip : 0;
     return {...g, orders: g.ord.size, hasCost, profit, net,
+      costWas: [...g.costs].filter(c => c !== g.cost),     // прежние себестоимости склеенного товара
       gross: hasCost ? net - g.cogs : 0,
       margin: hasCost && net ? profit / net : 0};
   }).sort((a,b) => b.qty - a.qty);
@@ -1469,7 +1491,9 @@ function dayDetail(rows){
   if (!rows.length) return '<div class="det-empty">Заказов не было</div>';
   const m = new Map();
   rows.forEach(r => r.items.forEach(it => {
-    const k = it.ckey + '|' + it.size;
+    // себестоимость — в ключе: у склеенного товара (PROD_MERGE) она разная у старого и нового
+    // артикула, а строка ниже считает расход как «СС × штуки», то есть ей нужна одна цена
+    const k = it.ckey + '|' + it.size + '|' + it.cost;
     if (!m.has(k)) m.set(k, {name:it.name, art:it.art, size:it.size, cost:it.cost, qty:0, sum:0, ord:new Set(),
       retQty:0, retSum:0});
     const g = m.get(k);
@@ -1575,7 +1599,7 @@ function buildProdIndex(){
   RAW.forEach(r => r.items.forEach(it => {
     if (!PROD_IDX.has(it.ckey)) PROD_IDX.set(it.ckey, {names:new Set(), arts:new Set()});
     const x = PROD_IDX.get(it.ckey);
-    x.names.add(it.name);
+    x.names.add(it.name); x.last = it.name;       // RAW уже по датам — останется самое свежее название
     if (it.art && it.art !== '—') x.arts.add(baseSku(it.art));
   }));
   PROD_IDX.forEach(x => {
@@ -1589,14 +1613,21 @@ function buildProdIndex(){
     x.words = [...w]; x.hay = x.words.join(' ');
   });
   // подсказка: у каких товаров тип не определился — значит, пора дописать PROD_TYPES
-  const lost = [...PROD_IDX.values()].filter(x => !x.type).map(x => [...x.names].pop());
+  const lost = [...PROD_IDX.values()].filter(x => !x.type).map(x => x.last);
+  // и вторая: одно название у нескольких строк — скорее всего, один товар с двумя артикулами
+  // в справочнике себестоимости. Так пять футболок шли двумя строками до сборки 14.6 (PROD_MERGE).
+  const cnt = new Map();
+  PROD_IDX.forEach(x => cnt.set(x.last, (cnt.get(x.last) || 0) + 1));
+  const twins = [...cnt].filter(([, n]) => n > 1).map(([name]) => name);
+  const few = a => a.slice(0, 6).map(escHtml).join(', ') + (a.length > 6 ? '…' : '');
+  const msgs = [];
+  if (lost.length) msgs.push(`У ${lost.length} ${plural(lost.length, 'товара', 'товаров', 'товаров')} тип вещи не определён: `
+    + few(lost) + '. По названию и артикулу они находятся, по слову вроде «футболка» — нет.');
+  if (twins.length) msgs.push('Одно название у нескольких строк: ' + few(twins)
+    + '. Похоже, это один товар с разными артикулами — строки можно склеить.');
   const note = document.getElementById('prodNoType');
-  note.style.display = lost.length ? '' : 'none';
-  note.innerHTML = lost.length
-    ? `У ${lost.length} ${plural(lost.length, 'товара', 'товаров', 'товаров')} тип вещи не определён: `
-      + lost.slice(0, 6).map(escHtml).join(', ') + (lost.length > 6 ? '…' : '')
-      + '. По названию и артикулу они находятся, по слову вроде «футболка» — нет.'
-    : '';
+  note.style.display = msgs.length ? '' : 'none';
+  note.innerHTML = msgs.join('<br>');
 }
 // окончания отбрасываем, чтобы «футболки», «футболку» и «черная» находили то же, что «футболка» и «черный»
 const RU_END = /(ами|ями|ого|его|ому|ему|ыми|ими|ая|яя|ое|ее|ые|ие|ый|ий|ой|ым|им|ом|ем|ах|ях|ов|ев|ей|ую|юю|а|я|о|е|ы|и|у|ю|ь|й)$/;
@@ -1655,7 +1686,8 @@ function tableProd(all){
       ? `<span class="neg">${fmt(r.retQty)} шт</span> <span style="color:var(--tx2);font-size:11px">${(r.retQty/r.qty*100).toFixed(0)}%</span>` : '—'},
     {t:'Выручка', v:r=>r.sum, f:r=>money(r.sum)},
     {t:'Себестоимость', v:r=>r.cogs, f:r=>r.hasCost ? money(r.cogs) : '—'},
-    {t:'СС за штуку', v:r=>r.cost||0, f:r=>r.cost ? money(r.cost) : '—'},
+    {t:'СС за штуку', v:r=>r.cost||0, f:r=>r.cost ? money(r.cost) + (r.costWas.length
+      ? `<span class="was" title="Себестоимость менялась. У каждой продажи считается та, что была у её артикула">было ${r.costWas.map(money).join(', ')}</span>` : '') : '—'},
     {t:'Прибыль', v:r=>r.profit, f:r=>r.hasCost
       ? `<span class="${r.profit>=0?'pos':'neg'}">${money(r.profit)}</span>` : '—'},
     {t:'Маржа', v:r=>r.margin, f:r=>r.hasCost
