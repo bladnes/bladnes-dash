@@ -103,12 +103,20 @@ table.det-table tfoot td{font-weight:700;border-top:1px solid var(--line);border
 .ret-foot{font-size:11.5px;color:var(--tx2);margin-top:8px;line-height:1.5}
 tr.ret-hi td{background:#21171a}
 .retsz{display:inline-block;padding:1px 7px;border-radius:999px;background:#3a2226;color:#ffb3ae;font-size:11px;margin:0 3px 3px 0}
+/* поиск по товарам (сборка 14.5) */
+.psearch{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.psearch input{flex:1 1 260px;max-width:440px;min-width:0}
+.psearch button{padding:7px 11px;color:var(--tx2)}
+.psfound{font-size:12px;color:var(--tx2)}
+.psfound b{color:var(--tx)}
+.psnote{font-size:11.5px;color:#ffb3ae;margin:-4px 0 10px;line-height:1.5}
+.part{display:block;margin:1px 0 0 14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:var(--tx2);opacity:.8}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.4</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.5</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -211,7 +219,14 @@ tr.ret-hi td{background:#21171a}
         <div class="scroll"><table id="tDay"></table></div></div>
       <div class="card"><h3>Товары</h3>
         <div class="cardnote">Нажмите на товар — откроется динамика продаж: последние 30 дней против предыдущих 30 (можно переключить на 7). Сравнение считается по всей истории и не зависит от выбранного периода (период задаёт только правую границу).<br>
-          Товары группируются по артикулу из справочника себестоимости, поэтому старые и новые написания артикула и разные варианты названия считаются одним товаром. Показывается самое свежее название.</div>
+          Товары группируются по артикулу из справочника себестоимости, поэтому старые и новые написания артикула и разные варианты названия считаются одним товаром. Показывается самое свежее название.<br>
+          Поиск — по названию, артикулу (можно часть) и типу вещи: «свитер», «t-shirt», «крик», «футболка черная». Несколько слов — должны совпасть все. Итог внизу считается по найденному.</div>
+        <div class="psearch">
+          <input type="text" id="prodQ" placeholder="Поиск: название, артикул или тип вещи" autocomplete="off" spellcheck="false">
+          <button id="prodQx" title="Сбросить поиск">✕</button>
+          <span class="psfound" id="prodFound"></span>
+        </div>
+        <div class="psnote" id="prodNoType" style="display:none"></div>
         <div class="scroll"><table id="tProd" class="fit"></table></div></div>
     </div>
 
@@ -625,6 +640,7 @@ function onData(resp){
   const avgAll = avg(RAW.filter(r => r.delivPrice > 0).map(r => r.delivPrice));
   RAW.forEach(r => { if (r.returned)
     r.retShip = Math.round(r.delivPrice || avg(bySvc.get(r.delivery) || []) || avgAll); });
+  buildProdIndex();                   // для поиска по товарам
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
   setUpd();
@@ -683,8 +699,14 @@ function initFilters(){
   document.getElementById('reset').onclick = () => {
     document.getElementById('period').value='all'; document.getElementById('status').value='all';
     document.getElementById('cat').value=''; document.getElementById('utm').value='';
-    document.getElementById('from').value=''; document.getElementById('to').value=''; render();
+    document.getElementById('from').value=''; document.getElementById('to').value='';
+    document.getElementById('prodQ').value=''; render();
   };
+  // поиск по товарам перерисовывает только таблицу «Товары» — остальная страница от него не зависит
+  const pq = document.getElementById('prodQ');
+  pq.oninput = () => tableProd(PROD_LAST);
+  pq.onkeydown = e => { if (e.key === 'Escape'){ pq.value = ''; tableProd(PROD_LAST); } };
+  document.getElementById('prodQx').onclick = () => { pq.value = ''; tableProd(PROD_LAST); pq.focus(); };
   document.getElementById('reload').onclick = () => load(true);   // пересобрать снимок сейчас
   document.getElementById('csv').onclick = exportCsv;
   const all = RAW.map(r => r.date);
@@ -1509,12 +1531,125 @@ const WINDOWS = {30:'30 дней', 7:'7 дней'};
 const DOW_SHORT = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 const METRICS = {orders:'Заказы', units:'Штуки', revenue:'Выручка'};
 
-function tableProd(p){
+/* ---------- поиск по товарам (сборка 14.5, 15.11.2026) ----------
+ * Ищем по всему, что известно о товаре за всю историю: все варианты названия, все написания
+ * артикула и тип вещи. Тип нужен, чтобы «свитер» находил SWEATER GRAY, а «часы» — cursed watch:
+ * слова-типа в названии у таких товаров нет. Тип определяется сам: сначала по названию, и только
+ * если там ничего не нашлось — по артикулу (у «Футболки с мечом» артикул tslong-01, по нему
+ * одному она вышла бы лонгсливом).
+ * Ключ себестоимости (ckey) в поиск НЕ идёт: у свитеров он из вкладки CC, а там серый свитер
+ * называется black — по запросу «black» находился бы серый.
+ * Появился новый тип вещи — добавить строку в PROD_TYPES. Пока её нет, под полем поиска видна
+ * подсказка, у каких товаров тип не определён (по названию и артикулу они находятся всё равно). */
+const PROD_TYPES = [
+  // t — тип, syn — по каким словам его ищут, re — признак в названии или артикуле (в нижнем регистре)
+  {t:'футболка', syn:'футболка майка t-shirt tshirt shirt tee', re:/футболк|t-?shirt/},
+  {t:'лонгслив', syn:'лонгслив лонг longsleeve long sleeve',     re:/лонгслив|long ?sleeve|\blong\b|\b[a-z]{1,2}long\b/},
+  {t:'свитер',   syn:'свитер кофта sweater',                    re:/свитер|sweater/},
+  {t:'худи',     syn:'худи толстовка hoodie',                   re:/худи|толстовк|hoodie/},
+  {t:'джерси',   syn:'джерси jersey',                           re:/джерси|jersey/},
+  {t:'джинсы',   syn:'джинсы jeans',                            re:/джинс|jeans/},
+  {t:'штаны',    syn:'штаны брюки pants trousers',              re:/штан|брюк|pants|trous/},
+  {t:'шорты',    syn:'шорты shorts',                            re:/шорт|shorts/},
+  {t:'бомбер',   syn:'бомбер bomber куртка jacket',             re:/бомбер|bomber/},   // находится и по «куртка»
+  {t:'куртка',   syn:'куртка jacket',                           re:/куртк|jacket/},
+  {t:'шарф',     syn:'шарф scarf',                              re:/шарф|scarf/},
+  {t:'часы',     syn:'часы watch',                              re:/часы|watch/},
+];
+// цвет: в названиях он по-русски, в артикулах и английских названиях — по-английски.
+// Сводим, чтобы «серый свитер» находил SWEATER GRAY, а «black» — «Лонгслив КРИК черный».
+const PROD_COLORS = [
+  [/^(black|bl|totalblack)$|^черн/,     'black черный'],
+  [/^(white|wh)$|^бел(ый|ая|ое|ые)$/,   'white белый'],
+  [/^(red|rd)$|^красн/,                 'red красный'],
+  [/^(gray|grey)$|^сер(ый|ая|ое|ые)$/,  'gray grey серый'],
+  [/^brown$|^коричнев/,                 'brown коричневый'],
+];
+const escHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sNorm = s => String(s).toLowerCase().replace(/ё/g,'е');
+const sWords = s => sNorm(s).split(/[^a-zа-я0-9]+/).filter(Boolean);
+let PROD_IDX = new Map();           // ключ товара → {names, arts, type, words, hay}
+let PROD_LAST = [];                 // товары выбранного периода — чтобы поиск не пересчитывал всю страницу
+function buildProdIndex(){
+  PROD_IDX = new Map();
+  RAW.forEach(r => r.items.forEach(it => {
+    if (!PROD_IDX.has(it.ckey)) PROD_IDX.set(it.ckey, {names:new Set(), arts:new Set()});
+    const x = PROD_IDX.get(it.ckey);
+    x.names.add(it.name);
+    if (it.art && it.art !== '—') x.arts.add(baseSku(it.art));
+  }));
+  PROD_IDX.forEach(x => {
+    const names = sNorm([...x.names].join(' | ')), arts = [...x.arts].join(' | ');
+    x.type = PROD_TYPES.find(t => t.re.test(names)) || PROD_TYPES.find(t => t.re.test(arts)) || null;
+    const w = new Set();
+    // слова по отдельности и слитно: «t-shirt unite» находится и по «shirt», и по «tshirt»
+    [...x.names, ...x.arts].forEach(s => { const ws = sWords(s); ws.forEach(v => w.add(v)); w.add(ws.join('')); });
+    if (x.type) sWords(x.type.syn).forEach(v => w.add(v));
+    PROD_COLORS.forEach(([re, add]) => { if ([...w].some(v => re.test(v))) sWords(add).forEach(v => w.add(v)); });
+    x.words = [...w]; x.hay = x.words.join(' ');
+  });
+  // подсказка: у каких товаров тип не определился — значит, пора дописать PROD_TYPES
+  const lost = [...PROD_IDX.values()].filter(x => !x.type).map(x => [...x.names].pop());
+  const note = document.getElementById('prodNoType');
+  note.style.display = lost.length ? '' : 'none';
+  note.innerHTML = lost.length
+    ? `У ${lost.length} ${plural(lost.length, 'товара', 'товаров', 'товаров')} тип вещи не определён: `
+      + lost.slice(0, 6).map(escHtml).join(', ') + (lost.length > 6 ? '…' : '')
+      + '. По названию и артикулу они находятся, по слову вроде «футболка» — нет.'
+    : '';
+}
+// окончания отбрасываем, чтобы «футболки», «футболку» и «черная» находили то же, что «футболка» и «черный»
+const RU_END = /(ами|ями|ого|его|ому|ему|ыми|ими|ая|яя|ое|ее|ые|ие|ый|ий|ой|ым|им|ом|ем|ах|ях|ов|ев|ей|ую|юю|а|я|о|е|ы|и|у|ю|ь|й)$/;
+function prodStem(t){
+  if (/[а-я]/.test(t)){
+    const s = t.replace(RU_END, '');
+    if (s !== t) return s.length >= 3 ? s : t;
+    return t.length >= 6 ? t.slice(0, -2) : t;                   // «футболок», «курток»
+  }
+  return t.length >= 5 && t.endsWith('s') ? t.slice(0, -1) : t;  // sweaters → sweater
+}
+function prodTokens(q){
+  return sNorm(q).split(/\s+/).map(t => t.replace(/[^a-zа-я0-9]+/g, '')).filter(Boolean).map(prodStem);
+}
+// Каждое слово запроса должно найтись. Русское — только как начало слова: иначе «серый»
+// находил бы «Берсерк». Латиница и цифры — и в середине: артикулы пишут слитно
+// (widejeans, darksouls, pantszip), и «jeans» или «v.1» должны их находить.
+function prodHit(x, toks){
+  return toks.length > 0 && toks.every(t => x.words.some(w => w.startsWith(t))
+    || (!/[а-я]/.test(t) && (t.length >= 3 || /\d/.test(t)) && x.hay.includes(t)));
+}
+function prodFilter(list, q){
+  const pick = toks => list.filter(r => { const x = PROD_IDX.get(r.ckey); return x && prodHit(x, toks); });
+  const res = pick(prodTokens(q));
+  // ничего не нашлось — возможно, артикул вставили вместе с размером: «WideJeans V.1-S»
+  return res.length ? res : pick(prodTokens(baseSku(q)));
+}
+// артикул под названием: как в последнем заказе, без размера; все написания — во всплывающей подсказке
+function artLine(r){
+  if (!r.art || r.art === '—') return '';
+  const x = PROD_IDX.get(r.ckey), all = x ? [...x.arts] : [];
+  return `<span class="part"${all.length > 1 ? ` title="${escHtml('Все написания артикула: ' + all.join(', '))}"` : ''}>`
+    + escHtml(r.art.replace(/[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/i, '')) + '</span>';
+}
+
+function tableProd(all){
+  PROD_LAST = all;
   const el = document.getElementById('tProd');
+  const q = document.getElementById('prodQ').value.trim();
+  const searching = prodTokens(q).length > 0;
+  const p = searching ? prodFilter(all, q) : all;
+  document.getElementById('prodFound').innerHTML = searching ? `Найдено <b>${p.length}</b> из ${all.length}` : '';
+  if (searching && !p.length){
+    el.innerHTML = '<tbody><tr><td style="color:var(--tx2)">По запросу «' + escHtml(q)
+      + '» за выбранный период ничего не нашлось. Поиск идёт по названию, артикулу и типу вещи.</td></tr></tbody>';
+    return;
+  }
   const st = sortState['tProd'] || {i:1, dir:-1};
-  const totProfit = p.reduce((s,x) => s + Math.max(0, x.profit), 0);
+  // доля прибыли — от всех товаров периода, а не от найденных: иначе цифра в строке
+  // менялась бы от того, что набрано в поиске
+  const totProfit = all.reduce((s,x) => s + Math.max(0, x.profit), 0);
   const cols = [
-    {t:'Товар', v:r=>r.name, f:r=>r.name + (r.hasCost ? '' : ' <span class="tag" style="background:#3a2226;color:#ffb3ae">нет СС</span>')},
+    {t:'Товар', v:r=>r.name, f:r=>r.name + (r.hasCost ? '' : ' <span class="tag" style="background:#3a2226;color:#ffb3ae">нет СС</span>') + artLine(r)},
     {t:'Штук', v:r=>r.qty, f:r=>fmt(r.qty)},
     {t:'Возвраты', v:r=>r.qty ? r.retQty / r.qty : 0, f:r=>r.retQty
       ? `<span class="neg">${fmt(r.retQty)} шт</span> <span style="color:var(--tx2);font-size:11px">${(r.retQty/r.qty*100).toFixed(0)}%</span>` : '—'},
@@ -1551,9 +1686,12 @@ function tableProd(p){
   });
   const tq = sum(p,x=>x.qty), ts = sum(p,x=>x.sum), tc = sum(p,x=>x.cogs), tp = sum(p,x=>x.profit);
   const trq = sum(p,x=>x.retQty), tn = sum(p,x=>x.net);
-  html += '</tbody><tfoot><tr>' + ['Итого', fmt(tq),
+  // при поиске итог — по найденным товарам, а «доля прибыли» — сколько они дают вместе
+  const share = searching && totProfit
+    ? (sum(p, x => x.hasCost && x.profit > 0 ? x.profit : 0) / totProfit * 100).toFixed(1) + '%' : '100%';
+  html += '</tbody><tfoot><tr>' + [searching ? 'Итого по найденному' : 'Итого', fmt(tq),
     trq ? fmt(trq) + ' шт · ' + (trq/tq*100).toFixed(1) + '%' : '—', money(ts), money(tc), '',
-    money(tp), tn ? (tp/tn*100).toFixed(1)+'%' : '—', tc ? (tn/tc).toFixed(2)+'×' : '—', '100%',
+    money(tp), tn ? (tp/tn*100).toFixed(1)+'%' : '—', tc ? (tn/tc).toFixed(2)+'×' : '—', share,
     fmt(sum(p,x=>x.orders))].map(t=>`<td>${t}</td>`).join('') + '</tr></tfoot>';
   el.innerHTML = html;
   pending.forEach(d => d.draw());
