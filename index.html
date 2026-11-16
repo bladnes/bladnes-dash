@@ -117,7 +117,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.6</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.7</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -382,19 +382,28 @@ const COST_MANUAL = {
   't-shirt unite': 2140,
   't-shirt captcha': 1695,
 };
+// Себестоимость, которую задал Степан, — главнее справочника (16.11.2026, сборка 14.7).
+// Во вкладке CC у новых артикулов escape from reality стоит 1270 ₽, у t-shirt unite black — 1695 ₽,
+// но, по словам Степана, у этих футболок себестоимость всегда была одна: для всех цветов и для
+// старого и нового написания артикула. Слева — начало артикула без размера.
+// Когда во вкладке CC исправят, строки отсюда можно убрать — итоги не изменятся.
+const COST_FIXED = [
+  ['t-shirt escape from reality', 1658], ['escape from reality', 1658],
+  ['t-shirt unite', 2140],               ['unite', 2140],
+];
 // Один товар, у которого в справочнике две строки (15.11.2026, сборка 14.6). В заказах до
 // сентября артикул шёл без приставки («escape from reality black», «unite»), потом — с «t-shirt».
-// Обе строки в справочнике есть, и себестоимость в них РАЗНАЯ, поэтому в таблице товаров одна
-// футболка шла двумя строками. Склеиваем только строки: себестоимость у каждой продажи остаётся
-// своя — та, что стоит у её артикула. Прибыль и итоги от склейки не меняются.
+// В справочнике есть обе строки, ключа получается два, и одна футболка шла двумя строками.
+// Склеиваем только строки: себестоимость у каждой продажи остаётся та, что нашлась по её
+// артикулу (или задана в COST_FIXED). Прибыль и итоги от склейки не меняются.
 // Слева — ключ, который получается сам; справа — ключ, под которым товар показываем.
 // ⚠️ В COST_ALIAS такое вписывать нельзя: там меняется себестоимость, а здесь — только строка.
 const PROD_MERGE = {
-  'escape from reality black': 't-shirt escape from reality black',   // 1658 ₽ → 1270 ₽
+  'escape from reality black': 't-shirt escape from reality black',
   'escape from reality gray':  't-shirt escape from reality gray',
   'escape from reality red':   't-shirt escape from reality red',
-  't-shirt unite':             't-shirt unite black',                 // 2140 ₽ (вручную) → 1695 ₽
-  't-shirt captcha':           't-shirt captcha gray',                // 1695 ₽ и там и там
+  't-shirt unite':             't-shirt unite black',
+  't-shirt captcha':           't-shirt captcha gray',
 };
 const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
 const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
@@ -423,9 +432,19 @@ function lookup(raw, allowFuzzy){
   }
   return best ? {cost:best[1], how:'похоже на «' + best[0] + '»', key:best[0]} : null;
 }
+// себестоимость из COST_FIXED: артикул без размера равен началу или начинается с него и пробела/дефиса
+function fixedCost(raw){
+  if (!raw || raw === '—') return null;
+  const b = baseSku(raw);
+  const f = COST_FIXED.find(([p]) => b === p || b.startsWith(p + ' ') || b.startsWith(p + '-'));
+  return f ? f[1] : null;
+}
 function costOf(sku, name){
-  return lookup(sku, true) || lookup(name, false)
+  const r = lookup(sku, true) || lookup(name, false)
     || {cost:null, how: (!sku || sku === '—') ? 'нет артикула' : 'не найдено', key:null};
+  // ключ (r.key) не трогаем: по нему товары группируются и склеиваются (PROD_MERGE)
+  const fix = fixedCost(sku);
+  return fix === null ? r : {cost:fix, how:'задано Степаном', key:r.key};
 }
 function onCost(resp){
   COST = new Map(); COST_ROWS = 0;
