@@ -117,7 +117,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.8</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.9</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -1589,7 +1589,8 @@ const PROD_TYPES = [
   {t:'свитер',   syn:'свитер кофта sweater',                    re:/свитер|sweater/},
   {t:'худи',     syn:'худи толстовка hoodie',                   re:/худи|толстовк|hoodie/},
   {t:'джерси',   syn:'джерси jersey',                           re:/джерси|jersey/},
-  {t:'джинсы',   syn:'джинсы jeans',                            re:/джинс|jeans/},
+  // black straight pants — джинсы, хотя в названии pants (Степан, 23.11.2026); строка стоит выше штанов
+  {t:'джинсы',   syn:'джинсы jeans',                            re:/джинс|jeans|black straight pants/},
   {t:'штаны',    syn:'штаны брюки pants trousers',              re:/штан|брюк|pants|trous/},
   {t:'шорты',    syn:'шорты shorts',                            re:/шорт|shorts/},
   {t:'бомбер',   syn:'бомбер bomber куртка jacket',             re:/бомбер|bomber/},   // находится и по «куртка»
