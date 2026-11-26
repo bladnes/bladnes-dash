@@ -375,7 +375,7 @@ table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#1b2430}
 <script>
 'use strict';
 /* =====================================================================
-   Бартер bladnes — рабочий интерфейс (сборка 16, 11.11.2026: мягкий режим проверки кабинета СДЭК; сборка 15, 11.11.2026: кожаная куртка с сайта, себестоимость 3 335,64; сборка 14, 10.11.2026: промокод из подписи, дубль публикации понятнее, площадка по ссылке; сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
+   Бартер bladnes — рабочий интерфейс (сборка 19, 26.11.2026: возвраты из CloudPayments; сборка 18, 26.11.2026: новые правила расчёта и бонус; сборка 17, 19.11.2026: окно учёта заказов по промокоду; сборка 16, 11.11.2026: мягкий режим проверки кабинета СДЭК; сборка 15, 11.11.2026: кожаная куртка с сайта, себестоимость 3 335,64; сборка 14, 10.11.2026: промокод из подписи, дубль публикации понятнее, площадка по ссылке; сборка 13, 10.11.2026: все посылки — из кабинета СДЭК бартера, разбор и проверка Степана).
    Читает и пишет через скрипт «Bladnes — бартер (база и API)» на stepan.wb.
    Вход по PIN (свойства скрипта PIN_MATVEY / PIN_STEPAN), телефон запоминает PIN.
    Действия уходят в очередь: сеть пропала — отправятся, когда появится.
@@ -535,7 +535,7 @@ function fromServer(d){
     sh: d.sh.map(s => Object.assign({}, s, {items: items[s.id] || [], promised: s.promised || [], ship: s.ship || 0, cogs: s.cogs || 0, extra: s.extra || 0})),
     po: d.po, ms: d.ms, found: d.found || [], log: d.log || [], cfg: d.cfg || {},
     links: Object.fromEntries((d.links || []).map(l => [l.code, {b: l.b || null, st: l.st === 'no' ? 'no' : 'ok', how: l.how}])),
-    cd: d.cd || [], chk: Object.fromEntries((d.chk || []).map(c => [c.obj, c])), cdekSince: d.cdekSince || '2026-10-26',
+    bn: d.bn || [], cd: d.cd || [], chk: Object.fromEntries((d.chk || []).map(c => [c.obj, c])), cdekSince: d.cdekSince || '2026-10-26',
     done: Object.fromEntries((d.done || []).map(x => [x, 1]))
   };
 }
@@ -621,7 +621,14 @@ function derive(){
   const cfg = S.cfg;
   const START = /^\d{4}-\d{2}-\d{2}$/.test(cfg.start || '') ? cfg.start : '2026-08-01';   // отсчётная дата: раньше неё итоги, ФОТ, заказы и публикации не считаем
   m.start = START;
-  const ORD = ORDERS.filter(o => String(o.dt || '').slice(0,10) >= START);
+  const ORD0 = ORDERS.filter(o => String(o.dt || '').slice(0,10) >= START);
+  // сборка 18: дата новых правил (окно, проверка Степана, перенос минуса) и возвраты
+  const RULES = /^\d{4}-\d{2}-\d{2}$/.test(cfg.rulesFrom || '') ? cfg.rulesFrom : '2026-11-26'; m.rules = RULES;
+  const RET = {}; (Array.isArray(cfg.returns) ? cfg.returns : []).forEach(x => RET[String(x)] = 1);
+  const ORD = ORD0.filter(o => !RET[String(o.id)]); m.ret = ORD0.filter(o => RET[String(o.id)]);
+  const SINCE = S.cdekSince || '2026-10-26', chkOk = o => !!(S.chk[o] && S.chk[o].res === 'верно');
+  const needChk = s => !s.refused && ((s._sentOk && s.svc && s.svc !== 'СДЭК' && s.by !== 'Степан' && String(s.created || '').slice(0,10) >= SINCE) ||
+    (s.svc === 'СДЭК' && s.cdek === 'не найден' && (String(s.created || '').slice(0,10) >= SINCE || String(s.sent || '') >= SINCE)));
   S.sh.forEach(s => {
     const b = m.b[s.b];
     s._sentOk = validSent(s);
@@ -668,9 +675,17 @@ function derive(){
   });
   m.links = L;
   const use = l => l && l.b && (l.st === 'ok' || l.st === 'auto' || (l.st === 'pending' && cfg.usePending));
+  // окно учёта: заказ по промокоду — в итогах, если с последней отправки или публикации блогера прошло не больше WIN дней
+  const WIN = cfg.win == null || cfg.win === '' ? 30 : +cfg.win || 0; m.win = WIN;
+  const acts = {}; S.sh.forEach(s => { if (s.refused || !s.b) return; const a = acts[s.b] = acts[s.b] || [];
+    if (s._sent) a.push(s._sent); s._posts.forEach(p => { if (p.d) a.push(p.d); }); });
   m.orders = ORD.map(o => {
     const r = Object.assign({}, o, {d:o.dt.slice(0,10), rev:o.goods - o.disc});
     r.margin = r.rev - o.cogs - o.paid * ACQ;
+    if (+o.ref > 0 && r.d >= RULES){   // деньги вернули (CloudPayments), заказ с даты новых правил: выручка и себестоимость уменьшаются на долю возврата, эквайринг остаётся расходом
+      r._ref = +o.ref; r._refK = r.rev > 0 ? Math.min(1, r._ref / r.rev) : 1; if (r._refK > 0.98) r._refK = 1;
+      r._mFull = r.margin; r.rev = r.rev * (1 - r._refK); r.margin = r.rev - o.cogs * (1 - r._refK) - o.paid * ACQ;
+    }
     const l = L[o.promo]; r._b = use(l) ? l.b : null; r._pending = l && l.st === 'pending';
     const us = o.utm && /^s\d{4}$/i.test(o.utm.t || '') ? m.s[String(o.utm.t).toUpperCase()] : null;   // ссылка из отправки: номер в utm_term
     if (!r._b && us && us.b && !us.refused){ r._b = us.b; r._utm = true; }
@@ -678,7 +693,14 @@ function derive(){
       let pick = us && us.b === r._b && !us.refused ? us : null;
       if (!pick) (shipsOf[r._b] || []).filter(s => !s.refused && s._sent).sort((a, b) => a._sent < b._sent ? -1 : 1)
         .forEach(s => { if (s._sent <= r.d) pick = s; });
-      if (pick){ r._s = pick.id; pick._orders.push(r); pick._rev += r.rev; pick._margin += r.margin; }
+      if (pick && WIN > 0 && pick !== us && r.d >= RULES){
+        const last = (acts[r._b] || []).filter(x => x <= r.d).sort().pop();
+        if (last && addDays(last, WIN) < r.d){ r._late = last; r._s = pick.id; }
+      }
+      if (r._late){}
+      else if (pick){ r._s = pick.id; pick._orders.push(r); pick._rev += r.rev; pick._margin += r.margin;
+        // в бонус — только после «Верно» Степана по отправке не из кабинета СДЭК и по промокоду
+        if (r.d >= RULES && ((needChk(pick) && !chkOk('sh:' + pick.id)) || (!r._utm && r.promo && !chkOk('promo:' + r.promo + ':' + r._b)))) r._unv = true; }
       else r._pre = true;
     }
     return r;
@@ -688,8 +710,11 @@ function derive(){
     b._ships = ss; b._all = shipsOf[b.id] || [];
     b._posts = [].concat(...ss.map(s => s._posts));
     b._views = sum(ss, s => s._views); b._cost = sum(b._all, s => s._cost);
-    b._orders = m.orders.filter(o => o._b === b.id && !o._pre);
+    b._orders = m.orders.filter(o => o._b === b.id && !o._pre && !o._late);
     b._pre = m.orders.filter(o => o._b === b.id && o._pre);
+    b._late = m.orders.filter(o => o._b === b.id && o._late);
+    const ac = (acts[b.id] || []).slice().sort(); b._act = ac.length ? ac[ac.length - 1] : null;      // последняя отправка или публикация
+    b._codeTill = b._act && WIN > 0 ? addDays(b._act, WIN) : null;                                        // до этого дня код «живой»
     b._rev = sum(b._orders, o => o.rev); b._margin = sum(b._orders, o => o.margin); b._res = b._margin - b._cost;
     b._codes = Object.entries(L).filter(([c, l]) => l.b === b.id && l.st !== 'no').map(([c, l]) => ({c, st:l.st}));
     if (!ss.length) b._gr = '';
@@ -868,6 +893,16 @@ function tasks(){
           a:[['Верно', 'rvOk', x.o, 'ok'], ['Вопрос', 'rvAsk', x.o]]}; }),
       acts: pr.length > 1 ? [[`Все ${pr.length} верны`, 'rvAll', pr.map(x => x.o).join(','), '']] : []});
   }
+  // 0а. срок кода (сборка 18): код живёт win дней после последней отправки или публикации
+  const codesOf = b => [...new Set([b.promo].concat((b._codes || []).map(c => c.c)).filter(Boolean))].join(', ');
+  const cOff = S.bl.filter(b => b.promo && b.promoOk && !b.promoOff && b._codeTill && TODAY > b._codeTill).sort((a, b) => a._codeTill < b._codeTill ? -1 : 1);
+  if (cOff.length) T.push({id:'coff', g:'Промокоды', cls:'amb', ic:'tag', tt:`${cOff.length} ${plural(cOff.length,'промокод','промокода','промокодов')} пора выключить в Тильде`,
+    tx:`Код действует ${M.win} дней после последней отправки или публикации блогера. Дальше его находят через поиск Google, а не у блогера: такие заказы в итоги и в бонус не идут, а скидку магазин всё равно отдаёт. Выключите код в Тильде и нажмите «Выключил». Выйдет новая публикация или уйдёт новая посылка — включите снова.`,
+    list: cOff.map(b => ({h:`<b>${esc(codesOf(b))}</b> · ${esc(b.h)}<div class="s">последняя отправка или публикация ${dRu(b._act)} · срок вышел ${dRu(b._codeTill)}</div>`, a:[['Выключил', 'promoOff', b.id, 'pri'], ['Карточка', 'openBlogger', b.id]]}))});
+  const cOn = S.bl.filter(b => b.promo && b.promoOff && b._codeTill && TODAY <= b._codeTill);
+  if (cOn.length) T.push({id:'con', g:'Промокоды', cls:'red', ic:'tag', tt:`${cOn.length} ${plural(cOn.length,'промокод','промокода','промокодов')} нужно снова включить в Тильде`,
+    tx:'У блогера новая отправка или публикация, а код выключен — покупатели получат ошибку. Включите код в Тильде и нажмите «Включил».',
+    list: cOn.map(b => ({h:`<b>${esc(codesOf(b))}</b> · ${esc(b.h)}<div class="s">выключен ${dRu(b.promoOff)} · новая активность ${dRu(b._act)} · действует до ${dRu(b._codeTill)}</div>`, a:[['Включил', 'promoOn', b.id, 'pri'], ['Карточка', 'openBlogger', b.id]]}))});
   // 1. просрочки
   const od = S.sh.filter(s => s._st === 'overdue').sort((a, b) => a._deadline < b._deadline ? -1 : 1);
   if (od.length) add({id:'od', g:'Просрочено', cls:'red', ic:'alert', tt:`${od.length} ${plural(od.length,'посылка','посылки','посылок')} без публикации после дедлайна`,
@@ -1446,15 +1481,16 @@ function rBloggers(){
 function openBlogger(id){
   const b = M.b[id]; if (!b) return;
   const ships = b._all.slice().sort((x, y) => (y._sent || '') < (x._sent || '') ? -1 : 1).map(shipItem).join('');
-  const ord = b._orders.concat(b._pre).sort((x, y) => x.d < y.d ? 1 : -1).map(o => `<tr><td>${dRu(o.d)} · ${esc(o.items)}${o._pre ? ' <span class="tag">до отправки</span>' : ''}</td><td class="num">${money(o.rev)}</td></tr>`).join('');
+  const ord = b._orders.concat(b._pre, b._late).sort((x, y) => x.d < y.d ? 1 : -1).map(o => `<tr><td>${dRu(o.d)} · ${esc(o.items)}${o._pre ? ' <span class="tag">до отправки</span>' : o._late ? ' <span class="tag">вне окна</span>' : o._ref ? ` <span class="tag">${o._refK < 1 ? 'частичный возврат' : 'возврат'} ${money(o._ref)}</span>` : o._unv ? ' <span class="tag">ждёт проверки</span>' : ''}</td><td class="num">${money(o.rev)}</td></tr>`).join('');
   const codes = b._codes.length ? b._codes.map(c => `<b>${esc(c.c)}</b>${c.st === 'pending' ? ' <span class="tag">ждёт подтверждения</span>' : c.st === 'auto' ? ' <span class="tag">найден в заказах</span>' : ''}`).join(', ') : '<span class="warn">нет</span>';
   sheet({title:esc(b.h), sub:`${plb(b.pl)} ${esc(b.pl || '')} · ${fmt(b.fol)} подписчиков · ${b.id}${b.stop ? ' · <span class="bad">стоп-лист</span>' : ''}`, wide:true, body:`
     <div class="kv"><div><div class="l">Отправок</div><div class="v">${b._ships.length}</div></div><div><div class="l">Публикаций</div><div class="v">${b._posts.length}</div></div>
       <div><div class="l">Просмотров</div><div class="v">${b._views ? fmt(b._views) : '—'}</div></div><div><div class="l">Затраты</div><div class="v sm">${money(b._cost)}</div></div>
       <div><div class="l">Выручка</div><div class="v sm">${money(b._rev)}</div></div><div><div class="l">Результат</div><div class="v sm ${b._res >= 0 ? 'ok' : 'bad'}">${money(b._res)}</div></div></div>
-    <div class="box" style="margin-top:12px"><div class="d" style="margin:0">Промокод: ${codes}${b.promo && !b.promoOk ? ' — <span class="warn">не создан в Тильде</span>' : ''}<br>
+    <div class="box" style="margin-top:12px"><div class="d" style="margin:0">Промокод: ${codes}${b.promo && !b.promoOk ? ' — <span class="warn">не создан в Тильде</span>' : ''}${b.promo && b._codeTill ? (b.promoOff ? (TODAY <= b._codeTill ? ` · <span class="bad">выключен в Тильде ${dRu(b.promoOff)}, а должен работать до ${dRu(b._codeTill)}</span>` : ` · выключен в Тильде ${dRu(b.promoOff)}`) : TODAY > b._codeTill ? ` · <span class="warn">срок вышел ${dRu(b._codeTill)} — выключите в Тильде</span>` : ` · действует до ${dRu(b._codeTill)}`) : ''}<br>
       Профиль: ${b.url ? `<a href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.url.replace(/^https?:\/\/(www\.)?/, ''))}</a>` : '—'}<br>
       Оценка: ${grc(b._gr)} ${GR[b._gr]}${b.src ? ' · нашли: ' + esc(b.src) : ''}${b.first ? ' · первый контакт ' + dLong(b.first) : ''}</div></div>
+    ${b._late.length ? `<div class="box warn" style="margin-top:10px"><div class="t">${icon('alert')} ${b._late.length} ${plural(b._late.length,'заказ','заказа','заказов')} позже ${M.win} дней после последней отправки или публикации</div><div class="d">На ${money(sum(b._late, o => o.rev))}. Код, скорее всего, находят в поиске, а не у блогера — в итоги не входят. Вышла новая публикация — внесите её, и заказы после неё снова пойдут в зачёт.</div></div>` : ''}
     ${b._pre.length ? `<div class="box warn" style="margin-top:10px"><div class="t">${icon('alert')} ${b._pre.length} ${plural(b._pre.length,'заказ пришёл','заказа пришли','заказов пришли')} до первой отправки в базе</div><div class="d">На ${money(sum(b._pre, o => o.rev))}. Похоже, сотрудничество было раньше, чем появилась таблица. Чтобы учесть — добавьте прошлую отправку с её датой. Пока в итоги не входят.</div></div>` : ''}
     <div class="row" style="margin-top:12px">${!b.stop ? `<button class="btn sm pri" data-a="newShipFor" data-v="${b.id}">${icon('plus')}Новая отправка</button>` : ''}
       ${b.url ? `<a class="btn sm" href="${esc(b.url)}" target="_blank" rel="noopener">${icon('ext')}Открыть профиль</a>` : ''}
@@ -1617,22 +1653,63 @@ function stats(period){
   const cost = direct + fot;
   const posts = S.po.filter(p => p.d >= M.start && inP(p.d));
   const views = sum(posts, p => p._views);
-  const ords = M.orders.filter(o => o._b && !o._pre && inP(o.d));
+  const ords = M.orders.filter(o => o._b && !o._pre && !o._late && inP(o.d));
+  const late = M.orders.filter(o => o._b && o._late && inP(o.d));
+  const unv = ords.filter(o => o._unv), refd = ords.filter(o => o._ref);
   const rev = sum(ords, o => o.rev), margin = sum(ords, o => o.margin), disc = sum(ords, o => o.disc);
   const posted = ss.filter(s => s._posts.length);
   const withSales = ss.filter(s => s._orders.length);
   const stuck = ss.filter(s => s._st === 'overdue');
   const days = posted.filter(s => s._days != null && s._days >= 0);
-  return {ss, direct, fot, cost, posts, views, ords, rev, margin, disc, posted, withSales, stuck, months,
+  return {ss, direct, fot, cost, posts, views, ords, late, unv, unvMargin:sum(unv, o => o.margin), refd, refSum:sum(refd, o => o._ref), rev, margin, disc, posted, withSales, stuck, months,
     res:margin - cost, resDirect:margin - direct, romi:cost ? (margin - cost) / cost : null, cpm:views ? cost / views * 1000 : null,
     media:views / 1000 * S.cfg.cpm, postRate:ss.length ? posted.length / ss.length : null, avgDays:days.length ? sum(days, s => s._days) / days.length : null,
     measured:posts.filter(p => p._measured).length};
+}
+function bonusRows(){
+  const c = S.cfg, RATE = (c.bonusRate == null ? 30 : +c.bonusRate || 0) / 100, CAPK = (c.bonusCap == null ? 100 : +c.bonusCap || 0) / 100, PAY = c.payDays == null ? 45 : +c.payDays || 0;
+  const BN = Object.fromEntries((S.bn || []).map(x => [x.m, x]));
+  const firstOpen = M.months.filter(mm => !BN[mm])[0], ADJ = {};   // возврат после закрытия месяца заказа — минусом в открытый месяц
+  M.orders.forEach(o => { if (!o._ref || !o._b || o._pre || o._late || o._unv || !o.refAt) return;
+    const sn = BN[o.d.slice(0,7)]; if (!sn || o.refAt < String(sn.closed).slice(0,10)) return;
+    let mm = o.refAt.slice(0,7); if (BN[mm] || M.months.indexOf(mm) < 0) mm = firstOpen; if (!mm) return;
+    ADJ[mm] = (ADJ[mm] || 0) + (o.margin - o._mFull); });
+  let carry = 0;
+  const rows = M.months.map(mm => {
+    const due = addDays(addDays(addDays(mm + '-01', 32).slice(0,8) + '01', -1), PAY), sn = BN[mm];
+    if (sn){ carry = +sn.carryOut || 0;
+      return {m:mm, closed:sn.closed, due:sn.due || due, res:+sn.res || 0, unv:+sn.unv || 0, carryIn:+sn.carryIn || 0, adj:+sn.adj || 0, base:(+sn.res || 0) - (+sn.unv || 0) + (+sn.carryIn || 0) + (+sn.adj || 0),
+        bonus:+sn.bonus || 0, carryOut:+sn.carryOut || 0, isNew:mm >= M.rules.slice(0,7), cap:fotFor(mm) * CAPK}; }
+    const st = stats(mm), isNew = mm >= M.rules.slice(0,7), carryIn = isNew ? carry : 0;
+    const adj = ADJ[mm] || 0, base = st.res - st.unvMargin + carryIn + adj, cap = fotFor(mm) * CAPK;
+    const bonus = Math.round(Math.min(cap, RATE * Math.max(0, base)));
+    carry = isNew ? Math.min(0, base) : 0;
+    return {m:mm, closed:'', due, res:st.res, unv:st.unvMargin, unvN:st.unv.length, carryIn, adj, base, bonus, cap, carryOut:carry, isNew};
+  });
+  return {rows, RATE, CAPK, PAY};
+}
+function bonusHtml(){
+  const B = bonusRows(), pct = x => Math.round(x * 100);
+  const tr = r => { const notes = [];
+    if (r.carryIn) notes.push('перенос минуса ' + money(r.carryIn));
+    if (r.adj) notes.push('возвраты по заказам закрытых месяцев ' + money(r.adj));
+    if (r.unv) notes.push('ждёт проверки Степана ' + money(r.unv) + ' маржи' + (r.unvN ? ' (' + r.unvN + ' ' + plural(r.unvN,'заказ','заказа','заказов') + ')' : '') + ' — не в бонусе');
+    if (r.bonus && r.cap && r.bonus >= Math.round(r.cap)) notes.push('потолок');
+    if (r.carryOut) notes.push('минус ' + money(r.carryOut) + ' уйдёт на следующий месяц');
+    return `<tr><td${notes.length ? ' style="border-bottom:0"' : ''}>${MON_N[+r.m.slice(5) - 1]}</td>
+      <td class="num ${r.res >= 0 ? 'ok' : 'bad'}"${notes.length ? ' style="border-bottom:0"' : ''}>${money(r.res)}</td><td class="num"${notes.length ? ' style="border-bottom:0"' : ''}><b>${money(r.bonus)}</b></td>
+      <td${notes.length ? ' style="border-bottom:0"' : ''}>${r.closed ? 'с ' + dRu(r.due) + '<div class="dim" style="font-size:12px">закрыт</div>' : 'с ' + dRu(r.due) + '<div class="dim" style="font-size:12px">предварительно</div>'}</td></tr>${notes.length ? `<tr><td colspan="4" class="dim" style="font-size:12px;padding-top:0">${notes.join(' · ')}</td></tr>` : ''}`; };
+  return `<div class="sec"><h2>Бонус Матвея</h2><span class="r dim">${pct(B.RATE)} % от результата месяца</span></div>
+    <div class="card"><div class="tw"><table class="t"><thead><tr><th>Месяц</th><th>Результат</th><th>К выплате</th><th>Дата выплаты</th></tr></thead>
+      <tbody>${B.rows.slice().reverse().map(tr).join('')}</tbody></table></div>
+      <div class="dim" style="font-size:12px;margin-top:8px">Бонус — ${pct(B.RATE)} % от результата месяца (маржа с заказов − товар и доставка − ФОТ), не больше ${pct(B.CAPK)} % ФОТ. Выплата через ${B.PAY} дней после конца месяца: в этот день месяц закрывается и его цифры больше не меняются.
+        Правила с ${dLong(M.rules)}: заказ по промокоду засчитывается ${M.win} дней после последней отправки или публикации; минус месяца переносится на следующий; в бонус идут только заказы, у которых отправка и промокод проверены Степаном. Заказы до ${dLong(M.rules)} посчитаны по прежним правилам.</div></div>`;
 }
 function rStats(){
   const P = CUR.period, st = stats(P);
   const pch = [['all','Всё время']].concat(M.months.slice().reverse().map(m => [m, MON_N[+m.slice(5) - 1]]));
   const pend = Object.entries(M.links).filter(([c, l]) => l.st === 'pending');
-  const pendRev = sum(M.orders.filter(o => o._pending && !o._pre && (P === 'all' || o.d.startsWith(P))), o => o.rev);
+  const pendRev = sum(M.orders.filter(o => o._pending && !o._pre && !o._late && (P === 'all' || o.d.startsWith(P))), o => o.rev);
   const bl = S.bl.filter(b => b._ships.length).map(b => {
     const sp = b._ships.filter(s => P === 'all' || (s._acc || '').startsWith(P));
     return {b, n:sp.length, posts:sum(sp, s => s._posts.length), views:sum(sp, s => s._views), cost:sum(sp, s => s._cost),
@@ -1659,6 +1736,7 @@ function rStats(){
       <div class="kpi"><div class="l">Медийная ценность</div><div class="v">${money(st.media)}</div><div class="d">столько стоил бы этот охват за деньги</div></div>
       <div class="kpi"><div class="l">Зависло в посылках</div><div class="v ${st.stuck.length ? 'bad' : ''}">${money(sum(st.stuck, s => s._cost))}</div><div class="d">${st.stuck.length} ${plural(st.stuck.length,'просрочка','просрочки','просрочек')} без публикации</div></div>
     </div>
+    ${bonusHtml()}
     <div class="cols" style="margin-top:4px">
       <div>
         <div class="sec"><h2>По месяцам</h2></div>
@@ -1683,7 +1761,10 @@ function rStats(){
             ${M.fotEarlier.length ? `Раньше стоят отправки с датой под вопросом (${M.fotEarlier.map(s => s.id + ' — ' + dRu(s.sent)).join(', ')}): если подтвердить их даты, учёт начнётся с ${monGen(M.fotEarlier[0].sent.slice(0,7))}. <a href="#today">Проверить даты</a>` : ''}</div></div>
           <div class="q"><span class="m">${pend.length ? '<span class="warn">?</span>' : '✓'}</span><div>${pend.length ? `${pend.map(x => x[0]).join(', ')} — промокоды ждут подтверждения, в итогах ${S.cfg.usePending ? 'учтены' : 'не учтены'} (${money(pendRev)}). <a href="#today">Подтвердить</a>` : 'Все промокоды подтверждены.'}</div></div>
           <div class="q"><span class="m">${st.ss.some(s => s._st === 'transit' || s._st === 'delivered' || s._st === 'agreed') ? '<span class="warn">…</span>' : '✓'}</span><div>${st.ss.filter(s => ['transit','delivered','agreed'].includes(s._st)).length} отправок ещё в работе: их публикации и продажи впереди. Месяц можно считать закрытым примерно через 45 дней после его конца.</div></div>
-          <div class="q"><span class="m">i</span><div>Продажи — заказы на сайте с персональным промокодом блогера после даты отправки. Заказы по UTM-ссылке (номер отправки в utm_term) добавятся, как только блогеры начнут давать новые ссылки.</div></div>
+          <div class="q"><span class="m">${st.late.length ? '<span class="warn">?</span>' : '✓'}</span><div>${M.win ? `Заказ по промокоду засчитывается, если с последней отправки или публикации блогера прошло не больше <b>${M.win} дней</b>: код живёт в поиске Google («bladnes промокод») и приносит заказы, к которым блогер уже не причастен. ${st.late.length ? `Вне окна — <b>${st.late.length} ${plural(st.late.length,'заказ','заказа','заказов')} на ${money(sum(st.late, o => o.rev))}</b> (маржа ${money(sum(st.late, o => o.margin))}), в итоги не входят: ${Object.entries(st.late.reduce((a, o) => (a[o.promo || 'ссылка'] = (a[o.promo || 'ссылка'] || 0) + 1, a), {})).sort((a, b) => b[1] - a[1]).map(([c, n]) => esc(c) + ' ' + n).join(', ')}.` : 'Заказов вне окна нет.'}` : 'Окно учёта выключено: заказы по промокоду засчитываются бессрочно после первой отправки.'} Окно действует на заказы с ${dLong(M.rules)}; более ранние посчитаны по прежним правилам. Срок меняет Степан в настройках.</div></div>
+          <div class="q"><span class="m">${st.unv.length ? '<span class="warn">?</span>' : '✓'}</span><div>${st.unv.length ? `<b>${st.unv.length} ${plural(st.unv.length,'заказ ждёт','заказа ждут','заказов ждут')} проверки Степана</b> (маржа ${money(st.unvMargin)}): отправка не из кабинета СДЭК или промокод ещё не отмечены «Верно». В итогах они есть, в бонус не входят.` : 'Все заказы периода, которые идут в бонус, проверены.'}</div></div>
+          <div class="q"><span class="m">${st.refd.length ? 'i' : '✓'}</span><div>Возвраты денег берутся из CloudPayments каждую ночь и учитываются по заказам с ${dLong(M.rules)}. ${st.refd.length ? `За период деньги вернули по <b>${st.refd.length} ${plural(st.refd.length,'заказу','заказам','заказам')} на ${money(st.refSum)}</b> — эта сумма из выручки уже вычтена, себестоимость вернувшихся вещей тоже, эквайринг остался расходом.` : 'За период таких возвратов нет.'} Возврат после закрытия месяца уменьшает бонус текущего месяца.${M.ret.length ? ` Вручную исключено ещё ${M.ret.length} на ${money(sum(M.ret, o => o.goods - o.disc))}.` : ''}</div></div>
+          <div class="q"><span class="m">i</span><div>Продажи — заказы на сайте с персональным промокодом блогера после даты отправки. Заказы по UTM-ссылке (номер отправки в utm_term) засчитываются без срока.</div></div>
         </div>
       </div>
     </div>`;
@@ -1785,6 +1866,9 @@ function rHow(){
     <h3>Доставка до блогера</h3>
     <ul>
       <li><b>Стоимость доставки входит в расходы отдела</b> — как и в таблице (колонка «Доставка, ₽»): по 28 отправкам это 22 150 ₽ при 60 361 ₽ товара.</li>
+      <li><b>Сборка 18, 26.11: новые правила расчёта и бонус.</b> С 26 ноября заказ по промокоду засчитывается 30 дней после последней отправки или публикации блогера (заказы раньше этой даты посчитаны по-старому). В «Итогах» — блок «Бонус Матвея»: 30 % от результата месяца, не больше ФОТ, выплата через 45 дней после конца месяца; в этот день месяц закрывается и больше не пересчитывается; минус месяца переносится на следующий. В бонус идут заказы, у которых отправка и промокод проверены Степаном. Когда срок кода вышел — задача «выключите код в Тильде». </li>
+      <li><b>Сборка 19, 26.11: возвраты из CloudPayments.</b> По заказам с 26 ноября: если покупателю вернули деньги, заказ уходит из выручки (при частичном возврате — на долю возврата), себестоимость вернувшейся вещи тоже, эквайринг остаётся расходом. Данные приходят из CloudPayments каждую ночь. Возврат после закрытия месяца уменьшает бонус текущего месяца.</li>
+      <li><b>Сборка 17, 19.11: окно учёта заказов — 30 дней.</b> Заказ по промокоду засчитывается блогеру, только если с его последней отправки или публикации прошло не больше 30 дней. Повод — BOOM: ролик 19.09, а заказы шли до ноября, потому что код находят в Google по запросу «bladnes промокод». Заказы вне окна видны в карточке блогера и в итогах отдельной строкой; новая публикация снова открывает окно.</li>
       <li><b>Сборка 16, 11.11: мягкий режим.</b> Пока у Матвея нет входа в кабинет бартера, строгая проверка выключена (настройки → «Строгая проверка кабинета СДЭК»): трек, стоимость доставки и дата вносятся руками, как раньше. Каждая такая отправка — у Степана в «Проверке». Включить строгий режим — один переключатель.</li>
       <li><b>Сборка 13, 10.11: все посылки — из кабинета СДЭК бартера.</b> СДЭК сам сообщает о каждой посылке кабинета, она появляется в задачах «СДЭК». Матвей обязан её разобрать: отправка, о которой договорились, новая отправка блогеру или «не бартер» с пояснением. Дата отправки, дата вручения и стоимость доставки таких отправок — только из СДЭК, руками их не поменять. Трек не из кабинета не принимается; отправки не СДЭКом вносит только Степан. Степан проверяет посылки «не бартер», отправки не из кабинета и промокоды с продажами: «Верно» или «Вопрос» — вопрос уходит Матвею задачей. На странице «Отправки» — сверка кабинета по месяцам с актом СДЭК.</li>
       <li><b>Правило: блогерам — только СДЭК, из кабинета бартера.</b> При отправке Матвей вставляет трек. Стоимость доставки, дату приёма посылки и дату вручения скрипт каждое утро берёт из СДЭК сам и ставит их вместо введённых вручную; каждое расхождение с ручным вводом пишется в журнал. Если СДЭК трек не нашёл, на «Сегодня» появится задача «нет стоимости доставки».</li>
@@ -1843,6 +1927,11 @@ function settings(){
   const sh = sheet({title:'Настройки', sub:'Меняет Степан, всё пишется в журнал', body:`
     <div class="fld"><label>Эталон CPM закупки рекламы, ₽</label><input class="in" id="c_cpm" inputmode="numeric" value="${c.cpm}"><div class="hint">С ним сравнивается CPM бартера и считается медийная ценность.</div></div>
     <div class="fld"><label>Срок на публикацию после получения, дней</label><input class="in" id="c_pub" inputmode="numeric" value="${c.pubDays}"></div>
+    <div class="fld"><label>Окно учёта заказов по промокоду, дней</label><input class="in" id="c_win" inputmode="numeric" value="${c.win == null ? 30 : c.win}"><div class="hint">Заказ по промокоду идёт в итоги, если с последней отправки или публикации блогера прошло не больше стольких дней. 0 — без срока. Заказы по ссылке из отправки — всегда.</div></div>
+    <div class="fld"><label>Новые правила расчёта — с какой даты</label><input type="date" class="in" id="c_rules" style="max-width:190px" value="${M.rules}">
+      <div class="hint">С этой даты действуют окно учёта, проверка Степана для бонуса и перенос минуса месяца. Заказы раньше неё считаются по-прежнему.</div></div>
+    <div class="fld"><label>Возвраты мимо CloudPayments — номера заказов</label><textarea class="in" id="c_ret" rows="3" placeholder="например 1498899052, 1363349391">${esc((c.returns || []).join(', '))}</textarea>
+      <div class="hint">Обычно заполнять не нужно: возвраты денег подтягиваются из CloudPayments сами. Сюда — только возврат, который прошёл мимо CloudPayments (наличными, переводом). Закрытые месяцы не пересчитываются.</div></div>
     <div class="fld"><label>Если дата получения неизвестна — дней в пути</label><input class="in" id="c_tr" inputmode="numeric" value="${c.transit}"></div>
     <div class="fld"><label>ФОТ отдела, ₽ в месяц</label><input class="in" id="c_fot" inputmode="numeric" value="${c.fotRate}">
       <div class="hint">Зарплата Матвея. Считается помесячно с месяца первой отправки, но не раньше отсчётной даты${M.fotFrom ? ` — сейчас с ${monGen(M.fotFrom)}` : ''}. Более ранние месяцы в итоги не входят.</div></div>
@@ -1867,9 +1956,12 @@ function settings(){
   $('#c_pend', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
   $('#c_strict', sh.b).onclick = e => e.currentTarget.classList.toggle('on');
   $('#svC', sh.f).onclick = () => {
-    const nx = {cpm: +$('#c_cpm', sh.b).value || 250, pubDays: +$('#c_pub', sh.b).value || 14, transit: +$('#c_tr', sh.b).value || 7,
+    const nx = {cpm: +$('#c_cpm', sh.b).value || 250, pubDays: +$('#c_pub', sh.b).value || 14, transit: +$('#c_tr', sh.b).value || 7, win: /^\s*\d+\s*$/.test($('#c_win', sh.b).value) ? Math.min(365, +$('#c_win', sh.b).value) : (c.win == null ? 30 : c.win),
       fotRate: +$('#c_fot', sh.b).value.replace(/[^\d]/g, '') || 0, usePending: $('#c_pend', sh.b).classList.contains('on'), cdekStrict: $('#c_strict', sh.b).classList.contains('on'), fot: Object.assign({}, c.fot),
-      start: /^\d{4}-\d{2}-\d{2}$/.test($('#c_start', sh.b).value) ? $('#c_start', sh.b).value : M.start};
+      start: /^\d{4}-\d{2}-\d{2}$/.test($('#c_start', sh.b).value) ? $('#c_start', sh.b).value : M.start,
+      rulesFrom: /^\d{4}-\d{2}-\d{2}$/.test($('#c_rules', sh.b).value) ? $('#c_rules', sh.b).value : M.rules,
+      returns: [...new Set($('#c_ret', sh.b).value.match(/\d{6,14}/g) || [])]};
+    if (c.rulesFrom == null) c.rulesFrom = '2026-11-26'; if (!Array.isArray(c.returns)) c.returns = [];
     $$('[data-fot]', sh.b).forEach(i => { const s = i.value.replace(/[^\d]/g, ''); if (s !== '') nx.fot[i.dataset.fot] = +s; else delete nx.fot[i.dataset.fot]; });
     Object.keys(nx).forEach(k => { if (JSON.stringify(nx[k]) !== JSON.stringify(c[k])) send({type:'cfg', k, v:nx[k]}, () => c[k] = nx[k]); });
     sh.close(); toast('Настройки сохранены');
@@ -1956,6 +2048,8 @@ const A = {
   codeMade:v => { const b = M.b[v], code = b.promo || suggestCode(b.h);
     send({type:'setPromo', b:v, code, made:true}, () => { b.promo = code; b.promoOk = true; });
     $$('#sheets [data-a="codeMade"][data-v="' + v + '"]').forEach(x => { x.textContent = '✓ Создан'; x.disabled = true; }); },
+  promoOff:v => { const b = M.b[v]; send({type:'promoOff', b:v, on:true}, () => { b.promoOff = TODAY; }); toast('Отмечено: код выключен'); },
+  promoOn:v => { const b = M.b[v]; send({type:'promoOff', b:v, on:false}, () => { b.promoOff = ''; }); toast('Отмечено: код включён'); },
   codeFix:v => { const b = M.b[v], code = suggestCode(b.h); send({type:'setPromo', b:v, code, made:false}, () => { b.promo = code; b.promoOk = false; }); },
   copyCodes:() => { const l = S.bl.filter(b => !b.stop && b._ships.length && !promoOf(b)).map(b => `${suggestCode(b.h)} — ${b.h}`).join('\n'); copyText(l, 'Список кодов скопирован'); },
   merge:v => { const [keep, drop] = v.split('|'); send({type:'merge', keep, drop}, () => { S.sh.forEach(s => { if (s.b === drop) s.b = keep; }); S.po.forEach(p => { if (p.b === drop) p.b = keep; }); S.bl = S.bl.filter(b => b.id !== drop); }); toast('Объединено'); },
