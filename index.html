@@ -117,7 +117,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.9</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.10</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -1596,6 +1596,8 @@ const PROD_TYPES = [
   {t:'бомбер',   syn:'бомбер bomber куртка jacket',             re:/бомбер|bomber/},   // находится и по «куртка»
   {t:'куртка',   syn:'куртка jacket',                           re:/куртк|jacket/},
   {t:'шарф',     syn:'шарф scarf',                              re:/шарф|scarf/},
+  // gun archive bag — артикул у неё бессмысленный (GFg2FhMzO4BRJlZ41n8u), тип только по названию (27.11.2026)
+  {t:'сумка',    syn:'сумка сумки bag bags',                    re:/сумк|\bbags?\b/},
   {t:'часы',     syn:'часы watch',                              re:/часы|watch/},
 ];
 // цвет: в названиях он по-русски, в артикулах и английских названиях — по-английски.
