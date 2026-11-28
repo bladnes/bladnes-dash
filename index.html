@@ -117,7 +117,7 @@ tr.ret-hi td{background:#21171a}
 <body>
 <div class="wrap">
   <h1>Bladnes — дашборд продаж</h1>
-  <div class="sub" id="meta"><span class="ver">сборка 14.10</span>
+  <div class="sub" id="meta"><span class="ver">сборка 14.11</span>
     Источник: архив заказов (заполняется вебхуком Тильды) · <span id="upd"></span></div>
 
   <div id="loading" class="msg">Загружаю данные из архива…</div>
@@ -403,6 +403,17 @@ const PROD_MERGE = {
   't-shirt unite':             't-shirt unite black',
   't-shirt captcha':           't-shirt captcha gray',
 };
+// Артикул в заказе, за которым стоит другой, настоящий (27.11.2026, сборка 14.11). Первые заказы
+// gun archive bag пришли с бессмысленным артикулом «GFg2FhMzO4BRJlZ41n8u» (так Тильда шлёт товар,
+// у которого в каталоге ещё нет своего артикула), следующие — уже с «gun archive bag».
+// Степан: это одно и то же. Подменяем сразу при разборе заказа — тогда себестоимость, блок
+// «Себестоимость не найдена» и детализация дня видят один артикул. Исходный остаётся в it.artRaw:
+// по нему сумка находится поиском и он виден в подсказке «Все написания артикула».
+// Слева — артикул из заказа (без размера, в нижнем регистре), справа — настоящий.
+// ⚠️ Не путать с PROD_MERGE (там склеиваются строки с разными артикулами в справочнике).
+const ART_ALIAS = {
+  'gfg2fhmzo4brjlz41n8u': 'gun archive bag',
+};
 const normKey = s => String(s).toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
 const SIZE_TAIL = /[\s\-–]+(xxxl|xxl|xl|xs|s|m|l)$/;
 function baseSku(s){          // «WideJeans TotalBlack-L» → «widejeans totalblack»
@@ -619,6 +630,8 @@ function onData(resp){
     // себестоимость по каждой позиции
     let cogs = 0, noCostQty = 0, noCostSum = 0;
     items.forEach(it => {
+      const real = it.art !== '—' && ART_ALIAS[baseSku(it.art)];
+      if (real){ it.artRaw = it.art; it.art = real; }
       const r = costOf(it.art, it.name);
       it.cost = r.cost; it.costHow = r.how;
       // ключ товара: артикул из справочника себестоимости. Он один и тот же для старого
@@ -1621,6 +1634,7 @@ function buildProdIndex(){
     const x = PROD_IDX.get(it.ckey);
     x.names.add(it.name); x.last = it.name;       // RAW уже по датам — останется самое свежее название
     if (it.art && it.art !== '—') x.arts.add(baseSku(it.art));
+    if (it.artRaw) x.arts.add(baseSku(it.artRaw));  // артикул до подмены (ART_ALIAS) — тоже ищется
   }));
   PROD_IDX.forEach(x => {
     const names = sNorm([...x.names].join(' | ')), arts = [...x.arts].join(' | ');
